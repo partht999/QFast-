@@ -127,22 +127,33 @@ export default function TablesManagementPage() {
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-6 space-y-6">
         {/* Entrance QR Banner */}
-        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-6 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-6 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-6">
           <div>
             <span className="text-xs uppercase tracking-wider font-semibold opacity-80">
               Entrance QR Code
             </span>
             <h2 className="text-xl font-black mt-1">Live Queue &amp; Walk-in Scan</h2>
             <p className="text-xs opacity-90 mt-1 font-mono break-all">{entranceUrl}</p>
+            <p className="text-sm mt-3 max-w-md">
+              Customers can scan this code to open your restaurant’s queue page and join the waitlist.
+            </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col items-center gap-3 bg-white rounded-2xl p-4 text-center shrink-0">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                entranceUrl,
+              )}`}
+              alt={`Entrance queue QR code for ${business?.name || 'your restaurant'}`}
+              className="w-44 h-44 rounded-lg"
+            />
+            <span className="text-xs font-bold text-gray-700">{business?.name}</span>
             <a
               href={entranceUrl}
               target="_blank"
               rel="noreferrer"
-              className="bg-white text-orange-600 hover:bg-orange-50 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+              className="bg-orange-500 text-white hover:bg-orange-600 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
             >
-              Test Entrance Scan 📱
+              Test Queue Page
             </a>
           </div>
         </div>

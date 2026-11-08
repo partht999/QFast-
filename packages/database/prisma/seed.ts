@@ -1,5 +1,4 @@
-import { PrismaClient, PlanTier, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { PrismaClient, PlanTier } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -91,25 +90,11 @@ async function main() {
     },
   });
 
-  // ── Super admin ────────────────────────────────────────────────────────────
-  const passwordHash = await bcrypt.hash('Admin@Qfast1!', 12);
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'admin@qfast.app' },
-    update: {},
-    create: {
-      email: 'admin@qfast.app',
-      passwordHash,
-      role: UserRole.SUPER_ADMIN,
-    },
-  });
-
   console.log('✅ Seed complete');
   console.log(`   Essential plan: ${essential.id}`);
   console.log(`   Advanced plan:  ${advanced.id}`);
-  console.log(`   Super admin:    ${superAdmin.email}`);
 }
 
 main()
   .catch((e) => { console.error(e); process.exit(1); })
   .finally(() => prisma.$disconnect());
-

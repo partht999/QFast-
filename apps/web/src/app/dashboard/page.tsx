@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [siteOrigin, setSiteOrigin] = useState('');
   const isFetching = useRef(false);
   const router = useRouter();
 
@@ -82,6 +83,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    setSiteOrigin(window.location.origin);
     void fetchDashboardData();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void fetchDashboardData();
@@ -178,14 +180,24 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-4 self-stretch sm:self-auto">
+                <div className="flex flex-col items-center gap-2 rounded-2xl bg-white p-3 text-center">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                      `${siteOrigin}/r/${selectedBusiness?.slug}/join`,
+                    )}`}
+                    alt={`Entrance queue QR code for ${selectedBusiness?.name || 'your restaurant'}`}
+                    className="h-32 w-32 rounded-lg bg-white sm:h-36 sm:w-36"
+                  />
+                  <span className="text-xs font-bold text-gray-800">Scan to join queue</span>
+                </div>
                 <a
                   href={`/r/${selectedBusiness?.slug}/join`}
                   target="_blank"
                   rel="noreferrer"
                   className="bg-white text-orange-600 hover:bg-orange-50 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
                 >
-                  Entrance QR Scan 📱
+                  Test Queue Page
                 </a>
               </div>
             </div>
