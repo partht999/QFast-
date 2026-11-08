@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { BusinessType, PlanTier, UserRole, SubscriptionStatus } from '@prisma/client';
@@ -8,6 +8,14 @@ export class BusinessService {
   constructor(private prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateBusinessDto) {
+    if (
+      dto.type &&
+      dto.type !== BusinessType.RESTAURANT &&
+      dto.type !== BusinessType.CAFE
+    ) {
+      throw new BadRequestException('This business category is not available yet. Choose Restaurant or Cafe.');
+    }
+
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
 

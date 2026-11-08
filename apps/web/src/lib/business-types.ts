@@ -11,3 +11,5 @@ export const BUSINESS_TYPES = [
 ] as const;
 
 export type BusinessTypeValue = (typeof BUSINESS_TYPES)[number]['value'];
+
+export const AVAILABLE_BUSINESS_TYPES: BusinessTypeValue[] = ['RESTAURANT', 'CAFE'];

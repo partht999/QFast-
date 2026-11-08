@@ -14,7 +14,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react';
-import { BUSINESS_TYPES } from '@/lib/business-types';
+import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES } from '@/lib/business-types';
 
 const industryIcons: Record<string, typeof Store> = {
   RESTAURANT: Store,
@@ -179,7 +179,7 @@ export default function HomePage() {
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {BUSINESS_TYPES.map((industry) => {
               const Icon = industryIcons[industry.value] || Store;
-              const availableNow = industry.value === 'RESTAURANT' || industry.value === 'CAFE';
+              const availableNow = AVAILABLE_BUSINESS_TYPES.includes(industry.value);
               return (
                 <article key={industry.value} className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:border-orange-200 hover:shadow-xl hover:shadow-slate-200/70">
                   <div className="flex items-start justify-between gap-3">
@@ -195,12 +195,18 @@ export default function HomePage() {
                   {industry.value === 'HOSPITAL' && (
                     <p className="mt-2 text-xs leading-5 text-amber-700">For appropriate non-emergency services only. Qfast does not manage triage.</p>
                   )}
-                  <Link
-                    href={`/auth/register?type=${industry.value}`}
-                    className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-orange-600 hover:text-orange-700"
-                  >
-                    Select this business <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-                  </Link>
+                  {availableNow ? (
+                    <Link
+                      href={`/auth/register?type=${industry.value}`}
+                      className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-orange-600 hover:text-orange-700"
+                    >
+                      Select this business <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                    </Link>
+                  ) : (
+                    <span className="mt-5 inline-block text-sm font-semibold text-slate-400">
+                      Coming soon
+                    </span>
+                  )}
                 </article>
               );
             })}

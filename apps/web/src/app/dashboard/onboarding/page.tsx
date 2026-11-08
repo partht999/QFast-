@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '@/lib/api';
-import { BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
+import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { getBusinessPublicPath } from '@/lib/business-links';
 
 export default function OnboardingPage() {
@@ -24,7 +24,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const savedType = localStorage.getItem('qfast_business_type');
-    if (BUSINESS_TYPES.some((item) => item.value === savedType)) {
+    if (AVAILABLE_BUSINESS_TYPES.includes(savedType as BusinessTypeValue)) {
       setBusinessType(savedType as BusinessTypeValue);
     }
   }, []);
@@ -102,14 +102,16 @@ export default function OnboardingPage() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
                 >
                   {BUSINESS_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
+                    <option
+                      key={type.value}
+                      value={type.value}
+                      disabled={!AVAILABLE_BUSINESS_TYPES.includes(type.value)}
+                    >
+                      {type.label}{AVAILABLE_BUSINESS_TYPES.includes(type.value) ? '' : ' — Coming soon'}
+                    </option>
                   ))}
                 </select>
-                {businessType === 'HOSPITAL' && (
-                  <p className="mt-1 text-xs text-amber-700">
-                    Qfast supports suitable non-emergency FIFO queues, not emergency triage.
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-gray-500">More business categories will be available as their workflows are ready.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
