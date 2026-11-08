@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '@/lib/api';
+import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 
 export default function TablesManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -13,6 +14,14 @@ export default function TablesManagementPage() {
   const [tableForm, setTableForm] = useState({ name: '', capacity: 4 });
   const [submitting, setSubmitting] = useState(false);
   const [selectedTableForQR, setSelectedTableForQR] = useState<any>(null);
+  const [printQR, setPrintQR] = useState<{
+    title: string;
+    url: string;
+    instruction: string;
+    image: string;
+    kind: 'entrance' | 'table';
+  } | null>(null);
+  const [qrError, setQrError] = useState('');
   const router = useRouter();
 
   const apiUrl = getApiUrl();
@@ -56,6 +65,48 @@ export default function TablesManagementPage() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (!printQR) return;
+
+    const printFrame = window.requestAnimationFrame(() => window.print());
+    const previousAfterPrint = window.onafterprint;
+    window.onafterprint = () => {
+      setPrintQR(null);
+      window.onafterprint = previousAfterPrint;
+    };
+
+    return () => {
+      window.cancelAnimationFrame(printFrame);
+      window.onafterprint = previousAfterPrint;
+    };
+  }, [printQR]);
+
+  const prepareQrAction = async (
+    title: string,
+    url: string,
+    instruction: string,
+    kind: 'entrance' | 'table',
+  ) => {
+    try {
+      setQrError('');
+      const image = await generateQrDataUrl(url);
+      setPrintQR({ title, url, instruction, image, kind });
+    } catch (err) {
+      console.error('Failed to generate QR code:', err);
+      setQrError('Could not generate the QR code. Please try again.');
+    }
+  };
+
+  const handleDownloadQr = async (url: string, filename: string) => {
+    try {
+      setQrError('');
+      await downloadQrCode(url, filename);
+    } catch (err) {
+      console.error('Failed to download QR code:', err);
+      setQrError('Could not download the QR code. Please try again.');
+    }
+  };
+
   const handleCreateTable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business || !tableForm.name.trim()) return;
@@ -97,7 +148,8 @@ export default function TablesManagementPage() {
   const entranceUrl = `${origin}/r/${business?.slug}/join`;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <>
+    <div className="min-h-screen bg-gray-50 flex flex-col qr-manager-screen">
       {/* Top Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
@@ -139,13 +191,7 @@ export default function TablesManagementPage() {
             </p>
           </div>
           <div className="flex flex-col items-center gap-3 bg-white rounded-2xl p-4 text-center shrink-0">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                entranceUrl,
-              )}`}
-              alt={`Entrance queue QR code for ${business?.name || 'your restaurant'}`}
-              className="w-44 h-44 rounded-lg"
-            />
+            <EntranceQrPreview url={entranceUrl} alt={`Entrance queue QR code for ${business?.name || 'your restaurant'}`} />
             <span className="text-xs font-bold text-gray-700">{business?.name}</span>
             <a
               href={entranceUrl}
@@ -155,6 +201,29 @@ export default function TablesManagementPage() {
             >
               Test Queue Page
             </a>
+            <button
+              type="button"
+              onClick={() => void prepareQrAction(
+                'Entrance Queue',
+                entranceUrl,
+                'Scan to join our queue',
+                'entrance',
+              )}
+              className="w-full bg-gray-900 text-white hover:bg-gray-800 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              Print Entrance QR
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDownloadQr(
+                entranceUrl,
+                `${business?.slug || 'restaurant'}-entrance-queue-qr.png`,
+              )}
+              className="w-full bg-orange-100 text-orange-800 hover:bg-orange-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              Download Entrance QR
+            </button>
+            {qrError && <p role="alert" className="max-w-48 text-xs font-medium text-red-700">{qrError}</p>}
           </div>
         </div>
 
@@ -325,13 +394,7 @@ export default function TablesManagementPage() {
 
             {/* QR Image preview via quick QR API */}
             <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col items-center justify-center">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                  selectedTableForQR.url,
-                )}`}
-                alt="Table QR"
-                className="w-48 h-48 rounded-xl shadow-sm"
-              />
+              <TableQrPreview url={selectedTableForQR.url} />
               <span className="text-xs font-bold text-gray-700 mt-3">{business?.name}</span>
               <span className="text-xs text-brand-600 font-extrabold">{selectedTableForQR.name}</span>
             </div>
@@ -346,9 +409,105 @@ export default function TablesManagementPage() {
             >
               Open Dine-in Ordering Page 📱
             </a>
+            <button
+              type="button"
+              onClick={() => void prepareQrAction(
+                selectedTableForQR.name,
+                selectedTableForQR.url,
+                'Scan to view the menu and order at your table',
+                'table',
+              )}
+              className="block w-full bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md"
+            >
+              Print Table QR
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDownloadQr(
+                selectedTableForQR.url,
+                `${business?.slug || 'restaurant'}-${selectedTableForQR.name
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')}-qr.png`,
+              )}
+              className="block w-full bg-orange-100 hover:bg-orange-200 text-orange-800 font-bold text-xs py-3 rounded-xl transition-all"
+            >
+              Download Table QR
+            </button>
+            {qrError && <p role="alert" className="text-xs font-medium text-red-700">{qrError}</p>}
           </div>
         </div>
       )}
+    </div>
+    {printQR && (
+      <section className="qr-print-sheet" aria-label="Printable QR code">
+        <div className="qr-print-card">
+          <div className="qr-sticker-top">
+            <span className="qr-print-brand">QFAST</span>
+            <span className="qr-sticker-type">
+              {printQR.kind === 'entrance' ? 'WELCOME' : 'SCAN & ORDER'}
+            </span>
+          </div>
+          <h1>{business?.name}</h1>
+          <h2>{printQR.title}</h2>
+          <img
+            className="qr-print-image"
+            src={printQR.image}
+            alt={`QR code for ${business?.name} ${printQR.title}`}
+          />
+          <p className="qr-print-instruction">{printQR.instruction}</p>
+          <span className="qr-sticker-hint">Point your camera at the code</span>
+          <p className="qr-print-url">{printQR.url}</p>
+        </div>
+      </section>
+    )}
+    </>
+  );
+}
+
+function EntranceQrPreview({ url, alt }: { url: string; alt: string }) {
+  const [dataUrl, setDataUrl] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    generateQrDataUrl(url)
+      .then((result) => {
+        if (!cancelled) setDataUrl(result);
+      })
+      .catch((err) => console.error('Failed to generate entrance QR preview:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return dataUrl ? (
+    <img src={dataUrl} alt={alt} className="w-44 h-44 rounded-lg" />
+  ) : (
+    <div className="w-44 h-44 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+      Generating QR…
+    </div>
+  );
+}
+
+function TableQrPreview({ url }: { url: string }) {
+  const [dataUrl, setDataUrl] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    generateQrDataUrl(url)
+      .then((result) => {
+        if (!cancelled) setDataUrl(result);
+      })
+      .catch((err) => console.error('Failed to generate table QR preview:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return dataUrl ? (
+    <img src={dataUrl} alt="Table QR" className="w-48 h-48 rounded-xl shadow-sm" />
+  ) : (
+    <div className="w-48 h-48 rounded-xl bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+      Generating QR…
     </div>
   );
 }

@@ -2,6 +2,156 @@
 @tailwind components;
 @tailwind utilities;
 
+.qr-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 85mm 110mm;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 85mm;
+    height: 110mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .qr-print-sheet,
+  .qr-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .qr-print-sheet {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 85mm;
+    height: 110mm;
+    padding: 5mm;
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .qr-print-card {
+    position: relative;
+    box-sizing: border-box;
+    width: 75mm;
+    height: 100mm;
+    padding: 6mm 5mm 5mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #111827;
+    font-family: Arial, sans-serif;
+    border: 0.6mm solid #fed7aa;
+    border-radius: 5mm;
+    background:
+      radial-gradient(circle at 50% 0, #fff7ed 0, #fff 42%);
+    overflow: hidden;
+  }
+
+  .qr-sticker-top {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4mm;
+  }
+
+  .qr-print-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18mm;
+    height: 8mm;
+    margin: 0;
+    border-radius: 999px;
+    background: #f97316;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 900;
+    letter-spacing: 0.7pt;
+  }
+
+  .qr-sticker-type {
+    color: #c2410c;
+    font-size: 7pt;
+    font-weight: 800;
+    letter-spacing: 1.1pt;
+  }
+
+  .qr-print-brand {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .qr-print-card h1 {
+    max-width: 100%;
+    margin: 0;
+    font-size: 15pt;
+    font-weight: 800;
+    line-height: 1.15;
+  }
+
+  .qr-print-card h2 {
+    margin: 2mm 0 3mm;
+    color: #ea580c;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .qr-print-image {
+    box-sizing: border-box;
+    width: 53mm;
+    height: 53mm;
+    padding: 2mm;
+    object-fit: contain;
+    border: 0.4mm solid #e5e7eb;
+    border-radius: 3mm;
+    background: white;
+  }
+
+  .qr-print-instruction {
+    max-width: 62mm;
+    margin: 4mm 0 1.5mm;
+    font-size: 10pt;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .qr-sticker-hint {
+    color: #6b7280;
+    font-size: 7pt;
+  }
+
+  .qr-print-url {
+    width: 100%;
+    margin: auto 0 0;
+    padding-top: 2mm;
+    overflow-wrap: anywhere;
+    color: #4b5563;
+    font-size: 6pt;
+    border-top: 0.3mm solid #e5e7eb;
+  }
+
+  * {
+    box-shadow: none !important;
+  }
+}
+
 :root {
   --foreground-rgb: 17, 24, 39;
   --background-rgb: 255, 255, 255;

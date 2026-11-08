@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -15,6 +16,9 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [siteOrigin, setSiteOrigin] = useState('');
+  const [entranceQrDataUrl, setEntranceQrDataUrl] = useState('');
+  const [qrDownloading, setQrDownloading] = useState(false);
+  const [qrError, setQrError] = useState('');
   const isFetching = useRef(false);
   const router = useRouter();
 
@@ -90,6 +94,46 @@ export default function DashboardPage() {
     }, 15000);
     return () => window.clearInterval(interval);
   }, []);
+
+  const entranceUrl = selectedBusiness && siteOrigin
+    ? `${siteOrigin}/r/${selectedBusiness.slug}/join`
+    : '';
+
+  useEffect(() => {
+    let cancelled = false;
+    setEntranceQrDataUrl('');
+    if (!entranceUrl) return;
+
+    generateQrDataUrl(entranceUrl)
+      .then((dataUrl) => {
+        if (!cancelled) setEntranceQrDataUrl(dataUrl);
+      })
+      .catch((err) => {
+        console.error('Failed to generate entrance QR code:', err);
+        if (!cancelled) setQrError('Could not generate the entrance QR code. Please refresh and try again.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entranceUrl]);
+
+  const handleDownloadEntranceQr = async () => {
+    if (!entranceUrl || qrDownloading) return;
+    setQrDownloading(true);
+    setQrError('');
+    try {
+      await downloadQrCode(
+        entranceUrl,
+        `${selectedBusiness?.slug || 'restaurant'}-entrance-queue-qr.png`,
+      );
+    } catch (err) {
+      console.error('Failed to download entrance QR code:', err);
+      setQrError('Could not download the entrance QR code. Please try again.');
+    } finally {
+      setQrDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -182,14 +226,28 @@ export default function DashboardPage() {
 
               <div className="flex items-center gap-4 self-stretch sm:self-auto">
                 <div className="flex flex-col items-center gap-2 rounded-2xl bg-white p-3 text-center">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                      `${siteOrigin}/r/${selectedBusiness?.slug}/join`,
-                    )}`}
-                    alt={`Entrance queue QR code for ${selectedBusiness?.name || 'your restaurant'}`}
-                    className="h-32 w-32 rounded-lg bg-white sm:h-36 sm:w-36"
-                  />
+                  {entranceQrDataUrl ? (
+                    <img
+                      src={entranceQrDataUrl}
+                      alt={`Entrance queue QR code for ${selectedBusiness?.name || 'your restaurant'}`}
+                      className="h-32 w-32 rounded-lg bg-white sm:h-36 sm:w-36"
+                    />
+                  ) : (
+                    <div className="flex h-32 w-32 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 sm:h-36 sm:w-36">
+                      Generating QR…
+                    </div>
+                  )}
                   <span className="text-xs font-bold text-gray-800">Scan to join queue</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadEntranceQr()}
+                    disabled={!entranceQrDataUrl || qrDownloading}
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 text-xs font-bold text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Download size={14} />
+                    {qrDownloading ? 'Preparing…' : 'Download QR'}
+                  </button>
+                  {qrError && <p role="alert" className="max-w-40 text-[11px] font-medium text-red-700">{qrError}</p>}
                 </div>
                 <a
                   href={`/r/${selectedBusiness?.slug}/join`}
