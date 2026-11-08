@@ -1,0 +1,29 @@
+{
+  "name": "@qfast/database",
+  "version": "0.0.1",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "build": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.14.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "bcryptjs": "^2.4.3",
+    "@types/bcryptjs": "^2.4.6"
+  },
+  "exports": {
+    ".": {
+      "require": "./node_modules/.prisma/client/index.js",
+      "import": "./node_modules/.prisma/client/index.js"
+    }
+  }
+}
+
