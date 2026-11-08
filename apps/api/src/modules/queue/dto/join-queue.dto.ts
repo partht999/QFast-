@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { QueueEntrySource } from '@prisma/client';
 
 export class JoinQueueDto {
   @ApiProperty({ example: 'Rahul Sharma' })
@@ -21,5 +22,9 @@ export class JoinQueueDto {
   @IsString()
   @IsOptional()
   notes?: string;
-}
 
+  @ApiProperty({ enum: QueueEntrySource, required: false, default: QueueEntrySource.REMOTE })
+  @IsEnum(QueueEntrySource)
+  @IsOptional()
+  source?: QueueEntrySource;
+}

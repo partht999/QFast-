@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
+import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import {
   Users,
   Phone,
@@ -20,6 +21,9 @@ import {
   Armchair,
   X,
   StickyNote,
+  Copy,
+  MapPin,
+  Save,
 } from 'lucide-react';
 
 export default function DashboardQueuePage() {
@@ -35,6 +39,11 @@ export default function DashboardQueuePage() {
     notes: '',
   });
   const [addingToken, setAddingToken] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({ averageWaitMinutes: 8, arrivalGraceMinutes: 10 });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsDirty, setSettingsDirty] = useState(false);
   const router = useRouter();
 
   const apiUrl = getApiUrl();
@@ -65,6 +74,12 @@ export default function DashboardQueuePage() {
         if (qRes.ok) {
           const qData = await qRes.json();
           setQueue(qData.queue);
+          if (qData.queue && !settingsDirty) {
+            setSettingsForm({
+              averageWaitMinutes: qData.queue.averageWaitMinutes || 8,
+              arrivalGraceMinutes: qData.queue.arrivalGraceMinutes || 10,
+            });
+          }
           setTokens(qData.tokens || []);
         }
       }
@@ -81,16 +96,95 @@ export default function DashboardQueuePage() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleUpdateStatus = async (tokenId: string, action: 'call' | 'seat' | 'skip' | 'cancel') => {
+  const handleArrive = async (tokenId: string) => {
+    const authToken = localStorage.getItem('accessToken');
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/arrive`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.message || 'Could not check in guest');
+      }
+      setActionError('');
+      await fetchData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not check in guest');
+    }
+  };
+
+  const handleToggleRemote = async () => {
+    if (!queue) return;
+    const authToken = localStorage.getItem('accessToken');
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/queue/${queue.id}/remote-toggle`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) throw new Error('Could not update remote joining');
+      setActionError('');
+      await fetchData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not update remote joining');
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!queue) return;
+    setSavingSettings(true);
+    const authToken = localStorage.getItem('accessToken');
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/queue/${queue.id}/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(settingsForm),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.message || 'Could not save queue settings');
+      }
+      setActionError('');
+      setSettingsDirty(false);
+      await fetchData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not save queue settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${getBusinessPublicPath(business?.slug, business?.type)}`,
+      );
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setActionError('Could not copy the queue link. Copy it from the address bar instead.');
+    }
+  };
+
+  const handleUpdateStatus = async (tokenId: string, action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel') => {
     const token = localStorage.getItem('accessToken');
     try {
-      await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/${action}`, {
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/${action}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchData();
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.message || 'Could not update queue entry');
+      }
+      setActionError('');
+      await fetchData();
     } catch (err) {
-      console.error(err);
+      setActionError(err instanceof Error ? err.message : 'Could not update queue entry');
     }
   };
 
@@ -114,17 +208,29 @@ export default function DashboardQueuePage() {
     setAddingToken(true);
 
     try {
-      await fetch(`${apiUrl}/api/v1/queue/public/${business.slug}/join`, {
+      const authToken = localStorage.getItem('accessToken');
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/${business.id}/walk-in`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addForm),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          ...addForm,
+          partySize: isFoodBusiness(business.type) ? addForm.partySize : 1,
+        }),
       });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.message || 'Could not add walk-in guest');
+      }
 
       setShowAddModal(false);
       setAddForm({ customerName: '', customerPhone: '', partySize: 2, notes: '' });
+      setActionError('');
       fetchData();
     } catch (err) {
-      console.error(err);
+      setActionError(err instanceof Error ? err.message : 'Could not add walk-in guest');
     } finally {
       setAddingToken(false);
     }
@@ -139,7 +245,9 @@ export default function DashboardQueuePage() {
   }
 
   const waitingTokens = tokens.filter((t) => t.status === 'WAITING' || t.status === 'CALLED');
-  const seatedTokens = tokens.filter((t) => t.status === 'SEATED');
+  const foodBusiness = isFoodBusiness(business?.type);
+  const servedTokens = tokens.filter((t) => t.status === (foodBusiness ? 'SEATED' : 'COMPLETED'));
+  const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
 
   return (
     <section className="space-y-6">
@@ -156,7 +264,7 @@ export default function DashboardQueuePage() {
           className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
         >
           <UserPlus className="w-4 h-4" />
-          Add Walk-in Guest
+          Add Walk-in Customer
         </button>
       </div>
 
@@ -166,15 +274,23 @@ export default function DashboardQueuePage() {
           <h2 className="text-lg font-bold text-gray-900">{business?.name} — Live Queue</h2>
           <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
             <ExternalLink className="w-3 h-3" />
-            Entrance QR:{' '}
+            Remote queue link:{' '}
             <a
-              href={`/r/${business?.slug}/join`}
+              href={getBusinessPublicPath(business?.slug, business?.type)}
               target="_blank"
               rel="noreferrer"
               className="text-orange-600 hover:text-orange-700 hover:underline font-mono transition-colors"
             >
-              /r/{business?.slug}/join
+              {getBusinessPublicPath(business?.slug, business?.type)}
             </a>
+            <button
+              type="button"
+              onClick={() => void handleCopyLink()}
+              className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 font-semibold text-orange-700 hover:bg-orange-100"
+            >
+              <Copy className="h-3 w-3" />
+              {linkCopied ? 'Copied' : 'Copy remote link'}
+            </button>
           </p>
         </div>
 
@@ -190,7 +306,81 @@ export default function DashboardQueuePage() {
           {queue?.isOpen ? 'Queue is Open' : 'Queue is Closed'}
           <span className="text-xs opacity-60 ml-1">(Click to toggle)</span>
         </button>
+        <button
+          type="button"
+          onClick={() => void handleToggleRemote()}
+          disabled={!queue}
+          className={`inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all disabled:opacity-50 ${
+            queue?.remoteJoinEnabled
+              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+              : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${queue?.remoteJoinEnabled ? 'bg-blue-500' : 'bg-gray-400'}`} />
+          Remote joining {queue?.remoteJoinEnabled ? 'On' : 'Off'}
+        </button>
       </div>
+      {actionError && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSaveSettings}
+        className="flex flex-col gap-4 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-end"
+      >
+        <div className="flex-1">
+          <label htmlFor="average-wait" className="mb-1 block text-xs font-semibold text-gray-600">
+            Estimated minutes per party
+          </label>
+          <input
+            id="average-wait"
+            type="number"
+            min="1"
+            max="60"
+            required
+            value={settingsForm.averageWaitMinutes}
+            onChange={(e) => {
+              setSettingsDirty(true);
+              setSettingsForm((current) => ({
+                ...current,
+                averageWaitMinutes: Number(e.target.value),
+              }));
+            }}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="flex-1">
+          <label htmlFor="arrival-grace" className="mb-1 block text-xs font-semibold text-gray-600">
+            Arrival grace period after call (minutes)
+          </label>
+          <input
+            id="arrival-grace"
+            type="number"
+            min="1"
+            max="60"
+            required
+            value={settingsForm.arrivalGraceMinutes}
+            onChange={(e) => {
+              setSettingsDirty(true);
+              setSettingsForm((current) => ({
+                ...current,
+                arrivalGraceMinutes: Number(e.target.value),
+              }));
+            }}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={savingSettings || !queue}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          <Save className="h-4 w-4" />
+          {savingSettings ? 'Saving…' : 'Save settings'}
+        </button>
+      </form>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -199,9 +389,9 @@ export default function DashboardQueuePage() {
             <Users className="w-5 h-5 text-orange-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">Waiting Guests</span>
+            <span className="text-xs font-medium text-gray-500">Customers Waiting</span>
             <div className="text-2xl font-bold text-gray-900 mt-0.5">{waitingTokens.length}</div>
-            <span className="text-xs text-gray-400">parties in queue</span>
+            <span className="text-xs text-gray-400">{foodBusiness ? 'parties in queue' : 'entries in queue'}</span>
           </div>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
@@ -209,9 +399,9 @@ export default function DashboardQueuePage() {
             <Check className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">Seated Today</span>
-            <div className="text-2xl font-bold text-gray-900 mt-0.5">{seatedTokens.length}</div>
-            <span className="text-xs text-gray-400">successfully seated</span>
+            <span className="text-xs font-medium text-gray-500">{foodBusiness ? 'Seated Today' : 'Served Today'}</span>
+            <div className="text-2xl font-bold text-gray-900 mt-0.5">{servedTokens.length}</div>
+            <span className="text-xs text-gray-400">{foodBusiness ? 'successfully seated' : 'visits completed'}</span>
           </div>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
@@ -219,9 +409,9 @@ export default function DashboardQueuePage() {
             <Clock className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">Est. Wait per Party</span>
-            <div className="text-2xl font-bold text-gray-900 mt-0.5">~8 min</div>
-            <span className="text-xs text-gray-400">average turnover</span>
+            <span className="text-xs font-medium text-gray-500">Estimated Queue Wait</span>
+            <div className="text-2xl font-bold text-gray-900 mt-0.5">~{estimatedQueueWait} min</div>
+            <span className="text-xs text-gray-400">approx. {queue?.averageWaitMinutes || 8} min per {foodBusiness ? 'party' : 'customer'}</span>
           </div>
         </div>
       </div>
@@ -243,9 +433,9 @@ export default function DashboardQueuePage() {
             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <PartyPopper className="w-7 h-7 text-gray-400" />
             </div>
-            <p className="font-semibold text-gray-700">No guests currently waiting</p>
+            <p className="font-semibold text-gray-700">No customers currently waiting</p>
             <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
-              New scans at the entrance QR will appear here in real time.
+              New walk-ins and remote customers will appear here.
             </p>
           </div>
         ) : (
@@ -264,14 +454,31 @@ export default function DashboardQueuePage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-semibold text-sm text-gray-900">{token.customerName}</h4>
-                      <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 font-medium px-2 py-0.5 rounded-full">
+                      {foodBusiness && <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 font-medium px-2 py-0.5 rounded-full">
                         <Users className="w-3 h-3" />
                         {token.partySize}
-                      </span>
+                      </span>}
                       {token.status === 'CALLED' && (
                         <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full animate-pulse">
                           <Bell className="w-3 h-3" />
                           CALLED
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        token.source === 'REMOTE'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {token.source === 'REMOTE' ? 'Remote' : 'Walk-in'}
+                      </span>
+                      {token.source === 'REMOTE' && token.onTheWayAt && !token.arrivedAt && (
+                        <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-800">
+                          On the way
+                        </span>
+                      )}
+                      {token.arrivedAt && (
+                        <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800">
+                          Arrived
                         </span>
                       )}
                     </div>
@@ -281,6 +488,12 @@ export default function DashboardQueuePage() {
                         {token.customerPhone}
                       </span>
                       <span>Position #{idx + 1}</span>
+                      <span>Est. ~{token.estimatedWaitMin ?? idx * (queue?.averageWaitMinutes || 8)} min</span>
+                      {token.status === 'CALLED' && token.arrivalDeadlineAt && !token.arrivedAt && (
+                        <span className="font-semibold text-amber-700">
+                          Arrive by {new Date(token.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                       {token.notes && (
                         <span className="inline-flex items-center gap-1 text-gray-500">
                           <StickyNote className="w-3 h-3" />
@@ -295,18 +508,28 @@ export default function DashboardQueuePage() {
                 <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
                   <button
                     onClick={() => handleUpdateStatus(token.id, 'call')}
+                    disabled={idx !== 0 || token.status !== 'WAITING'}
                     className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
                   >
                     <Bell className="w-3.5 h-3.5" />
                     Call
                   </button>
-                  <button
-                    onClick={() => handleUpdateStatus(token.id, 'seat')}
+                  {token.source === 'REMOTE' && token.status === 'CALLED' && !token.arrivedAt && (
+                    <button
+                      onClick={() => handleArrive(token.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                      Mark arrived
+                    </button>
+                  )}
+                  {token.status === 'CALLED' && <button
+                    onClick={() => handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete')}
                     className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
                   >
-                    <Armchair className="w-3.5 h-3.5" />
-                    Seat Guest
-                  </button>
+                    {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
+                    {foodBusiness ? 'Seat Customer' : 'Complete Service'}
+                  </button>}
                   <button
                     onClick={() => handleUpdateStatus(token.id, 'skip')}
                     className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs px-2.5 py-2 rounded-lg transition-all"
@@ -338,7 +561,7 @@ export default function DashboardQueuePage() {
                   <UserPlus className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-gray-900">Add Walk-in Guest</h3>
+                  <h3 className="font-bold text-base text-gray-900">Add Walk-in Customer</h3>
                   <p className="text-xs text-gray-400">Generate a queue token manually</p>
                 </div>
               </div>
@@ -352,7 +575,7 @@ export default function DashboardQueuePage() {
 
             <form onSubmit={handleAddWalkin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Guest Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Customer Name</label>
                 <input
                   type="text"
                   required
@@ -375,7 +598,7 @@ export default function DashboardQueuePage() {
                 />
               </div>
 
-              <div>
+              {foodBusiness && <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Party Size</label>
                 <input
                   type="number"
@@ -386,7 +609,7 @@ export default function DashboardQueuePage() {
                   onChange={(e) => setAddForm({ ...addForm, partySize: Number(e.target.value) })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow"
                 />
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes (Optional)</label>

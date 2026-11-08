@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Flame,
   Leaf,
+  Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 
@@ -226,6 +227,14 @@ export default function TableOrderPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href={`/r/${slug}/loyalty`}
+              aria-label="View loyalty points and rewards"
+              title="Points and rewards"
+              className="rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-800 hover:bg-amber-100"
+            >
+              <Gift className="h-4 w-4" />
+            </Link>
             <button
               onClick={() => setVegOnly(!vegOnly)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${vegOnly

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
-import { PlanTier, UserRole, SubscriptionStatus } from '@prisma/client';
+import { BusinessType, PlanTier, UserRole, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class BusinessService {
@@ -24,6 +24,7 @@ export class BusinessService {
       data: {
         name: dto.name,
         slug: dto.slug,
+        type: dto.type || BusinessType.RESTAURANT,
         phone: dto.phone,
         email: dto.email,
         address: dto.address,
@@ -55,17 +56,31 @@ export class BusinessService {
             name: 'General Queue',
           },
         },
-        menus: {
-          create: {
-            name: 'Main Menu',
-            isDefault: true,
-          },
-        },
+        ...(dto.type === BusinessType.RESTAURANT ||
+        dto.type === BusinessType.CAFE ||
+        !dto.type
+          ? {
+              menus: {
+                create: {
+                  name: 'Main Menu',
+                  isDefault: true,
+                },
+              },
+            }
+          : {}),
         qrCodes: {
           create: {
             type: 'ENTRANCE',
             slug: `${dto.slug}-entrance`,
-            targetUrl: `/r/${dto.slug}/join`,
+            targetUrl: `${
+              dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE
+                ? '/r'
+                : dto.type === BusinessType.CLINIC ||
+                    dto.type === BusinessType.HOSPITAL ||
+                    dto.type === BusinessType.DIAGNOSTIC_CENTRE
+                  ? '/c'
+                  : '/b'
+            }/${dto.slug}`,
           },
         },
       },

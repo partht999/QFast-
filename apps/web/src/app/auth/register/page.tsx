@@ -1,15 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
+import { BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', confirm: '' });
+  const [businessType, setBusinessType] = useState<BusinessTypeValue>('RESTAURANT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const requestedType = new URLSearchParams(window.location.search).get('type');
+    if (BUSINESS_TYPES.some((item) => item.value === requestedType)) {
+      setBusinessType(requestedType as BusinessTypeValue);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +48,7 @@ export default function RegisterPage() {
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('qfast_business_type', businessType);
       router.push('/dashboard/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -55,10 +65,30 @@ export default function RegisterPage() {
             ⚡ Qfast
           </Link>
           <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
-          <p className="text-gray-500 text-sm mt-1">Get full access with a 14-day free trial</p>
+          <p className="text-gray-500 text-sm mt-1">Create your Qfast account and set up your organization</p>
         </div>
 
         <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-4">
+          <div>
+            <label htmlFor="business-type" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
+              What kind of business do you run?
+            </label>
+            <select
+              id="business-type"
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as BusinessTypeValue)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all"
+            >
+              {BUSINESS_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+            {businessType === 'HOSPITAL' && (
+              <p className="mt-1 text-xs text-amber-700">
+                Qfast is for suitable non-emergency FIFO queues, not emergency triage.
+              </p>
+            )}
+          </div>
           <div>
             <label htmlFor="register-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
               Email address
@@ -73,7 +103,7 @@ export default function RegisterPage() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all"
-              placeholder="owner@yourrestaurant.com"
+              placeholder="you@yourbusiness.com"
             />
           </div>
 

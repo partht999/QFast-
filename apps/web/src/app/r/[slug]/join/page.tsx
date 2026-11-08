@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -17,8 +17,10 @@ import {
   QrCode,
   UtensilsCrossed,
   UserRound,
+  Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 
 export default function JoinQueuePage() {
   const params = useParams();
@@ -36,8 +38,14 @@ export default function JoinQueuePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [joinSource, setJoinSource] = useState<'REMOTE' | 'WALK_IN'>('REMOTE');
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
+  const lastNotifiedToken = useRef<string | null>(null);
+  const lastBrowserAlertToken = useRef<string | null>(null);
 
   const apiUrl = getApiUrl();
+  const publicPath = getBusinessPublicPath(slug, queueStatus?.businessType);
+  const foodBusiness = isFoodBusiness(queueStatus?.businessType);
 
   const fetchStatus = async () => {
     try {
@@ -51,6 +59,31 @@ export default function JoinQueuePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGuestConfirmation = async () => {
+    if (!activeToken) return;
+    setError('');
+    try {
+      const response = await fetch(
+        `${apiUrl}/api/v1/queue/public/token/${activeToken.id}/on-the-way`,
+        { method: 'POST' },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Could not update your arrival status');
+      setActiveToken((current: any) => ({ ...current, ...data }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update your arrival status');
+    }
+  };
+
+  const enableBrowserAlerts = async () => {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
   };
 
   const checkExistingToken = async () => {
@@ -76,6 +109,14 @@ export default function JoinQueuePage() {
   };
 
   useEffect(() => {
+    const source = new URLSearchParams(window.location.search).get('source');
+    setJoinSource(source === 'walkin' ? 'WALK_IN' : 'REMOTE');
+    setNotificationPermission(
+      'Notification' in window ? Notification.permission : 'unsupported',
+    );
+  }, []);
+
+  useEffect(() => {
     fetchStatus();
     checkExistingToken();
     const interval = setInterval(() => {
@@ -85,14 +126,39 @@ export default function JoinQueuePage() {
           .then((r) => r.json())
           .then((data) => {
             if (data.id) {
-              if (data.status === 'CALLED' && activeToken.status !== 'CALLED') {
+              if (data.status === 'CALLED' && lastNotifiedToken.current !== data.id) {
                 if (typeof window !== 'undefined' && 'vibrate' in navigator) {
                   navigator.vibrate([400, 200, 400]);
                 }
                 setShowConfetti(true);
                 setTimeout(() => setShowConfetti(false), 3000);
+                lastNotifiedToken.current = data.id;
               }
-              setActiveToken(data);
+              if (
+                data.status === 'CALLED' &&
+                'Notification' in window &&
+                Notification.permission === 'granted' &&
+                lastBrowserAlertToken.current !== data.id
+              ) {
+                new Notification(`${data.business?.name || 'Business'}: your turn is ready`, {
+                  body: `Please arrive by ${
+                    data.arrivalDeadlineAt
+                      ? new Date(data.arrivalDeadlineAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'now'
+                  }.`,
+                });
+                lastBrowserAlertToken.current = data.id;
+              }
+              if (data.status === 'NO_SHOW') {
+                localStorage.removeItem(`qfast_token_${slug}`);
+                setActiveToken(null);
+                setError('Your arrival window expired and your place in the queue was released.');
+              } else {
+                setActiveToken(data);
+              }
             }
           })
           .catch(console.error);
@@ -110,7 +176,7 @@ export default function JoinQueuePage() {
       const res = await fetch(`${apiUrl}/api/v1/queue/public/${slug}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, source: joinSource }),
       });
 
       const data = await res.json();
@@ -118,6 +184,7 @@ export default function JoinQueuePage() {
 
       setActiveToken(data);
       localStorage.setItem(`qfast_token_${slug}`, data.id);
+      setError('');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -199,27 +266,37 @@ export default function JoinQueuePage() {
             <span className="text-[10px] text-neutral-400 font-medium block -mt-0.5">Live Queue</span>
           </div>
         </div>
-        <Link
-          href={`/r/${slug}/table/1`}
-          className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200/60 px-4 py-2 rounded-full transition-all duration-200 flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <UtensilsCrossed className="w-3.5 h-3.5" />
-          <span>View Menu</span>
-        </Link>
+        <nav className="flex items-center gap-2">
+          <Link
+            href={`${publicPath}/loyalty`}
+            className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
+          >
+            <Gift className="w-3.5 h-3.5" />
+            <span>Rewards</span>
+          </Link>
+          {foodBusiness && (
+            <Link
+              href={`/r/${slug}/table/1`}
+              className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
+            >
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              <span>Menu</span>
+            </Link>
+          )}
+        </nav>
       </header>
 
       {/* Main Container */}
       <main className="max-w-md w-full mx-auto p-5 my-auto">
-        {/* Restaurant Header */}
         <div className="text-center mb-7">
           <div className="inline-flex items-center gap-1.5 bg-orange-100/80 text-orange-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 border border-orange-200/60">
             <QrCode className="w-3.5 h-3.5 text-orange-600" />
-            <span>Entrance QR Scan</span>
+            <span>Join the queue</span>
           </div>
           <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
-            {queueStatus?.businessName || 'Restaurant Queue'}
+            {queueStatus?.businessName || 'Customer Queue'}
           </h1>
-          <p className="text-xs text-neutral-400 mt-1.5">Smart contactless waitlist • Real-time SMS &amp; Web alerts</p>
+          <p className="text-xs text-neutral-400 mt-1.5">Live queue updates • Optional browser alerts while this page is open</p>
         </div>
 
         {activeToken ? (
@@ -233,9 +310,11 @@ export default function JoinQueuePage() {
                 <div className="relative bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-400 text-amber-950 rounded-2xl p-5 animate-pulse-glow">
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full animate-ping" />
                   <Bell className="w-10 h-10 text-amber-600 mx-auto mb-2" />
-                  <p className="font-black text-base uppercase tracking-wide">Your Table is Ready!</p>
+                  <p className="font-black text-base uppercase tracking-wide">
+                    {foodBusiness ? 'Your Table is Ready!' : 'It’s Your Turn!'}
+                  </p>
                   <p className="text-xs mt-1 font-medium text-amber-800">
-                    Please proceed to the entrance host desk now.
+                    Please proceed to the service desk.
                   </p>
                 </div>
               ) : (
@@ -245,6 +324,44 @@ export default function JoinQueuePage() {
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500" />
                   </span>
                   <span>Live in Waitlist</span>
+                </div>
+              )}
+
+              {activeToken.status === 'CALLED' && activeToken.source === 'REMOTE' && !activeToken.arrivedAt && (
+                <div className="relative z-10 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
+                  <p className="text-sm font-bold text-amber-900">
+                    Please arrive by {activeToken.arrivalDeadlineAt
+                      ? new Date(activeToken.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : 'now'}.
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Confirm you’re on the way. When you arrive, ask staff to check you in. Your place may be released if the arrival window passes.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    {!activeToken.onTheWayAt && (
+                      <button
+                        type="button"
+                        onClick={() => void handleGuestConfirmation()}
+                        className="flex-1 rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold text-white hover:bg-amber-700"
+                      >
+                        I’m on my way
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {notificationPermission === 'default' && (
+                <button
+                  type="button"
+                  onClick={() => void enableBrowserAlerts()}
+                  className="relative z-10 w-full rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-100"
+                >
+                  Enable browser alerts on this device
+                </button>
+              )}
+              {error && (
+                <div role="alert" className="relative z-10 rounded-xl border border-red-200 bg-red-50 p-3 text-left text-xs text-red-700">
+                  {error}
                 </div>
               )}
 
@@ -303,14 +420,16 @@ export default function JoinQueuePage() {
               </div>
 
               <div className="relative z-10 pt-2 flex flex-col gap-2.5">
-                <Link
-                  href={`/r/${slug}/table/1`}
-                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
-                >
-                  <UtensilsCrossed className="w-4 h-4" />
-                  <span>Browse Menu &amp; Preorder</span>
-                  <ChevronRight className="w-4 h-4 -ml-0.5" />
-                </Link>
+                {foodBusiness && (
+                  <Link
+                    href={`/r/${slug}/table/1`}
+                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <UtensilsCrossed className="w-4 h-4" />
+                    <span>Browse Menu &amp; Preorder</span>
+                    <ChevronRight className="w-4 h-4 -ml-0.5" />
+                  </Link>
+                )}
                 <button
                   onClick={handleCancelToken}
                   className="text-xs text-neutral-400 hover:text-red-500 py-2 transition-all duration-200 font-medium hover:bg-red-50 rounded-xl"
@@ -324,11 +443,20 @@ export default function JoinQueuePage() {
           /* Join Queue Form */
           <div className="animate-fade-in-scale">
             <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-xl space-y-5">
+                {notificationPermission === 'default' && (
+                  <button
+                    type="button"
+                    onClick={() => void enableBrowserAlerts()}
+                    className="w-full rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-100"
+                  >
+                    Enable alerts on this device (keep this page open)
+                  </button>
+                )}
               {/* Live Queue Overview */}
               <div className="grid grid-cols-2 gap-3 bg-gradient-to-br from-orange-50/80 to-amber-50/50 border border-orange-100 rounded-2xl p-4 text-center">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-700 block">
-                    Waiting Parties
+                    {foodBusiness ? 'Waiting Parties' : 'People Waiting'}
                   </span>
                   <div className="flex items-center justify-center gap-1.5 mt-1">
                     <Users className="w-4 h-4 text-orange-500" />
@@ -351,13 +479,20 @@ export default function JoinQueuePage() {
                 </div>
               </div>
 
-              {queueStatus?.isOpen === false ? (
+              {queueStatus?.isOpen === false ||
+              (joinSource === 'REMOTE' && queueStatus?.remoteJoinEnabled === false) ? (
                 <div className="text-center py-8 text-neutral-500 space-y-3">
                   <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto">
                     <AlertCircle className="w-7 h-7 text-red-500" />
                   </div>
-                  <p className="font-bold text-neutral-800 text-sm">Queue is currently closed</p>
-                  <p className="text-xs text-neutral-400">Please speak with the restaurant host at the door.</p>
+                  <p className="font-bold text-neutral-800 text-sm">
+                    {queueStatus?.isOpen === false ? 'Queue is currently closed' : 'Remote joining is paused'}
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    {joinSource === 'WALK_IN'
+                      ? 'Please speak with a staff member at the entrance.'
+                      : 'Please contact the business or try again later.'}
+                  </p>
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
@@ -379,7 +514,7 @@ export default function JoinQueuePage() {
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       <span className="flex items-center gap-1.5">
                         <Phone className="w-3 h-3" />
-                        Mobile Number (for SMS &amp; Table Notification) *
+                        Mobile Number (for queue updates) *
                       </span>
                     </label>
                     <input
@@ -392,7 +527,7 @@ export default function JoinQueuePage() {
                     />
                   </div>
 
-                  <div>
+                  {foodBusiness && <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
                       Party Size (Guests) *
                     </label>
@@ -418,18 +553,18 @@ export default function JoinQueuePage() {
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </div>}
 
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
-                      Seating Preference / Special Notes (Optional)
+                      {foodBusiness ? 'Seating Preference / Special Notes (Optional)' : 'Notes or Access Needs (Optional)'}
                     </label>
                     <input
                       type="text"
                       value={form.notes}
                       onChange={(e) => setForm({ ...form, notes: e.target.value })}
                       className="w-full border border-neutral-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden transition-all duration-200 bg-neutral-50/50 focus:bg-white"
-                      placeholder="e.g. High chair needed, booth preferred"
+                      placeholder={foodBusiness ? 'e.g. High chair needed, booth preferred' : 'Add a note for the team'}
                     />
                   </div>
 
@@ -468,7 +603,7 @@ export default function JoinQueuePage() {
       <footer className="py-5 text-center text-[11px] text-neutral-400 font-medium">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="w-3 h-3 text-orange-400" />
-          Qfast Digital Restaurant Operations • Zero app install
+          Qfast customer queue • No app install required
         </span>
       </footer>
     </div>

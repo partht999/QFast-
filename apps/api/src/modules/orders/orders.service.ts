@@ -178,21 +178,98 @@ export class OrdersService {
   }
 
   async updateOrderStatus(orderId: string, status: OrderStatus) {
-    const order = await this.prisma.order.update({
-      where: { id: orderId },
-      data: { status },
-      include: {
-        table: true,
-        items: { include: { menuItem: true } },
-      },
-    });
+    let order: Prisma.OrderGetPayload<{
+      include: { table: true; items: { include: { menuItem: true } } };
+    }>;
+    try {
+      order = await this.prisma.$transaction(async (tx) => {
+        const updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: { status },
+          include: {
+            table: true,
+            items: { include: { menuItem: true } },
+          },
+        });
 
-    // If order completed, mark payment as paid if pending at counter
-    if (status === OrderStatus.COMPLETED) {
-      await this.prisma.payment.updateMany({
-        where: { orderId, status: PaymentStatus.PENDING },
-        data: { status: PaymentStatus.PAID, paidAt: new Date() },
+        if (status === OrderStatus.COMPLETED) {
+          await tx.payment.updateMany({
+            where: { orderId, status: PaymentStatus.PENDING },
+            data: { status: PaymentStatus.PAID, paidAt: new Date() },
+          });
+
+          if (updatedOrder.customerId) {
+            const program = await tx.loyaltyProgram.findUnique({
+              where: { businessId: updatedOrder.businessId },
+            });
+            const points = Math.floor(
+              Number(updatedOrder.subtotal) * Number(program?.pointsPerRupee || 0),
+            );
+
+            if (
+              program?.type === 'POINTS_PER_RUPEE' &&
+              program.pointsPerRupee &&
+              points > 0
+            ) {
+              const account = await tx.loyaltyAccount.upsert({
+                where: {
+                  programId_customerId: {
+                    programId: program.id,
+                    customerId: updatedOrder.customerId,
+                  },
+                },
+                update: {},
+                create: {
+                  programId: program.id,
+                  customerId: updatedOrder.customerId,
+                },
+              });
+              await tx.loyaltyTransaction.create({
+                data: {
+                  accountId: account.id,
+                  orderId: updatedOrder.id,
+                  type: 'EARN',
+                  points,
+                  reason: `Earned from order ${updatedOrder.id}`,
+                  expiresAt: program.expiryDays
+                    ? new Date(Date.now() + program.expiryDays * 86400000)
+                    : undefined,
+                },
+              });
+              await tx.loyaltyAccount.update({
+                where: { id: account.id },
+                data: { points: { increment: points } },
+              });
+            }
+          }
+        }
+
+        return updatedOrder;
       });
+    } catch (error) {
+      if (
+        status !== OrderStatus.COMPLETED ||
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+
+      const priorCredit = await this.prisma.loyaltyTransaction.findFirst({
+        where: { orderId, type: 'EARN' },
+        select: { id: true },
+      });
+      if (!priorCredit) throw error;
+
+      const alreadyCompleted = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          table: true,
+          items: { include: { menuItem: true } },
+        },
+      });
+      if (!alreadyCompleted) throw error;
+      order = alreadyCompleted;
     }
 
     this.events.emitOrderUpdate(order.businessId, order.id, {
@@ -283,4 +360,3 @@ export class OrdersService {
     };
   }
 }
-

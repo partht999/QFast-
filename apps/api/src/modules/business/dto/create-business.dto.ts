@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsEmail, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsEnum, MinLength, MaxLength, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BusinessType } from '@prisma/client';
 
 export class CreateBusinessDto {
   @ApiProperty({ example: 'The Bombay Canteen' })
@@ -14,6 +15,11 @@ export class CreateBusinessDto {
   @MinLength(3)
   @MaxLength(50)
   slug: string;
+
+  @ApiPropertyOptional({ enum: BusinessType, default: BusinessType.RESTAURANT })
+  @IsOptional()
+  @IsEnum(BusinessType)
+  type?: BusinessType;
 
   @ApiPropertyOptional({ example: '+919876543210' })
   @IsOptional()

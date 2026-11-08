@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
+import { getBusinessPublicPath } from '@/lib/business-links';
 
 export default function TablesManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -145,7 +146,7 @@ export default function TablesManagementPage() {
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const entranceUrl = `${origin}/r/${business?.slug}/join`;
+  const entranceUrl = `${origin}${getBusinessPublicPath(business?.slug, business?.type)}?source=walkin`;
 
   return (
     <>

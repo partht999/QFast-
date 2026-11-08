@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '@/lib/api';
+import { BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
+import { getBusinessPublicPath } from '@/lib/business-links';
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
+  const [businessType, setBusinessType] = useState<BusinessTypeValue>('RESTAURANT');
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -18,6 +21,13 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    const savedType = localStorage.getItem('qfast_business_type');
+    if (BUSINESS_TYPES.some((item) => item.value === savedType)) {
+      setBusinessType(savedType as BusinessTypeValue);
+    }
+  }, []);
 
   const handleNameChange = (name: string) => {
     const slug = name
@@ -48,7 +58,7 @@ export default function OnboardingPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, type: businessType }),
       });
 
       const data = await res.json();
@@ -67,7 +77,7 @@ export default function OnboardingPage() {
       <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-lg border border-orange-100">
         <div className="mb-6">
           <span className="text-2xl font-black text-brand-600">⚡ Qfast</span>
-          <h2 className="text-2xl font-bold text-gray-900 mt-2">Set up your restaurant</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mt-2">Set up your organization</h2>
           <p className="text-gray-500 text-xs mt-1">
             Step {step} of 2 — {step === 1 ? 'Basic Details' : 'Contact & Location'}
           </p>
@@ -82,8 +92,28 @@ export default function OnboardingPage() {
           {step === 1 && (
             <>
               <div>
+                <label htmlFor="business-type" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
+                  Business category *
+                </label>
+                <select
+                  id="business-type"
+                  value={businessType}
+                  onChange={(e) => setBusinessType(e.target.value as BusinessTypeValue)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
+                >
+                  {BUSINESS_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+                {businessType === 'HOSPITAL' && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Qfast supports suitable non-emergency FIFO queues, not emergency triage.
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Restaurant Name *
+                  Organization Name *
                 </label>
                 <input
                   type="text"
@@ -91,7 +121,7 @@ export default function OnboardingPage() {
                   value={form.name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-                  placeholder="e.g. Olive Kitchen & Bar"
+                  placeholder="e.g. Olive Kitchen or Greenfield Clinic"
                 />
               </div>
 
@@ -101,7 +131,7 @@ export default function OnboardingPage() {
                 </label>
                 <div className="flex rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-brand-400 focus-within:border-transparent">
                   <span className="bg-gray-50 px-3 py-3 text-gray-400 text-xs flex items-center border-r border-gray-200">
-                    qfast.app/
+                    qfast.in{getBusinessPublicPath('', businessType).replace(/\/$/, '')}/
                   </span>
                   <input
                     type="text"
@@ -117,7 +147,7 @@ export default function OnboardingPage() {
                     placeholder="olive-kitchen"
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">This will be on your physical QR code signs.</p>
+                <p className="text-xs text-gray-400 mt-1">Your organization’s public Qfast link and QR codes will use this address.</p>
               </div>
 
               <button

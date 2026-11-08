@@ -18,6 +18,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { getApiUrl } from '@/lib/api';
+import { isFoodBusiness } from '@/lib/business-links';
 
 const navigation = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
@@ -28,9 +30,6 @@ const navigation = [
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { label: 'Loyalty', href: '/dashboard/loyalty', icon: Gift },
 ];
-
-const primaryNavigation = navigation.slice(0, 4);
-const moreNavigation = navigation.slice(4);
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
@@ -57,6 +56,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [moreOpen, setMoreOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [businessType, setBusinessType] = useState<string | null>(null);
+  const visibleNavigation = businessType && !isFoodBusiness(businessType)
+    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/loyalty'].includes(item.href))
+    : navigation;
+  const primaryNavigation = visibleNavigation.slice(0, 4);
+  const moreNavigation = visibleNavigation.slice(4);
   const moreIsActive = moreNavigation.some((item) => isActive(pathname, item.href));
 
   useEffect(() => {
@@ -65,6 +70,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const stored = localStorage.getItem('userEmail');
       if (stored) setUserEmail(stored);
     } catch {}
+
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    fetch(`${getApiUrl()}/api/v1/business`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not load organization type for dashboard navigation');
+        return response.json();
+      })
+      .then((businesses) => {
+        if (Array.isArray(businesses) && businesses[0]?.type) {
+          setBusinessType(businesses[0].type);
+        }
+      })
+      .catch((error) => console.error(error));
   }, []);
 
   // Close the more drawer when navigating
@@ -104,7 +125,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Navigation items */}
         <nav aria-label="Dashboard sections" className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
-            {navigation.map(({ label, href, icon: Icon }) => {
+            {visibleNavigation.map(({ label, href, icon: Icon }) => {
               const active = isActive(pathname, href);
               return (
                 <li key={href}>
@@ -278,7 +299,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Tab bar */}
         <div className="border-t border-gray-200/60 bg-white/80 shadow-[0_-1px_20px_rgba(0,0,0,0.06)] backdrop-blur-xl backdrop-saturate-150">
-          <div className="mx-auto grid max-w-xl grid-cols-5 px-2 py-1">
+          <div
+            className="mx-auto grid max-w-xl px-2 py-1"
+            style={{
+              gridTemplateColumns: `repeat(${primaryNavigation.length + (moreNavigation.length ? 1 : 0)}, minmax(0, 1fr))`,
+            }}
+          >
             {primaryNavigation.map(({ label, href, icon: Icon }) => {
               const active = isActive(pathname, href);
               return (
@@ -306,7 +332,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
               );
             })}
-            <button
+            {moreNavigation.length > 0 && <button
               type="button"
               aria-expanded={moreOpen}
               aria-label={moreOpen ? 'Close more dashboard sections' : 'More dashboard sections'}
@@ -328,7 +354,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </div>
               More
-            </button>
+            </button>}
           </div>
         </div>
       </nav>

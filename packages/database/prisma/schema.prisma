@@ -24,6 +24,18 @@ enum BusinessStatus {
   SUSPENDED
 }
 
+enum BusinessType {
+  RESTAURANT
+  CAFE
+  CLINIC
+  HOSPITAL
+  SALON
+  DIAGNOSTIC_CENTRE
+  SERVICE_CENTRE
+  RETAIL
+  OTHER
+}
+
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -45,6 +57,11 @@ enum QueueTokenStatus {
   CANCELLED
   COMPLETED
   NO_SHOW
+}
+
+enum QueueEntrySource {
+  REMOTE
+  WALK_IN
 }
 
 enum ReservationStatus {
@@ -233,6 +250,7 @@ model Business {
   id                   String                 @id @default(cuid())
   name                 String
   slug                 String                 @unique
+  type                 BusinessType           @default(RESTAURANT)
   status               BusinessStatus         @default(PENDING)
   phone                String?
   email                String?
@@ -482,6 +500,9 @@ model Queue {
   branch     BusinessBranch? @relation(fields: [branchId], references: [id])
   name       String         @default("Main Queue")
   isOpen     Boolean        @default(true)
+  remoteJoinEnabled Boolean @default(true)
+  averageWaitMinutes Int    @default(8)
+  arrivalGraceMinutes Int   @default(10)
   tokens     QueueToken[]
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
@@ -499,8 +520,12 @@ model QueueToken {
   partySize        Int              @default(1)
   tokenNumber      Int
   status           QueueTokenStatus @default(WAITING)
+  source           QueueEntrySource @default(REMOTE)
   estimatedWaitMin Int?
   calledAt         DateTime?
+  arrivalDeadlineAt DateTime?
+  onTheWayAt       DateTime?
+  arrivedAt        DateTime?
   seatedAt         DateTime?
   cancelledAt      DateTime?
   notes            String?
@@ -889,6 +914,7 @@ model LoyaltyTransaction {
   createdAt DateTime       @default(now())
 
   @@index([accountId])
+  @@unique([accountId, orderId, type])
 }
 
 // ─── Offers & Campaigns ──────────────────────────────────────────────────────
@@ -1063,4 +1089,3 @@ model SponsorPayout {
 
   @@index([sponsorId])
 }
-
