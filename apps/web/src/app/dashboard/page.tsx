@@ -237,204 +237,482 @@ export default function DashboardPage() {
       <div>
         {businesses.length === 0 ? (
           /* Empty State - No Business */
-          <div className="mx-auto mt-8 max-w-xl rounded-3xl border border-orange-100 bg-white p-6 text-center shadow-sm sm:p-10">
-            <span className="text-5xl block mb-4">🍽️</span>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Qfast!</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Set up your organization to create its Qfast profile and FIFO queue.
-            </p>
-            <Link
-              href="/dashboard/onboarding"
-              className="inline-block bg-brand-500 hover:bg-brand-600 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-md text-sm"
-            >
-              Set up your organization →
-            </Link>
-          </div>
+          <EmptyState
+            emoji="🍽️"
+            title="Welcome to Qfast!"
+            description="Get started by completing your business profile. You will receive an auto-generated queue, customizable digital menu, and table QR codes in seconds."
+            tip="Setup takes under 2 minutes and unlocks real-time queue management."
+            actionLabel="Start Quick Setup Wizard"
+            actionHref="/dashboard/onboarding"
+            className="my-10"
+          />
         ) : (
           /* Full Operations Hub */
           <div className="space-y-6">
-            {/* Business Status Card */}
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-3xl p-6 sm:p-8 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <span className="text-xs uppercase tracking-wider font-semibold opacity-80">
-                  {foodBusiness ? 'Active Restaurant' : 'Active Organization'}
-                </span>
-                <h1 className="text-2xl sm:text-3xl font-black mt-1">{selectedBusiness?.name}</h1>
-                <p className="text-xs mt-1 opacity-90">
-                  Slug: <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded">{selectedBusiness?.slug}</span> •{' '}
-                  Plan: <span className="font-semibold uppercase">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Essential'}</span>
+            {/* Quick Action Operations Bar */}
+            <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 px-3 shrink-0 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                Quick Launch
+              </span>
+              <Link
+                href="/dashboard/queue"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+              >
+                <ListOrdered className="w-3.5 h-3.5 text-orange-500" />
+                <span>Live Waitlist</span>
+              </Link>
+              {foodBusiness && (
+                <>
+                  <Link
+                    href="/dashboard/kds"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+                  >
+                    <ChefHat className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Kitchen Display</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/tables"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+                  >
+                    <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Tables &amp; QR</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/menu"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+                  >
+                    <MenuIcon className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Menu Catalog</span>
+                  </Link>
+                </>
+              )}
+              <Link
+                href="/dashboard/reviews"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+              >
+                <Star className="w-3.5 h-3.5 text-yellow-500" />
+                <span>Google Reviews</span>
+              </Link>
+              <Link
+                href="/dashboard/loyalty"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+              >
+                <Gift className="w-3.5 h-3.5 text-pink-500" />
+                <span>Rewards Wallet</span>
+              </Link>
+            </div>
+
+            {/* Business Status & QR Standee Hero Card */}
+            <div className="bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-neutral-800 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
+              <div className="relative z-10 max-w-xl">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    {foodBusiness ? 'Active Restaurant' : 'Active Organization'}
+                  </span>
+                  <span className="text-xs text-neutral-400">
+                    Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Essential'}</strong>
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {selectedBusiness?.name}
+                </h2>
+                <p className="text-xs text-neutral-300 mt-2 leading-relaxed">
+                  Your smart entrance queue QR code is active. Place this standee at your door or host desk so guests can scan to join the live waitlist, check queue position, and pre-order their dishes.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 mt-4 text-xs font-mono text-neutral-400">
+                  <span>Slug:</span>
+                  <span className="bg-neutral-800 text-neutral-200 px-2 py-0.5 rounded-md border border-neutral-700">
+                    {selectedBusiness?.slug}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-4 self-stretch sm:self-auto">
-                <div className="flex flex-col items-center gap-2 rounded-2xl bg-white p-3 text-center">
+              {/* QR Standee Action Box */}
+              <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 w-full lg:w-auto">
+                <div className="flex flex-col items-center gap-2 bg-white rounded-2xl p-3 text-center shadow-md">
                   {entranceQrDataUrl ? (
                     <img
                       src={entranceQrDataUrl}
                       alt={`Queue QR code for ${selectedBusiness?.name || 'your organization'}`}
-                      className="h-32 w-32 rounded-lg bg-white sm:h-36 sm:w-36"
+                      className="h-32 w-32 rounded-lg bg-white object-contain"
                     />
                   ) : (
-                    <div className="flex h-32 w-32 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 sm:h-36 sm:w-36">
+                    <div className="flex h-32 w-32 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500">
                       Generating QR…
                     </div>
                   )}
-                  <span className="text-xs font-bold text-gray-800">Scan to join queue</span>
+                  <span className="text-[11px] font-extrabold text-neutral-900 uppercase tracking-wider">
+                    Entrance QR
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2 w-full sm:w-44">
                   <button
                     type="button"
                     onClick={() => void handleDownloadEntranceQr()}
                     disabled={!entranceQrDataUrl || qrDownloading}
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 text-xs font-bold text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 px-3 text-xs font-bold text-white transition-all shadow-md shadow-orange-500/20 disabled:opacity-50 active:scale-98"
                   >
                     <Download size={14} />
-                    {qrDownloading ? 'Preparing…' : 'Download QR'}
+                    {qrDownloading ? 'Downloading…' : 'Download PNG'}
                   </button>
-                  {qrError && <p role="alert" className="max-w-40 text-[11px] font-medium text-red-700">{qrError}</p>}
+
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyLink()}
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 px-3 text-xs font-bold text-white transition-all border border-white/10 active:scale-98"
+                  >
+                    {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                    {copiedLink ? 'Link Copied!' : 'Copy Guest Link'}
+                  </button>
+
+                  <a
+                    href={getBusinessPublicPath(selectedBusiness?.slug, selectedBusiness?.type)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 px-3 text-xs font-bold text-neutral-300 transition-all border border-neutral-700 text-center"
+                  >
+                    <span>Test Guest Page</span>
+                    <ExternalLink size={12} />
+                  </a>
                 </div>
-                <a
-                  href={getBusinessPublicPath(selectedBusiness?.slug, selectedBusiness?.type)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-white text-orange-600 hover:bg-orange-50 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-                >
-                  Test Queue Page
-                </a>
               </div>
             </div>
 
             {/* Live Stats Grid */}
             <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${foodBusiness ? 'xl:grid-cols-4' : 'xl:grid-cols-2'} sm:gap-4`}>
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              {/* Stat 1: Queue */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-500">Live Queue</span>
-                  <span className="text-xl">🎟️</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Live Waitlist</span>
+                  <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                    <Users className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="text-2xl font-black text-brand-600 sm:text-3xl">
-                  {stats?.waitingQueueCount ?? 0} waiting
+                <div>
+                  <div className="text-2xl font-black text-gray-900 sm:text-3xl flex items-baseline gap-1.5">
+                    <span>{stats?.waitingQueueCount ?? 0}</span>
+                    <span className="text-xs font-bold text-gray-400">parties</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Currently in line awaiting table</p>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">Customers in line</div>
+                <Link
+                  href="/dashboard/queue"
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:text-orange-700 pt-2 border-t border-gray-50"
+                >
+                  <span>Open queue board</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
-              {foodBusiness && <>
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-500">Active Kitchen Orders</span>
-                  <span className="text-xl">🍳</span>
-                </div>
-                <div className="text-2xl font-black text-gray-900 sm:text-3xl">
-                  {stats?.activeOrdersCount ?? 0} in progress
-                </div>
-                <div className="text-xs text-gray-400 mt-1">Pending &amp; cooking</div>
-              </div>
+              {foodBusiness && (
+                <>
+                  {/* Stat 2: Kitchen */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Kitchen Active</span>
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <ChefHat className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-gray-900 sm:text-3xl flex items-baseline gap-1.5">
+                        <span>{stats?.activeOrdersCount ?? 0}</span>
+                        <span className="text-xs font-bold text-gray-400">tickets</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Pending and cooking in kitchen</p>
+                    </div>
+                    <Link
+                      href="/dashboard/kds"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 pt-2 border-t border-gray-50"
+                    >
+                      <span>Open kitchen display</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
 
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-500">Table Occupancy</span>
-                  <span className="text-xl">🍽️</span>
-                </div>
-                <div className="text-2xl font-black text-gray-900 sm:text-3xl">
-                  {stats?.occupiedTables ?? 0} / {stats?.totalTables ?? 0} tables
-                </div>
-                <div className="text-xs text-gray-400 mt-1">Dine-in floor status</div>
-              </div>
+                  {/* Stat 3: Table Occupancy */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Table Occupancy</span>
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <UtensilsCrossed className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-gray-900 sm:text-3xl flex items-baseline gap-1.5">
+                        <span>{stats?.occupiedTables ?? 0}</span>
+                        <span className="text-xs font-bold text-gray-400">/ {stats?.totalTables ?? 0} tables</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${
+                              stats?.totalTables > 0
+                                ? Math.min(100, Math.round((stats.occupiedTables / stats.totalTables) * 100))
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        {stats?.totalTables > 0
+                          ? `${Math.round((stats.occupiedTables / stats.totalTables) * 100)}% dining floor utilized`
+                          : 'No tables added yet'}
+                      </p>
+                    </div>
+                    <Link
+                      href="/dashboard/tables"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 pt-2 border-t border-gray-50"
+                    >
+                      <span>Manage tables</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
 
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-500">Today's Revenue</span>
-                  <span className="text-xl">💰</span>
-                </div>
-                <div className="text-2xl font-black text-green-600 sm:text-3xl">
-                  ₹{Number(stats?.todayRevenue ?? 0).toFixed(2)}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {stats?.todayCompletedOrders ?? 0} orders completed
-                </div>
-              </div>
-              </>}
+                  {/* Stat 4: Today's Revenue */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Today's Revenue</span>
+                      <div className="w-8 h-8 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-green-600 sm:text-3xl">
+                        ₹{Number(stats?.todayRevenue ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {stats?.todayCompletedOrders ?? 0} served &amp; completed orders
+                      </p>
+                    </div>
+                    <span className="mt-3 text-[11px] text-gray-400 pt-2 border-t border-gray-50 block">
+                      Auto-increments upon ticket completion
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Recent Orders Stream */}
             {foodBusiness && (
-            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-gray-900">Recent Customer Orders</h3>
-                <Link
-                  href="/dashboard/kds"
-                  className="text-xs font-semibold text-brand-600 hover:underline"
-                >
-                  Open Live Kitchen KDS →
-                </Link>
-              </div>
-
-              {!stats?.recentOrders || stats.recentOrders.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <span className="text-3xl block mb-1">🧾</span>
-                  <p className="text-xs font-medium">No customer orders placed yet today.</p>
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Scan the entrance or table QR code to simulate a live customer order.
-                  </p>
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base font-extrabold text-gray-900">Today's Order Stream</h3>
+                    <p className="text-xs text-gray-500">Click any order to view full ticket items and customer notes</p>
+                  </div>
+                  <Link
+                    href="/dashboard/kds"
+                    className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1"
+                  >
+                    <span>Kitchen Display</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {stats.recentOrders.map((order: any) => (
-                    <div key={order.id} className="py-3 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-900">
-                            #{order.id.slice(-6).toUpperCase()}
+
+                {!stats?.recentOrders || stats.recentOrders.length === 0 ? (
+                  <EmptyState
+                    emoji="🧾"
+                    title="No orders placed yet today"
+                    description="When customers scan table or entrance QR codes to order dishes, live tickets will appear here and in your Kitchen Display."
+                    tip="You can test placing an order by clicking 'Test Guest Page' above."
+                    className="py-8"
+                  />
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {stats.recentOrders.map((order: any) => (
+                      <div
+                        key={order.id}
+                        onClick={() => setSelectedOrderDetails(order)}
+                        className="py-3 px-2 rounded-xl hover:bg-gray-50/80 transition-colors cursor-pointer flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-xs shrink-0">
+                            <Receipt className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-gray-900">
+                                #{order.id.slice(-6).toUpperCase()}
+                              </span>
+                              {order.table?.name ? (
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                                  🍽️ {order.table.name}
+                                </span>
+                              ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
+                                <span className="bg-amber-50 text-amber-800 border border-amber-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                                  ⏳ Queue #{order.queueToken?.tokenNumber || ''} Pre-order
+                                </span>
+                              ) : (
+                                <span className="bg-purple-50 text-purple-800 border border-purple-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                                  🛍️ Takeaway
+                                </span>
+                              )}
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  order.status === 'COMPLETED'
+                                    ? 'bg-green-100 text-green-800'
+                                    : order.status === 'READY'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-orange-100 text-orange-800'
+                                }`}
+                              >
+                                {order.status}
+                              </span>
+                            </div>
+                            <p className="text-gray-400 mt-0.5 flex items-center gap-2">
+                              <span>{order.customerName || 'Diner'}</span>
+                              <span>•</span>
+                              <span>{order.items?.length || 0} items</span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-black text-sm text-gray-900 block">
+                            ₹{Number(order.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
-                          {order.table?.name ? (
-                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
-                              🍽️ {order.table.name}
-                            </span>
-                          ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
-                            <span className="bg-amber-50 text-amber-800 border border-amber-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
-                              ⏳ Queue #{order.queueToken?.tokenNumber || ''} Pre-order
-                            </span>
-                          ) : (
-                            <span className="bg-purple-50 text-purple-800 border border-purple-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
-                              🛍️ Takeaway
-                            </span>
-                          )}
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              order.status === 'COMPLETED'
-                                ? 'bg-green-100 text-green-800'
-                                : order.status === 'READY'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-orange-100 text-brand-800'
-                            }`}
-                          >
-                            {order.status}
+                          <span className="text-[11px] text-orange-600 font-semibold hover:underline">
+                            Inspect ticket →
                           </span>
                         </div>
-                        <p className="text-gray-400 mt-0.5">
-                          {order.items?.length || 0} items • {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
                       </div>
-
-                      <div className="text-right">
-                        <span className="font-extrabold text-sm text-gray-900 block">
-                          ₹{Number(order.totalAmount).toFixed(2)}
-                        </span>
-                        <a
-                          href={`/r/${selectedBusiness?.slug}/order/${order.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] text-brand-600 hover:underline"
-                        >
-                          View tracking ↗
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Order Detail Modal */}
+      {selectedOrderDetails && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-gray-900">
+                    Order Ticket #{selectedOrderDetails.id.slice(-6).toUpperCase()}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {new Date(selectedOrderDetails.createdAt).toLocaleString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-xs bg-gray-50 rounded-2xl p-3">
+              <div>
+                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Dining Option</span>
+                <span className="font-bold text-gray-900">
+                  {selectedOrderDetails.table?.name
+                    ? `🍽️ Table ${selectedOrderDetails.table.name}`
+                    : selectedOrderDetails.source === 'QUEUE_PREORDER'
+                    ? `⏳ Queue Pre-order #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
+                    : '🛍️ Takeaway'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Guest Info</span>
+                <span className="font-bold text-gray-900">
+                  {selectedOrderDetails.customerName || 'Diner'}{' '}
+                  {selectedOrderDetails.customerPhone ? `(${selectedOrderDetails.customerPhone})` : ''}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Status</span>
+                <span className="font-bold text-orange-600">{selectedOrderDetails.status}</span>
+              </div>
+            </div>
+
+            {selectedOrderDetails.specialInstructions && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                <span className="font-bold">Customer Cooking Request:</span> {selectedOrderDetails.specialInstructions}
+              </div>
+            )}
+
+            {/* Order Items List */}
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block mb-1">Items</span>
+              {selectedOrderDetails.items?.map((item: any) => (
+                <div key={item.id} className="flex justify-between items-start text-xs border-b border-gray-100 pb-2">
+                  <div>
+                    <span className="font-black text-orange-600 text-sm mr-2">{item.quantity}×</span>
+                    <span className="font-bold text-gray-900">{item.menuItem?.name || 'Dish'}</span>
+                    {item.specialNote && <p className="text-[11px] text-gray-500 italic ml-6">• {item.specialNote}</p>}
+                  </div>
+                  <span className="font-bold text-gray-800">
+                    ₹{Number(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Total Footer */}
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-gray-400">Total Billed</span>
+                <p className="text-lg font-black text-gray-900">
+                  ₹{Number(selectedOrderDetails.totalAmount).toFixed(2)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/r/${selectedBusiness?.slug}/order/${selectedOrderDetails.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span>Customer View</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetails(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     </div>
   );
 }
