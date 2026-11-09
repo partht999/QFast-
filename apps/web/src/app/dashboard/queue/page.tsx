@@ -6,6 +6,7 @@ import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { queueDisplayName, queueLanguage } from '@/lib/queue-language';
+import { describePayments } from '@/lib/payment';
 import {
   Hash,
   Bell,
@@ -890,14 +891,22 @@ export default function DashboardQueuePage() {
         <div className="rounded-2xl border border-gray-200 bg-white">
           <div className="border-b border-gray-100 px-4 py-3">
             <h3 className="text-sm font-semibold text-gray-900">Seated</h3>
-            <p className="text-sm text-gray-500">Close the bill only after the kitchen is finished and the bill is paid.</p>
+            <p className="text-sm text-gray-500">Close the bill after the kitchen is finished. Counter bills must be marked paid first.</p>
           </div>
           <ul>
             {tokens.filter((token) => token.status === 'SEATED').map((token) => {
               const openOrders = (token.orders || []).filter((order: any) => !['CANCELLED', 'REJECTED'].includes(order.status));
               const cooking = openOrders.some((order: any) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status));
-              const unpaid = openOrders.some((order: any) => (order.payments || []).some((payment: any) => payment.status === 'PENDING') || (!(order.payments || []).length && openOrders.length));
-              const note = cooking ? 'Kitchen is still cooking' : unpaid ? 'Bill is not paid yet' : token.table?.name || 'Ready to close';
+              const payment = describePayments(openOrders.flatMap((order: any) => order.payments || []));
+              const note = cooking
+                ? 'Kitchen is still cooking'
+                : openOrders.length === 0
+                  ? token.table?.name || 'Ready to close'
+                  : payment.paid
+                    ? `Paid · ${token.table?.name || 'Ready to close'}`
+                    : payment.onlineDue && !payment.counterDue
+                      ? 'Online payment not captured'
+                      : 'Pay at the counter';
               return (
               <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                 <div className="min-w-0">
@@ -910,7 +919,7 @@ export default function DashboardQueuePage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  {!cooking && unpaid && (
+                  {!cooking && payment.counterDue && !payment.paid && (
                     <button
                       type="button"
                       onClick={() => void handleMarkPaid(token.id)}
@@ -921,7 +930,7 @@ export default function DashboardQueuePage() {
                   )}
                   <button
                     type="button"
-                    disabled={cooking || unpaid}
+                    disabled={cooking || (openOrders.length > 0 && !payment.paid)}
                     onClick={() =>
                       setPending({
                         title: `Close the bill for #${token.tokenNumber}?`,

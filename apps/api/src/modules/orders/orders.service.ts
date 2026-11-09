@@ -4,6 +4,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { isCounterPayment, unpaidReason } from './payment-state';
 
 @Injectable()
 export class OrdersService {
@@ -279,10 +280,12 @@ export class OrdersService {
       );
     }
     if (status === OrderStatus.COMPLETED) {
-      const unpaid = await this.prisma.payment.count({
-        where: { orderId, status: PaymentStatus.PENDING },
+      const payments = await this.prisma.payment.findMany({
+        where: { orderId },
+        select: { status: true, method: true },
       });
-      if (unpaid > 0) throw new ConflictException('Mark the bill paid before finishing this order.');
+      const reason = unpaidReason(payments);
+      if (reason) throw new ConflictException(reason);
     }
 
     let order: Prisma.OrderGetPayload<{
@@ -352,8 +355,17 @@ export class OrdersService {
     if (['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
       throw new ConflictException('The kitchen is still cooking this order.');
     }
+    const pending = order.payments.filter((payment) => payment.status === PaymentStatus.PENDING);
+    const counter = pending.filter((payment) => isCounterPayment(payment.method));
+    if (!counter.length) {
+      throw new ConflictException(
+        pending.length
+          ? 'This online payment has not been captured. It cannot be marked paid at the counter.'
+          : 'This bill is already paid.',
+      );
+    }
     await this.prisma.payment.updateMany({
-      where: { orderId, status: PaymentStatus.PENDING },
+      where: { id: { in: counter.map((payment) => payment.id) } },
       data: { status: PaymentStatus.PAID, paidAt: new Date() },
     });
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });

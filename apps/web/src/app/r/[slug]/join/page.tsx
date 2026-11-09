@@ -49,6 +49,7 @@ export default function JoinQueuePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [takeawayId, setTakeawayId] = useState('');
+  const [visitChoice, setVisitChoice] = useState<'dine-in' | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [stampBurst, setStampBurst] = useState(false);
   const [editingGuest, setEditingGuest] = useState(false);
@@ -324,13 +325,13 @@ export default function JoinQueuePage() {
               <span>Stamps</span>
             </Link>
           )}
-          {foodBusiness && (
+          {foodBusiness && activeToken && (
             <Link
-              href={activeToken ? `/r/${slug}/table/queue?token=${activeToken.id}` : `/r/${slug}/table/takeaway`}
+              href={`/r/${slug}/table/queue?token=${activeToken.id}`}
               className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
             >
               <UtensilsCrossed className="w-3.5 h-3.5" />
-              <span>{activeToken ? 'Menu' : 'Takeaway'}</span>
+              <span>Menu</span>
             </Link>
           )}
         </nav>
@@ -341,12 +342,16 @@ export default function JoinQueuePage() {
         <div className="text-center mb-7">
           <div className="inline-flex items-center gap-1.5 bg-orange-100/80 text-orange-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 border border-orange-200/60">
             <QrCode className="w-3.5 h-3.5 text-orange-600" />
-            <span>Join the queue</span>
+            <span>{foodBusiness && !activeToken && !visitChoice ? 'Choose your visit' : 'Join the queue'}</span>
           </div>
           <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
             {queueStatus?.businessName || 'Customer Queue'}
           </h1>
-          <p className="text-xs text-neutral-400 mt-1.5">Live queue updates • Optional browser alerts while this page is open</p>
+          <p className="text-xs text-neutral-400 mt-1.5">
+            {foodBusiness && !activeToken && !visitChoice
+              ? 'Eat here and wait for a table, or take it away.'
+              : 'Live queue updates • Optional browser alerts while this page is open'}
+          </p>
         </div>
 
         {activeToken ? (
@@ -537,6 +542,7 @@ export default function JoinQueuePage() {
                   businessName={queueStatus?.businessName}
                   detail={activeToken.table?.name ? `Table ${activeToken.table.name}` : `Token #${activeToken.tokenNumber}`}
                   downloadName={`bill-${activeToken.tokenNumber}`}
+                  payments={(activeToken.orders || []).flatMap((order: any) => order.payments || [])}
                   lines={(activeToken.orders || []).flatMap((order: any) =>
                     (order.items || []).map((item: any) => ({
                       id: item.id,
@@ -628,6 +634,29 @@ export default function JoinQueuePage() {
               )}
             </div>
           </div>
+        ) : foodBusiness && !visitChoice ? (
+          <div className="animate-fade-in-scale space-y-3">
+            <button
+              type="button"
+              onClick={() => setVisitChoice('dine-in')}
+              className="w-full rounded-3xl border-2 border-orange-300 bg-white p-5 text-left shadow-sm"
+            >
+              <p className="text-lg font-black text-neutral-950">Dine in</p>
+              <p className="mt-1 text-sm text-neutral-600">Join the queue. You can order while you wait, then we seat you at a free table.</p>
+            </button>
+            <Link
+              href={`/r/${slug}/table/takeaway`}
+              className="block w-full rounded-3xl border border-neutral-200 bg-white p-5 text-left shadow-sm"
+            >
+              <p className="text-lg font-black text-neutral-950">Takeaway</p>
+              <p className="mt-1 text-sm text-neutral-600">No table. Order now, and we will show you when it is ready to collect.</p>
+            </Link>
+            {takeawayId && (
+              <Link href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
+                You already have a takeaway order. Check if it is ready.
+              </Link>
+            )}
+          </div>
         ) : (
           /* Join Queue Form */
           <div className="animate-fade-in-scale">
@@ -685,19 +714,10 @@ export default function JoinQueuePage() {
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
-                  {foodBusiness && takeawayId && (
-                    <Link href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-900">
-                      Your takeaway order is open. Check if it is ready.
-                    </Link>
-                  )}
                   {foodBusiness && (
-                    <Link
-                      href={`/r/${slug}/table/takeaway`}
-                      className="block rounded-2xl border border-purple-200 bg-purple-50 px-3 py-3 text-left"
-                    >
-                      <p className="text-sm font-black text-purple-950">Takeaway</p>
-                      <p className="mt-0.5 text-xs text-purple-800">No table. You will see when it is ready, then collect it and download the bill.</p>
-                    </Link>
+                    <button type="button" onClick={() => setVisitChoice(null)} className="text-xs font-bold text-neutral-500">
+                      Back to dine in or takeaway
+                    </button>
                   )}
                   {!foodBusiness && queues.length > 1 && (
                     <div>

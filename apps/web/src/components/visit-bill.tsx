@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Download, Minus, Plus, Receipt } from 'lucide-react';
+import { describePayments, type PaymentLike } from '@/lib/payment';
 
 export type BillLine = {
   id: string;
@@ -23,6 +24,7 @@ export function VisitBill({
   subtotal,
   tax,
   total,
+  payments,
   downloadName = 'qfast-bill',
 }: {
   title?: string;
@@ -32,10 +34,13 @@ export function VisitBill({
   subtotal: number;
   tax: number;
   total: number;
+  payments?: PaymentLike[];
   downloadName?: string;
 }) {
   const [people, setPeople] = useState(1);
   const share = people > 1 ? Math.ceil((total / people) * 100) / 100 : total;
+  const payment = describePayments(payments);
+  const amount = payment.amount > 0 ? payment.amount : total;
 
   const receiptHtml = () => {
     const rows = lines
@@ -52,6 +57,7 @@ export function VisitBill({
       <table>${rows}</table>
       <p>Subtotal ${money(subtotal)}<br>GST ${money(tax)}</p>
       <p class="total">Total ${money(total)}</p>
+      <p>${payment.paid ? 'PAID' : payment.label}<br>${payment.methods} · ${money(amount)}</p>
       ${people > 1 ? `<p>Split ${people} ways · ${money(share)} each</p>` : ''}
       <script>window.onload=function(){window.print()}<\/script>
       </body></html>`;
@@ -113,6 +119,10 @@ export function VisitBill({
         <div className="flex justify-between pt-1 text-base font-black text-neutral-950">
           <span>Total</span>
           <span>{money(total)}</span>
+        </div>
+        <div className={`mt-2 rounded-xl px-3 py-2 text-sm font-black ${payment.paid ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>
+          <p>{payment.label}</p>
+          <p className="text-xs font-semibold opacity-80">{payment.methods} · {money(amount)}</p>
         </div>
       </div>
 

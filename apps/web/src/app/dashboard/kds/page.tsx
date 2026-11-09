@@ -24,6 +24,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { describePayments } from '@/lib/payment';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function KDSPage() {
@@ -631,14 +632,24 @@ export default function KDSPage() {
                     ))}
                   </div>
 
-                  {(order.payments || []).some((payment: any) => payment.status === 'PENDING') ? (
+                  {(() => {
+                    const payment = describePayments(order.payments || []);
+                    if (payment.counterDue && !payment.paid) {
+                      return (
                     <button
                       onClick={() => void handleMarkPaid(order.id)}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs"
                     >
                       Mark bill paid
                     </button>
-                  ) : (
+                      );
+                    }
+                    if (payment.onlineDue) {
+                      return (
+                        <p className="text-center text-[11px] font-bold text-amber-200">Pay online — not captured</p>
+                      );
+                    }
+                    return (
                   <button
                     onClick={() => setTicketToClear(order)}
                     className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold py-2.5 rounded-xl text-xs transition-colors border border-neutral-700 flex items-center justify-center gap-1.5 active:scale-98"
@@ -646,7 +657,8 @@ export default function KDSPage() {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{order.source === 'TAKEAWAY' ? 'Mark collected' : 'Served'}</span>
                   </button>
-                  )}
+                    );
+                  })()}
                 </div>
               ))
             )}

@@ -376,6 +376,7 @@ export default function OrderTrackingPage() {
             subtotal={Number(order.subtotal || 0)}
             tax={Number(order.taxAmount || 0)}
             total={totalAmount}
+            payments={order.payments || []}
           />
         </div>
 

@@ -12,6 +12,7 @@ import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
 import { BusinessType, OrderStatus, PaymentStatus, Prisma, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
+import { isCounterPayment, unpaidReason } from '../orders/payment-state';
 
 @Injectable()
 export class QueueService {
@@ -266,7 +267,10 @@ export class QueueService {
       include: {
         table: { select: { id: true, name: true } },
         orders: {
-          include: { items: { include: { menuItem: { select: { name: true } } } } },
+          include: {
+            items: { include: { menuItem: { select: { name: true } } } },
+            payments: { select: { id: true, status: true, method: true, amount: true } },
+          },
           orderBy: { createdAt: 'asc' },
         },
         queue: {
@@ -419,7 +423,7 @@ export class QueueService {
             id: true,
             status: true,
             totalAmount: true,
-            payments: { select: { status: true } },
+            payments: { select: { status: true, method: true, amount: true } },
           },
         },
       },
@@ -859,13 +863,22 @@ export class QueueService {
     await this.assertBusinessAccess(token.queue.businessId, userId, userRole);
     const orders = await this.prisma.order.findMany({
       where: { queueTokenId: tokenId, status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
-      select: { id: true, status: true },
+      select: { id: true, status: true, payments: { select: { id: true, status: true, method: true } } },
     });
     if (orders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status))) {
       throw new ConflictException('The kitchen is still cooking. Take payment when the food is ready.');
     }
+    const pending = orders.flatMap((order) => order.payments).filter((payment) => payment.status === PaymentStatus.PENDING);
+    const counter = pending.filter((payment) => isCounterPayment(payment.method));
+    if (!counter.length) {
+      throw new ConflictException(
+        pending.length
+          ? 'Online payment has not been captured. It cannot be marked paid at the counter.'
+          : 'This bill is already paid.',
+      );
+    }
     await this.prisma.payment.updateMany({
-      where: { orderId: { in: orders.map((order) => order.id) }, status: PaymentStatus.PENDING },
+      where: { id: { in: counter.map((payment) => payment.id) } },
       data: { status: PaymentStatus.PAID, paidAt: new Date() },
     });
     return { ok: true };
@@ -901,9 +914,11 @@ export class QueueService {
     if (orders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status))) {
       throw new ConflictException('The kitchen is still cooking. Close the bill when the food is ready.');
     }
-    if (orders.some((order) => order.payments.some((payment) => payment.status === PaymentStatus.PENDING))) {
-      throw new ConflictException('Mark the bill paid before closing it.');
+    const reason = unpaidReason(orders.flatMap((order) => order.payments));
+    if (orders.some((order) => order.payments.length === 0) && orders.length > 0) {
+      throw new ConflictException('Mark the counter bill paid before closing it.');
     }
+    if (reason) throw new ConflictException(reason);
   }
 
   private async saveTokenWithTable(

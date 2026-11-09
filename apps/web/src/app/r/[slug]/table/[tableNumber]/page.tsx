@@ -744,7 +744,7 @@ export default function TableOrderPage() {
                         <Banknote className="w-4 h-4 text-orange-600" />
                         <span className="font-bold text-neutral-900">Pay at Counter</span>
                       </div>
-                      <span className="text-[10px] text-neutral-400 block">UPI, Cash, or Card</span>
+                      <span className="text-[10px] text-neutral-400 block">Staff collect UPI, cash, or card</span>
                     </button>
 
                     <button
@@ -759,7 +759,7 @@ export default function TableOrderPage() {
                         <CreditCard className="w-4 h-4 text-orange-600" />
                         <span className="font-bold text-neutral-900">Pay Online</span>
                       </div>
-                      <span className="text-[10px] text-neutral-400 block">UPI &amp; NetBanking</span>
+                      <span className="text-[10px] text-neutral-400 block">Not charged yet</span>
                     </button>
                   </div>
                 </div>
