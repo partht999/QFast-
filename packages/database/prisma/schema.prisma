@@ -233,6 +233,18 @@ model User {
   updatedAt     DateTime       @updatedAt
 }
 
+model EmailOtp {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+}
+
 model RefreshToken {
   id        String    @id @default(cuid())
   token     String    @unique

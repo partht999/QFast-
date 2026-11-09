@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
+import { RequestEmailOtpDto } from './dto/request-email-otp.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { JwtService } from '@nestjs/jwt';
@@ -15,6 +16,13 @@ export class AuthController {
     private authService: AuthService,
     private jwtService: JwtService,
   ) {}
+
+  @Post('email/otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Email a 6-digit code to verify a business address' })
+  async sendRegistrationOtp(@Body() dto: RequestEmailOtpDto) {
+    return this.authService.sendRegistrationOtp(dto.email);
+  }
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new owner account' })

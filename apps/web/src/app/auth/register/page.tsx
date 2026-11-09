@@ -17,6 +17,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpEmail, setOtpEmail] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpNotice, setOtpNotice] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -28,6 +32,32 @@ export default function RegisterPage() {
     const requestedPlan = params.get('plan');
     if (isPlanId(requestedPlan)) setPlan(requestedPlan);
   }, []);
+
+  const sendOtp = async () => {
+    setError('');
+    setOtpNotice('');
+    if (!form.email.trim()) {
+      setError('Enter the business email first.');
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/v1/auth/email/otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(readApiError(data, 'Could not send the verification email.'));
+      setOtpEmail(form.email.trim().toLowerCase());
+      setOtp('');
+      setOtpNotice(`A 6-digit code is on its way to ${form.email.trim()}. It expires in 10 minutes.`);
+    } catch (err: any) {
+      setError(err.message || 'Could not send the verification email.');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +71,10 @@ export default function RegisterPage() {
       setError('Passwords do not match');
       return;
     }
+    if (form.email.trim().toLowerCase() !== otpEmail || otp.length !== 6) {
+      setError('Send a verification code to this email and enter the 6-digit code.');
+      return;
+    }
 
     setLoading(true);
     const apiUrl = getApiUrl();
@@ -49,7 +83,7 @@ export default function RegisterPage() {
       const res = await fetch(`${apiUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ email: form.email.trim(), password: form.password, otp }),
       });
 
       if (!res.ok) {
@@ -137,15 +171,42 @@ export default function RegisterPage() {
               <label htmlFor="register-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Work Email Address
               </label>
+              <div className="flex gap-2">
+                <input
+                  id="register-email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="min-w-0 flex-1 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                  placeholder="you@yourcompany.com"
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendOtp()}
+                  disabled={sendingOtp}
+                  className="shrink-0 rounded-xl border border-orange-200 bg-orange-50 px-3 text-xs font-bold text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                >
+                  {sendingOtp ? 'Sending…' : 'Email code'}
+                </button>
+              </div>
+              {otpNotice && <p className="mt-2 text-xs leading-5 text-slate-500">{otpNotice}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="register-otp" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Email verification code
+              </label>
               <input
-                id="register-email"
-                type="email"
-                required
-                autoComplete="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
-                placeholder="you@yourcompany.com"
+                id="register-otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                placeholder="6-digit code"
               />
             </div>
 
