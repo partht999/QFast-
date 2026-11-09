@@ -292,6 +292,36 @@ export default function OrderTrackingPage() {
           )}
         </div>
 
+        {/* Share Live Tracker with Tablemates */}
+        <div className="flex items-center justify-between gap-2 bg-white rounded-2xl p-3.5 border border-neutral-200/80 shadow-2xs text-xs">
+          <div className="flex items-center gap-2">
+            <Share2 className="w-4 h-4 text-orange-600" />
+            <span className="font-bold text-neutral-800">Share live order status:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Follow our live food order at ${order.business?.name || 'the restaurant'}: ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors flex items-center gap-1"
+            >
+              <span>WhatsApp</span>
+            </a>
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  navigator.clipboard.writeText(window.location.href);
+                  setAssistanceMsg('Tracking link copied to clipboard!');
+                  setTimeout(() => setAssistanceMsg(''), 4000);
+                }
+              }}
+              className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold px-3 py-1.5 rounded-xl transition-colors"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+
         {/* Order Receipt Breakdown */}
         <div className="bg-white rounded-3xl p-5 border border-neutral-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
