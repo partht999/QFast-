@@ -417,13 +417,11 @@ export default function MenuManagementPage() {
         {/* Empty State when no categories exist */}
         {categories.length === 0 ? (
           <EmptyState
-            icon="📖"
+            icon={UtensilsCrossed}
             title="Build your digital QR menu"
             description="Organize your dishes into categories (e.g. Starters, Main Course, Drinks, Desserts). Diners scan table or queue QRs to order straight from their phone."
-            primaryAction={{
-              label: 'Create First Category',
-              onClick: () => setShowCategoryModal(true),
-            }}
+            actionLabel="Create First Category"
+            onAction={() => setShowCategoryModal(true)}
           />
         ) : filteredCategories.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-gray-200/80 shadow-xs">

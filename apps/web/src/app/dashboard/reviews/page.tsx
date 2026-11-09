@@ -349,7 +349,7 @@ export default function ReviewsManagementPage() {
 
           {items.length === 0 ? (
             <EmptyState
-              icon="📬"
+              icon={MessageSquare}
               title="No customer feedback yet"
               description="After dining or picking up pre-orders, guests are prompted on their phone to rate their experience. Their feedback will automatically show here."
             />

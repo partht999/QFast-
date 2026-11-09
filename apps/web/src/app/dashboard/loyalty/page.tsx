@@ -450,7 +450,7 @@ export default function LoyaltyManagementPage() {
           {/* Active Rewards List */}
           {rewards.length === 0 ? (
             <EmptyState
-              icon="🎁"
+              icon={Gift}
               title="No rewards configured yet"
               description="Add member offers above (e.g. Free Dessert for 150 points, ₹50 Off for 100 points) to give customers a compelling reason to revisit!"
             />
