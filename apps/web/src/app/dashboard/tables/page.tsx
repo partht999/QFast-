@@ -229,7 +229,9 @@ export default function TablesManagementPage() {
   const entranceUrl = `${origin}${getBusinessPublicPath(business?.slug, business?.type)}?source=walkin`;
 
   const totalSeats = tables.reduce((acc, t) => acc + (t.capacity || 0), 0);
-  const occupiedTables = tables.filter((t) => t.orders && t.orders.length > 0);
+  const occupiedTables = tables.filter(
+    (t) => (t.orders && t.orders.length > 0) || (t.queueTokens && t.queueTokens.length > 0),
+  );
 
   return (
     <>
@@ -276,7 +278,7 @@ export default function TablesManagementPage() {
               </span>
               <h2 className="text-2xl font-black tracking-tight">Main Door &amp; Reception QR</h2>
               <p className="text-xs text-orange-100 max-w-lg leading-relaxed">
-                Display this QR standee at your restaurant host station or entrance. Arriving diners scan to join the FIFO queue, monitor estimated wait times, and place pre-orders before seating.
+                This is the only guest QR. People scan it to join the line or order takeaway. Tables below are seats you assign when you call a party.
               </p>
               <div className="pt-2 flex flex-wrap gap-2 text-xs">
                 <a
@@ -356,7 +358,7 @@ export default function TablesManagementPage() {
                   )}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Each physical table gets a unique QR standee. Guests scan to browse the digital menu and place table orders.
+                  Free tables are offered automatically when you call the next party. A busy table stays with that party until the bill is closed.
                 </p>
               </div>
 
@@ -373,14 +375,15 @@ export default function TablesManagementPage() {
               <EmptyState
                 icon={Armchair}
                 title="No dining tables added yet"
-                description="Add your restaurant tables (e.g. Table 1, Patio 2, Booth 3). Qfast will automatically generate QR codes for each table for contactless ordering and KDS routing."
+                description="Add the tables you can seat. When you call a party, the next free table is assigned to them."
                 actionLabel="Add Table 1"
                 onAction={openAddModal}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {tables.map((table) => {
-                  const isOccupied = table.orders && table.orders.length > 0;
+                  const heldParty = table.queueTokens?.[0];
+                  const isOccupied = (table.orders && table.orders.length > 0) || Boolean(heldParty);
                   const tableUrl = `${origin}/r/${business?.slug}/table/${encodeURIComponent(table.name)}`;
 
                   return (
@@ -414,14 +417,11 @@ export default function TablesManagementPage() {
                         {isOccupied && (
                           <div className="bg-white rounded-xl p-2.5 border border-amber-200 text-xs space-y-1 shadow-2xs">
                             <span className="text-[10px] uppercase font-bold text-amber-700 block">
-                              Active Dine-in Order
+                              {heldParty ? `Party #${heldParty.tokenNumber}` : 'Open order'}
                             </span>
-                            <div className="flex justify-between font-extrabold text-gray-900">
-                              <span>Total Bill</span>
-                              <span className="text-emerald-700">
-                                ₹{Number(table.orders[0]?.totalAmount || 0).toFixed(2)}
-                              </span>
-                            </div>
+                            <p className="font-extrabold text-gray-900">
+                              {heldParty?.customerName || `₹${Number(table.orders[0]?.totalAmount || 0).toFixed(0)}`}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -519,7 +519,7 @@ export default function TablesManagementPage() {
                     disabled={submitting}
                     className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-98"
                   >
-                    {editingTable ? 'Save Table' : 'Create Table & QR'}
+                    {editingTable ? 'Save Table' : 'Add table'}
                   </button>
                 </div>
               </form>

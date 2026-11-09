@@ -236,8 +236,10 @@ export default function DashboardQueuePage() {
     tokenId: string,
     action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel' | 'restore',
     tableId?: string,
+    allowWithoutTable?: boolean,
   ) => {
     const token = localStorage.getItem('accessToken');
+    const party = tokens.find((entry) => entry.id === tokenId);
     try {
       if (action === 'call') {
         playChime();
@@ -248,26 +250,44 @@ export default function DashboardQueuePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ tableId }),
+        body: JSON.stringify({ tableId, allowWithoutTable }),
       });
+      const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const body = await response.json();
-        throw new Error(body.message || 'Could not update queue entry');
+        const message = readApiError(body, 'Could not update queue entry');
+        if (action === 'call' && message.includes('No free table')) {
+          setPending({
+            title: 'No free table',
+            description: `${party?.customerName || 'This party'} is next, but every table is taken. Call them anyway? You can seat them when a table opens.`,
+            confirmLabel: 'Call anyway',
+            cancelLabel: 'Wait for a table',
+            variant: 'warning',
+            run: () => handleUpdateStatus(tokenId, 'call', undefined, true),
+          });
+          return;
+        }
+        throw new Error(message);
       }
       setActionError('');
       setSelectedTokenForSeat(null);
       setTargetTableId('');
 
-      const copy = queueLanguage(business?.type);
-      const actionLabels = {
-        call: 'Called',
-        seat: 'Seated at a table',
-        complete: 'Visit finished',
-        skip: 'Skipped',
-        cancel: 'Removed from the line',
-        restore: 'Put back in line',
-      };
-      toast.success(actionLabels[action] || 'Updated', copy.pageHint);
+      if (action === 'call' && body.table?.name) {
+        toast.success('Called', `Table ${body.table.name} is theirs.`);
+      } else if (action === 'call') {
+        toast.success('Called', 'No table yet. Seat them when one is free.');
+      } else if (action === 'seat') {
+        toast.success('Seated', body.table?.name ? `They are at ${body.table.name}.` : 'Seated without a table.');
+      } else if (action === 'complete') {
+        toast.success('Bill closed', 'They can see and download the bill on their phone.');
+      } else {
+        const actionLabels = {
+          skip: 'Skipped',
+          cancel: 'Removed from the line',
+          restore: 'Put back in line',
+        };
+        toast.success(actionLabels[action] || 'Updated', queueLanguage(business?.type).pageHint);
+      }
       await fetchData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not update queue entry';
@@ -376,7 +396,7 @@ export default function DashboardQueuePage() {
   const skippedTokens = tokens.filter((t) => t.status === 'SKIPPED' || t.status === 'CANCELLED');
   const foodBusiness = isFoodBusiness(business?.type);
   const copy = queueLanguage(business?.type);
-  const servedTokens = tokens.filter((t) => t.status === 'SEATED' || t.status === 'COMPLETED');
+  const servedTokens = tokens.filter((t) => t.status === 'COMPLETED');
 
   const currentServingToken = waitingTokens.find((t) => t.status === 'CALLED') || null;
   const nextInLineToken = waitingTokens.find((t) => t.status === 'WAITING') || null;
@@ -630,11 +650,23 @@ export default function DashboardQueuePage() {
                 {foodBusiness ? (
                   <button
                     type="button"
-                    onClick={() => setSelectedTokenForSeat(currentServingToken)}
+                    onClick={() => {
+                      if (currentServingToken.table?.id) {
+                        setPending({
+                          title: `Seat #${currentServingToken.tokenNumber} at ${currentServingToken.table.name}?`,
+                          description: `${currentServingToken.customerName} will see ${currentServingToken.table.name} on their phone and can add more items.`,
+                          confirmLabel: `Seat at ${currentServingToken.table.name}`,
+                          variant: 'primary',
+                          run: () => handleUpdateStatus(currentServingToken.id, 'seat', currentServingToken.table.id),
+                        });
+                      } else {
+                        setSelectedTokenForSeat(currentServingToken);
+                      }
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
                     <Armchair className="h-4 w-4" />
-                    {copy.finish}
+                    {currentServingToken.table?.name ? `Seat at ${currentServingToken.table.name}` : 'Seat them'}
                   </button>
                 ) : (
                   <button
@@ -805,6 +837,46 @@ export default function DashboardQueuePage() {
           </ul>
         )}
       </div>
+      )}
+
+      {foodBusiness && tokens.some((token) => token.status === 'SEATED') && (
+        <div className="rounded-2xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <h3 className="text-sm font-semibold text-gray-900">Seated</h3>
+            <p className="text-sm text-gray-500">Close the bill when they are finished. They can still add items until then.</p>
+          </div>
+          <ul>
+            {tokens.filter((token) => token.status === 'SEATED').map((token) => (
+              <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-gray-900">
+                    <span className="mr-2 text-orange-600">#{token.tokenNumber}</span>
+                    {token.customerName}
+                  </p>
+                  <p className="truncate text-sm text-gray-500">
+                    {token.table?.name || 'No table'}
+                    {token.orders?.length ? ` · ${token.orders.length} order${token.orders.length === 1 ? '' : 's'}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPending({
+                      title: `Close the bill for #${token.tokenNumber}?`,
+                      description: `${token.customerName} leaves the table and can download the bill.`,
+                      confirmLabel: 'Close bill',
+                      variant: 'primary',
+                      run: () => handleUpdateStatus(token.id, 'complete'),
+                    })
+                  }
+                  className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"
+                >
+                  Close bill
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Add Walk-in Modal */}
@@ -1040,21 +1112,27 @@ export default function DashboardQueuePage() {
                 Choose a table
               </label>
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
-                {tables.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTargetTableId(t.id)}
-                    className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
-                      targetTableId === t.id
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs'
-                        : 'border-gray-200 text-gray-700 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="block truncate">{t.name}</span>
-                    <span className="text-[10px] text-gray-400 font-normal">Cap: {t.capacity}</span>
-                  </button>
-                ))}
+                {tables.map((t) => {
+                  const busy =
+                    (t.orders?.length || 0) > 0 ||
+                    (t.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setTargetTableId(t.id)}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center disabled:cursor-not-allowed disabled:opacity-50 ${
+                        targetTableId === t.id
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs'
+                          : 'border-gray-200 text-gray-700 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="block truncate">{t.name}</span>
+                      <span className="text-[10px] text-gray-400 font-normal">{busy ? 'Taken' : `Seats ${t.capacity}`}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1077,7 +1155,7 @@ export default function DashboardQueuePage() {
                 onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat')}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition-colors"
               >
-                Seat without choosing a table
+                Seat anyway, without a table
               </button>
             </div>
           </div>

@@ -538,6 +538,7 @@ export class QueueService {
     userId: string,
     userRole?: string,
     tableId?: string,
+    allowWithoutTable?: boolean,
   ) {
     const currentToken = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
@@ -632,7 +633,11 @@ export class QueueService {
           : null;
       if (foodBusiness && !currentToken.tableId) {
         const table = await this.claimFreeTable(currentToken.queue.businessId);
-        if (table) data.tableId = table.id;
+        if (table) {
+          data.tableId = table.id;
+        } else if (!allowWithoutTable && currentToken.status !== QueueTokenStatus.CALLED) {
+          throw new ConflictException('No free table. Seat them anyway?');
+        }
       }
     } else if (status === QueueTokenStatus.SEATED) {
       data.seatedAt = new Date();

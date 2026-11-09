@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, QueueTokenStatus } from '@prisma/client';
 
 @Injectable()
 export class TablesService {
@@ -29,6 +29,10 @@ export class TablesService {
             totalAmount: true,
             createdAt: true,
           },
+        },
+        queueTokens: {
+          where: { status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] } },
+          select: { id: true, tokenNumber: true, customerName: true, status: true },
         },
       },
       orderBy: { name: 'asc' },

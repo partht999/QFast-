@@ -159,8 +159,19 @@ export class QueueController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Call the guest forward' })
-  async callToken(@Param('tokenId') tokenId: string, @Req() req: any) {
-    return this.queueService.updateTokenStatus(tokenId, QueueTokenStatus.CALLED, req.user.sub, req.user.role);
+  async callToken(
+    @Param('tokenId') tokenId: string,
+    @Body() body: { allowWithoutTable?: boolean },
+    @Req() req: any,
+  ) {
+    return this.queueService.updateTokenStatus(
+      tokenId,
+      QueueTokenStatus.CALLED,
+      req.user.sub,
+      req.user.role,
+      undefined,
+      body?.allowWithoutTable,
+    );
   }
 
   @Patch('manage/token/:tokenId/restore')

@@ -84,7 +84,7 @@ export default function TableOrderPage() {
       fetch(`${apiUrl}/api/v1/queue/public/token/${tokenId}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data && (data.status === 'WAITING' || data.status === 'CALLED')) {
+          if (data && (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED')) {
             setQueueToken(data);
             if (isQueueParam || !isFixedTable) {
               setOrderSource('QUEUE_PREORDER');
@@ -367,7 +367,15 @@ export default function TableOrderPage() {
             <div className="flex items-center gap-2">
               <span className="text-base">⏳</span>
               <span>
-                <strong>Queue Pre-order:</strong> Food starts cooking now and will be served to your table once seated!
+                {queueToken?.status === 'SEATED' ? (
+                  <>
+                    <strong>At your table{queueToken.table?.name ? ` ${queueToken.table.name}` : ''}.</strong> These items are added to the same bill.
+                  </>
+                ) : (
+                  <>
+                    <strong>Order while you wait.</strong> You go back to the queue after this, and the food is served at your table.
+                  </>
+                )}
               </span>
             </div>
             <Link
@@ -589,7 +597,7 @@ export default function TableOrderPage() {
               {/* Order Info & Options Form */}
               <form onSubmit={handlePlaceOrder} className="pt-4 space-y-3.5">
                 {/* Dining Option Toggle if not a fixed table QR code */}
-                {!isFixedTable && (
+                {!isFixedTable && !isTakeawayParam && !queueToken && !tokenParam && (
                   <div>
                     <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1.5">
                       Dining Type

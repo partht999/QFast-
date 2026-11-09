@@ -27,6 +27,7 @@ import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { readGuest, saveGuest } from '@/lib/guest';
 import { reviewHref } from '@/lib/google-place';
+import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function JoinQueuePage() {
@@ -319,11 +320,11 @@ export default function JoinQueuePage() {
           )}
           {foodBusiness && (
             <Link
-              href={`/r/${slug}/table/1`}
+              href={activeToken ? `/r/${slug}/table/queue?token=${activeToken.id}` : `/r/${slug}/table/takeaway`}
               className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
             >
               <UtensilsCrossed className="w-3.5 h-3.5" />
-              <span>Menu</span>
+              <span>{activeToken ? 'Menu' : 'Takeaway'}</span>
             </Link>
           )}
         </nav>
@@ -354,11 +355,19 @@ export default function JoinQueuePage() {
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full animate-ping" />
                   <Bell className="w-10 h-10 text-amber-600 mx-auto mb-2" />
                   <p className="font-black text-base uppercase tracking-wide">
-                    {foodBusiness ? 'Your table is ready' : clinicalBusiness ? 'The doctor is ready' : 'It’s your turn'}
+                    {foodBusiness
+                      ? activeToken.table?.name
+                        ? `Table ${activeToken.table.name}`
+                        : 'Your turn is here'
+                      : clinicalBusiness
+                        ? 'The doctor is ready'
+                        : 'It’s your turn'}
                   </p>
                   <p className="text-xs mt-1 font-medium text-amber-800">
                     {foodBusiness
-                      ? 'Please see the host to be seated.'
+                      ? activeToken.table?.name
+                        ? 'Come to the host. This table is yours.'
+                        : 'Come to the host. They will seat you as soon as a table is free.'
                       : clinicalBusiness
                         ? 'Please go in for your visit.'
                         : 'Please come to the counter.'}
@@ -466,14 +475,14 @@ export default function JoinQueuePage() {
                   </div>
                 )}
                 <p className="text-sm font-bold text-neutral-800 mt-2">{activeToken.customerName}</p>
-                {foodBusiness && activeToken.status === 'CALLED' && (
+                {foodBusiness && activeToken.status === 'SEATED' && (
                   <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
-                    {activeToken.table
-                      ? `Your table is ${activeToken.table.name}. Head in when you are ready.`
-                      : 'Your turn is here. A table will be assigned as soon as one is free.'}
+                    {activeToken.table?.name
+                      ? `You are at ${activeToken.table.name}. Add anything else, then the bill is closed at the table.`
+                      : 'You are seated. Add anything else before the bill is closed.'}
                   </p>
                 )}
-                {foodBusiness && Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && (
+                {foodBusiness && Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && activeToken.status !== 'SEATED' && activeToken.status !== 'COMPLETED' && (
                   <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-left">
                     <p className="text-xs font-black uppercase tracking-wider text-neutral-500">
                       {activeToken.status === 'COMPLETED' ? 'Your bill' : 'Items on your visit'}
@@ -513,6 +522,27 @@ export default function JoinQueuePage() {
                   loyalty={activeToken.loyalty}
                   reviewUrl={reviewHref(activeToken.business?.googleReviewUrl, activeToken.business?.googlePlaceId)}
                   stampsHref={`${publicPath}/loyalty?phone=${encodeURIComponent(activeToken.customerPhone || '')}`}
+                />
+              )}
+
+              {foodBusiness && (activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED') && (
+                <VisitBill
+                  title={activeToken.status === 'COMPLETED' ? 'Final bill' : 'Running bill'}
+                  businessName={queueStatus?.businessName}
+                  detail={activeToken.table?.name ? `Table ${activeToken.table.name}` : `Token #${activeToken.tokenNumber}`}
+                  downloadName={`bill-${activeToken.tokenNumber}`}
+                  lines={(activeToken.orders || []).flatMap((order: any) =>
+                    (order.items || []).map((item: any) => ({
+                      id: item.id,
+                      name: item.menuItem?.name || 'Item',
+                      quantity: item.quantity,
+                      amount: Number(item.totalPrice || 0),
+                      note: item.specialNote,
+                    })),
+                  )}
+                  subtotal={(activeToken.orders || []).reduce((sum: number, order: any) => sum + Number(order.subtotal || 0), 0)}
+                  tax={(activeToken.orders || []).reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)}
+                  total={(activeToken.orders || []).reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)}
                 />
               )}
 
@@ -564,11 +594,11 @@ export default function JoinQueuePage() {
                       className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
                     >
                       <UtensilsCrossed className="w-4 h-4" />
-                      <span>{activeToken.orders?.length ? 'Add more items' : 'Add items while you wait'}</span>
+                      <span>{activeToken.orders?.length ? 'Add more items' : 'Order while you wait'}</span>
                       <ChevronRight className="w-4 h-4 -ml-0.5" />
                     </Link>
                     <p className="text-[11px] text-center text-neutral-500 font-medium">
-                      Kitchen starts preparing now · Served as soon as you are seated!
+                      The kitchen starts now. You come back to this queue after ordering.
                     </p>
                   </div>
                 )}
@@ -580,6 +610,15 @@ export default function JoinQueuePage() {
                 </button>
               </div>
               </>
+              )}
+              {foodBusiness && activeToken.status === 'SEATED' && (
+                <Link
+                  href={`/r/${slug}/table/queue?token=${activeToken.id}`}
+                  className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-sm font-extrabold text-white"
+                >
+                  <UtensilsCrossed className="h-4 w-4" />
+                  Add more items
+                </Link>
               )}
             </div>
           </div>
@@ -640,6 +679,15 @@ export default function JoinQueuePage() {
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
+                  {foodBusiness && (
+                    <Link
+                      href={`/r/${slug}/table/takeaway`}
+                      className="block rounded-2xl border border-purple-200 bg-purple-50 px-3 py-3 text-left"
+                    >
+                      <p className="text-sm font-black text-purple-950">Takeaway</p>
+                      <p className="mt-0.5 text-xs text-purple-800">No table. You will see when it is ready, then collect it and download the bill.</p>
+                    </Link>
+                  )}
                   {!foodBusiness && queues.length > 1 && (
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">

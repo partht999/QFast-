@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { reviewHref } from '@/lib/google-place';
+import { VisitBill } from '@/components/visit-bill';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -129,12 +130,20 @@ export default function OrderTrackingPage() {
     );
   }
 
-  const steps = [
-    { key: 'PENDING', label: 'Order Received', desc: 'Sent to kitchen display', icon: '📝' },
-    { key: 'PREPARING', label: 'In Kitchen', desc: 'Chef is cooking your meal', icon: '🍳' },
-    { key: 'READY', label: 'Ready to Serve', desc: 'Plated & heading to your table', icon: '🔔' },
-    { key: 'COMPLETED', label: 'Served', desc: 'Enjoy your meal!', icon: '✨' },
-  ];
+  const isTakeaway = order.source === 'TAKEAWAY';
+  const steps = isTakeaway
+    ? [
+        { key: 'PENDING', label: 'Order received', desc: 'The kitchen has your takeaway', icon: '📝' },
+        { key: 'PREPARING', label: 'Cooking', desc: 'Your food is being prepared', icon: '🍳' },
+        { key: 'READY', label: 'Ready to collect', desc: 'Come to the counter', icon: '🔔' },
+        { key: 'COMPLETED', label: 'Collected', desc: 'Your bill is ready to download', icon: '✨' },
+      ]
+    : [
+        { key: 'PENDING', label: 'Order Received', desc: 'Sent to kitchen display', icon: '📝' },
+        { key: 'PREPARING', label: 'In Kitchen', desc: 'Chef is cooking your meal', icon: '🍳' },
+        { key: 'READY', label: 'Ready to Serve', desc: 'On the way to your table', icon: '🔔' },
+        { key: 'COMPLETED', label: 'Served', desc: 'Enjoy your meal!', icon: '✨' },
+      ];
 
   const getStepStatus = (stepKey: string) => {
     const statusOrder = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'COMPLETED'];
@@ -195,6 +204,19 @@ export default function OrderTrackingPage() {
           <div className="bg-neutral-900 text-white rounded-2xl p-4 text-xs font-semibold shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
             <Bell className="w-4 h-4 text-orange-400 shrink-0 animate-bounce" />
             <span className="flex-1">{assistanceMsg}</span>
+          </div>
+        )}
+
+        {isTakeaway && order.status === 'READY' && (
+          <div className="rounded-3xl border-2 border-emerald-400 bg-emerald-50 p-5 text-center">
+            <p className="text-lg font-black text-emerald-950">Your takeaway is ready</p>
+            <p className="mt-1 text-sm text-emerald-800">Collect it at the counter. The bill is below.</p>
+          </div>
+        )}
+        {isTakeaway && order.status === 'COMPLETED' && (
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+            <p className="text-lg font-black text-emerald-950">Collected</p>
+            <p className="mt-1 text-sm text-emerald-800">Download the bill whenever you need it.</p>
           </div>
         )}
 
@@ -271,7 +293,7 @@ export default function OrderTrackingPage() {
           </div>
 
           {/* Quick Table Service Action Buttons */}
-          {!isCompleted && (
+          {!isCompleted && !isTakeaway && (
             <div className="grid grid-cols-2 gap-2.5 pt-5 border-t border-neutral-100 mt-6">
               <button
                 onClick={() => setShowCallWaiterModal(true)}
@@ -322,52 +344,23 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        {/* Order Receipt Breakdown */}
-        <div className="bg-white rounded-3xl p-5 border border-neutral-200/80 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-            <h3 className="font-extrabold text-xs uppercase tracking-wider text-neutral-400">Order Items</h3>
-            <button
-              onClick={() => setShowSplitBillModal(true)}
-              className="text-[11px] text-orange-600 font-bold hover:underline flex items-center gap-1"
-            >
-              <Users className="w-3 h-3" />
-              <span>Split Bill</span>
-            </button>
-          </div>
-
-          <div className="space-y-2.5">
-            {order.items?.map((item: any) => (
-              <div key={item.id} className="flex justify-between items-start text-xs">
-                <div>
-                  <span className="font-extrabold text-neutral-900 mr-1.5">{item.quantity}×</span>
-                  <span className="text-neutral-800 font-medium">{item.menuItem?.name}</span>
-                  {item.specialNote && (
-                    <p className="text-[10px] text-neutral-400 italic mt-0.5 ml-5">
-                      Note: {item.specialNote}
-                    </p>
-                  )}
-                </div>
-                <span className="font-bold text-neutral-900">
-                  ₹{Number(item.totalPrice).toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-3 border-t border-neutral-100 text-xs space-y-1.5">
-            <div className="flex justify-between text-neutral-500">
-              <span>Subtotal</span>
-              <span>₹{Number(order.subtotal).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-neutral-500">
-              <span>GST (5%)</span>
-              <span>₹{Number(order.taxAmount).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between font-black text-sm text-neutral-900 pt-1.5 border-t border-neutral-100">
-              <span>Total Bill</span>
-              <span>₹{totalAmount.toFixed(2)}</span>
-            </div>
-          </div>
+        <div id="bill">
+          <VisitBill
+            title={isTakeaway ? 'Takeaway bill' : 'Your bill'}
+            businessName={order.business?.name}
+            detail={isTakeaway ? 'Collect at the counter' : order.table?.name ? `Table ${order.table.name}` : 'Dine in'}
+            downloadName={`bill-${order.id.slice(-6)}`}
+            lines={(order.items || []).map((item: any) => ({
+              id: item.id,
+              name: item.menuItem?.name || 'Item',
+              quantity: item.quantity,
+              amount: Number(item.totalPrice || 0),
+              note: item.specialNote,
+            }))}
+            subtotal={Number(order.subtotal || 0)}
+            tax={Number(order.taxAmount || 0)}
+            total={totalAmount}
+          />
         </div>
 
         {order.queueTokenId && (
