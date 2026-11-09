@@ -33,7 +33,7 @@ export default function FeaturesPage() {
     {
       icon: Users,
       title: 'One workspace per business',
-      desc: 'Each organisation gets its own queues, QR codes, and customer join page.',
+      desc: 'Each organisation gets its own queue, QR code, and customer join page.',
     },
   ];
 

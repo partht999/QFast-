@@ -468,7 +468,7 @@ export default function JoinQueuePage() {
                 {foodBusiness && activeToken.status === 'CALLED' && (
                   <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
                     {activeToken.table
-                      ? `Your table is ${activeToken.table.name || activeToken.table.tableNumber}. Head in when you are ready.`
+                      ? `Your table is ${activeToken.table.name}. Head in when you are ready.`
                       : 'Your turn is here. A table will be assigned as soon as one is free.'}
                   </p>
                 )}

@@ -258,8 +258,17 @@ export class LoyaltyService {
       select: { type: true },
     });
     if (!business || !isRestaurant(business.type)) return null;
-    const program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId: input.businessId } });
-    if (!program || program.type !== LoyaltyProgramType.VISIT_STAMPS) return null;
+    let program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId: input.businessId } });
+    if (!program) {
+      program = await this.prisma.loyaltyProgram.create({
+        data: { businessId: input.businessId, type: LoyaltyProgramType.VISIT_STAMPS, stampsPerVisit: 1, stampsForReward: 8 },
+      });
+    } else if (program.type !== LoyaltyProgramType.VISIT_STAMPS) {
+      program = await this.prisma.loyaltyProgram.update({
+        where: { id: program.id },
+        data: { type: LoyaltyProgramType.VISIT_STAMPS, stampsPerVisit: 1, stampsForReward: program.stampsForReward || 8 },
+      });
+    }
 
     const customer = await this.prisma.customer.upsert({
       where: { phone },

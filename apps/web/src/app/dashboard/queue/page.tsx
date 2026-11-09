@@ -846,7 +846,7 @@ export default function DashboardQueuePage() {
                       )}
                       {foodBusiness && token.table && (
                         <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                          {token.table.name || `Table ${token.table.tableNumber}`}
+                          {token.table.name}
                         </span>
                       )}
                       {token.status === 'CALLED' && (

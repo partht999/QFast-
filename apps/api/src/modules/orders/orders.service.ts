@@ -44,6 +44,7 @@ export class OrdersService {
       });
       if (qToken) {
         tokenNumber = qToken.tokenNumber;
+        if (!tableId && qToken.tableId) tableId = qToken.tableId;
         if (!dto.customerName && qToken.customerName) {
           dto.customerName = qToken.customerName;
         }
@@ -261,51 +262,6 @@ export class OrdersService {
             where: { orderId, status: PaymentStatus.PENDING },
             data: { status: PaymentStatus.PAID, paidAt: new Date() },
           });
-
-          if (updatedOrder.customerId) {
-            const program = await tx.loyaltyProgram.findUnique({
-              where: { businessId: updatedOrder.businessId },
-            });
-            const points = Math.floor(
-              Number(updatedOrder.subtotal) * Number(program?.pointsPerRupee || 0),
-            );
-
-            if (
-              program?.type === 'POINTS_PER_RUPEE' &&
-              program.pointsPerRupee &&
-              points > 0
-            ) {
-              const account = await tx.loyaltyAccount.upsert({
-                where: {
-                  programId_customerId: {
-                    programId: program.id,
-                    customerId: updatedOrder.customerId,
-                  },
-                },
-                update: {},
-                create: {
-                  programId: program.id,
-                  customerId: updatedOrder.customerId,
-                },
-              });
-              await tx.loyaltyTransaction.create({
-                data: {
-                  accountId: account.id,
-                  orderId: updatedOrder.id,
-                  type: 'EARN',
-                  points,
-                  reason: `Earned from order ${updatedOrder.id}`,
-                  expiresAt: program.expiryDays
-                    ? new Date(Date.now() + program.expiryDays * 86400000)
-                    : undefined,
-                },
-              });
-              await tx.loyaltyAccount.update({
-                where: { id: account.id },
-                data: { points: { increment: points } },
-              });
-            }
-          }
         }
 
         return updatedOrder;

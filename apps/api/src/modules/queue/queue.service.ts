@@ -264,7 +264,7 @@ export class QueueService {
     const token = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
       include: {
-        table: { select: { id: true, name: true, tableNumber: true } },
+        table: { select: { id: true, name: true } },
         orders: {
           include: { items: { include: { menuItem: { select: { name: true } } } } },
           orderBy: { createdAt: 'asc' },
@@ -413,7 +413,7 @@ export class QueueService {
         createdAt: { gte: todayStart },
       },
       include: {
-        table: { select: { id: true, name: true, tableNumber: true } },
+        table: { select: { id: true, name: true } },
         orders: {
           select: { id: true, status: true, totalAmount: true },
         },
@@ -841,7 +841,7 @@ export class QueueService {
   private async claimFreeTable(businessId: string) {
     const tables = await this.prisma.table.findMany({
       where: { businessId, isActive: true },
-      orderBy: { tableNumber: 'asc' },
+      orderBy: { name: 'asc' },
     });
     if (!tables.length) return null;
 
