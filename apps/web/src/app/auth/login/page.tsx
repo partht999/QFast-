@@ -9,7 +9,7 @@ import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,7 @@ export default function LoginPage() {
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
-      localStorage.setItem('userEmail', form.email);
+      localStorage.setItem('userEmail', form.username.trim());
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -57,18 +57,19 @@ export default function LoginPage() {
         <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="login-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Email Address
+              <label htmlFor="login-username" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Username
               </label>
               <input
-                id="login-email"
-                type="email"
+                id="login-username"
+                type="text"
                 required
-                autoComplete="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                minLength={3}
+                autoComplete="username"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
-                placeholder="owner@yourbusiness.com"
+                placeholder="yourname"
               />
             </div>
 

@@ -63,7 +63,7 @@ export default function OnboardingPage() {
       setBusinessType(savedType as BusinessTypeValue);
     }
     const userEmail = localStorage.getItem('userEmail');
-    if (userEmail) {
+    if (userEmail?.includes('@')) {
       setForm((f) => ({ ...f, email: userEmail }));
     }
     setOrigin(window.location.origin);

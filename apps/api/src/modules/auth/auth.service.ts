@@ -15,7 +15,8 @@ export class AuthService {
     private config: ConfigService,
   ) {}
 
-  async validateUser(email: string, pass: string) {
+  async validateUser(username: string, pass: string) {
+    const email = username.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
     const valid = await bcrypt.compare(pass, user.passwordHash);
@@ -44,9 +45,9 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const email = dto.email.trim().toLowerCase();
+    const email = dto.username.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existing) throw new ConflictException('Username already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({

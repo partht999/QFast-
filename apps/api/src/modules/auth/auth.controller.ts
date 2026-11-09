@@ -25,7 +25,7 @@ export class AuthController {
   @Post('login')
   @UseGuards(LocalAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({ summary: 'Login with username and password' })
   async login(@Req() req: any, @Body() _dto: LoginDto) {
     return this.authService.login(req.user);
   }

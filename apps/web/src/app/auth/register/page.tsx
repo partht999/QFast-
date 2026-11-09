@@ -10,7 +10,7 @@ import { readApiError } from '@/lib/read-api-error';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ username: '', password: '', confirm: '' });
   const [businessType, setBusinessType] = useState<BusinessTypeValue>('RESTAURANT');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +29,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
+    if (form.username.trim().length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
     if (form.password.length < 8) {
       setError('Password must be at least 8 characters long');
       return;
@@ -45,12 +49,12 @@ export default function RegisterPage() {
       const res = await fetch(`${apiUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email.trim(), password: form.password }),
+        body: JSON.stringify({ username: form.username.trim(), password: form.password }),
       });
 
       if (!res.ok) {
         if (res.status === 409) {
-          throw new Error('This email is already registered. Please sign in instead.');
+          throw new Error('This username is already taken. Please sign in instead.');
         }
         const errData = await res.json().catch(() => ({}));
         throw new Error(readApiError(errData, 'Registration failed. Please try again.'));
@@ -60,7 +64,7 @@ export default function RegisterPage() {
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
-      localStorage.setItem('userEmail', form.email);
+      localStorage.setItem('userEmail', form.username.trim());
       localStorage.setItem('qfast_business_type', businessType);
       localStorage.setItem('qfast_plan', 'pro');
       router.push('/dashboard/onboarding');
@@ -107,18 +111,19 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="register-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Work Email Address
+              <label htmlFor="register-username" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Username
               </label>
               <input
-                id="register-email"
-                type="email"
+                id="register-username"
+                type="text"
                 required
-                autoComplete="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                minLength={3}
+                autoComplete="username"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
-                placeholder="you@yourcompany.com"
+                placeholder="yourname"
               />
             </div>
 
