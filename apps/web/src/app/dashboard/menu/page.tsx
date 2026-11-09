@@ -502,10 +502,10 @@ export default function MenuManagementPage() {
                               }`}
                               title={item.isVeg ? 'Vegetarian' : 'Non-Vegetarian'}
                             />
-                            <h4 className="font-bold text-sm text-gray-900 truncate">{item.name}</h4>
+                            <h4 className="truncate text-base font-bold text-gray-950">{item.name}</h4>
                           </div>
 
-                          <span className="font-extrabold text-sm text-gray-900 block">
+                          <span className="block text-base font-extrabold text-gray-950">
                             ₹{Number(item.price).toFixed(2)}
                           </span>
 

@@ -30,11 +30,13 @@ import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TodayReport, TodayReportData } from '@/components/today-report';
 
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [today, setToday] = useState<TodayReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -86,16 +88,18 @@ export default function DashboardPage() {
         const curBiz = bizArray[0];
         setSelectedBusiness(curBiz);
 
-        // Fetch real-time overview stats
-        const statsRes = await fetch(`${apiUrl}/api/v1/orders/overview/${curBiz.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+        const [statsRes, todayRes] = await Promise.all([
+          fetch(`${apiUrl}/api/v1/orders/overview/${curBiz.id}`, { headers }),
+          fetch(`${apiUrl}/api/v1/business/${curBiz.id}/today`, { headers }),
+        ]);
         if (!statsRes.ok) throw new Error('Organization details loaded, but live metrics are unavailable.');
-        const statsData = await statsRes.json();
-        setStats(statsData);
+        setStats(await statsRes.json());
+        setToday(todayRes.ok ? await todayRes.json() : null);
       } else {
         setSelectedBusiness(null);
         setStats(null);
+        setToday(null);
       }
       setError('');
       setLastUpdated(new Date());
@@ -300,7 +304,7 @@ export default function DashboardPage() {
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
               >
                 <Gift className="w-3.5 h-3.5 text-pink-500" />
-                <span>Rewards Wallet</span>
+                <span>Stamp card</span>
               </Link>
             </div>
 
@@ -505,6 +509,8 @@ export default function DashboardPage() {
                 </>
               )}
             </div>
+
+            {today && <TodayReport report={today} foodBusiness={foodBusiness} />}
 
             {/* Recent Orders Stream */}
             {foodBusiness && (

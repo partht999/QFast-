@@ -1,525 +1,227 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import {
-  Gift,
-  Plus,
-  Search,
-  Sparkles,
-  Award,
-  Trash2,
-  Power,
-  ArrowLeft,
-  Coins,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  CreditCard,
-  Ticket,
-} from 'lucide-react';
+import { Gift } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
-import { ConfirmModal } from '@/components/ui/confirm-modal';
-import { EmptyState } from '@/components/ui/empty-state';
 
 export default function LoyaltyManagementPage() {
   const [business, setBusiness] = useState<any>(null);
-  const [program, setProgram] = useState<any>(null);
+  const [stampsForReward, setStampsForReward] = useState(8);
+  const [rewardName, setRewardName] = useState('Free visit');
+  const [phone, setPhone] = useState('');
+  const [guest, setGuest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [pointsPerRupee, setPointsPerRupee] = useState(1);
-  const [searchPhone, setSearchPhone] = useState('');
-  const [customerLookup, setCustomerLookup] = useState<any>(null);
-  const [searching, setSearching] = useState(false);
-  const [savingProgram, setSavingProgram] = useState(false);
-  const [rewardForm, setRewardForm] = useState({
-    name: '',
-    description: '',
-    pointsCost: 100,
-    rewardType: 'DISCOUNT',
-  });
-  const [savingReward, setSavingReward] = useState(false);
-  const [rewardToDelete, setRewardToDelete] = useState<any | null>(null);
-
+  const [saving, setSaving] = useState(false);
+  const [working, setWorking] = useState(false);
   const router = useRouter();
   const toast = useToast();
   const apiUrl = getApiUrl();
 
-  const fetchData = async () => {
+  useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
       router.push('/auth/login');
       return;
     }
-
-    try {
-      const bizRes = await fetch(`${apiUrl}/api/v1/business`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (bizRes.status === 401) {
-        router.push('/auth/login');
-        return;
-      }
-      const bizList = await bizRes.json();
-      if (bizList.length > 0) {
-        const curBiz = bizList[0];
-        setBusiness(curBiz);
-
-        const progRes = await fetch(`${apiUrl}/api/v1/loyalty/program/${curBiz.id}`, {
+    fetch(`${apiUrl}/api/v1/business`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        if (response.status === 401) {
+          router.push('/auth/login');
+          return [];
+        }
+        return response.json();
+      })
+      .then(async (businesses) => {
+        const current = Array.isArray(businesses) ? businesses[0] : null;
+        if (!current) return;
+        setBusiness(current);
+        const programResponse = await fetch(`${apiUrl}/api/v1/loyalty/program/${current.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (progRes.ok) {
-          const progData = await progRes.json();
-          setProgram(progData);
-          setPointsPerRupee(Number(progData.pointsPerRupee) || 1);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Network Error', 'Failed to load loyalty program.');
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (!programResponse.ok) return;
+        const program = await programResponse.json();
+        setStampsForReward(program.stampsForReward || program.rewards?.[0]?.pointsCost || 8);
+        setRewardName(program.rewards?.[0]?.name || 'Free visit');
+      })
+      .catch(() => toast.error('Could not load stamps', 'Check the connection and try again.'))
+      .finally(() => setLoading(false));
+  }, [apiUrl, router]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleSaveProgram = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveCard = async (event: FormEvent) => {
+    event.preventDefault();
     if (!business) return;
-    setSavingProgram(true);
-    const token = localStorage.getItem('accessToken');
-
+    setSaving(true);
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`${apiUrl}/api/v1/loyalty/program/${business.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'POINTS_PER_RUPEE',
-          pointsPerRupee: Number(pointsPerRupee),
-          expiryDays: 365,
+          type: 'VISIT_STAMPS',
+          stampsForReward,
+          rewardName,
         }),
       });
-      if (!response.ok) throw new Error('Could not save loyalty rules');
-      toast.success('Rules Saved', `Customers will earn ${pointsPerRupee * 100} points per ₹100 spent.`);
-      await fetchData();
-    } catch (err: any) {
-      toast.error('Save Failed', err.message);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(readApiError(data, 'Could not save the stamp card'));
+      toast.success('Stamp card saved', `${stampsForReward} stamps for ${rewardName}.`);
+    } catch (error) {
+      toast.error('Could not save', error instanceof Error ? error.message : 'Try again.');
     } finally {
-      setSavingProgram(false);
+      setSaving(false);
     }
   };
 
-  const handleCreateReward = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!business) return;
-    setSavingReward(true);
-    const token = localStorage.getItem('accessToken');
-
+  const lookup = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!business || !phone.trim()) return;
+    setWorking(true);
+    setGuest(null);
     try {
       const response = await fetch(
-        `${apiUrl}/api/v1/loyalty/program/${business.id}/rewards`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            ...rewardForm,
-            pointsCost: Number(rewardForm.pointsCost),
-          }),
-        },
+        `${apiUrl}/api/v1/loyalty/public/${business.slug}/${encodeURIComponent(phone.trim())}`,
       );
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Could not create reward offer');
-      }
-      toast.success('Reward Published', `"${rewardForm.name}" added to member offers.`);
-      setRewardForm({ name: '', description: '', pointsCost: 100, rewardType: 'DISCOUNT' });
-      await fetchData();
-    } catch (err: any) {
-      toast.error('Reward Error', err.message);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Could not find this guest');
+      setGuest(data);
+    } catch (error) {
+      toast.error('Lookup failed', error instanceof Error ? error.message : 'Try again.');
     } finally {
-      setSavingReward(false);
+      setWorking(false);
     }
   };
 
-  const toggleRewardActive = async (reward: any) => {
-    if (!business) return;
-    const token = localStorage.getItem('accessToken');
+  const stampAction = async (path: 'stamps' | 'redeem') => {
+    if (!business || !phone.trim()) return;
+    setWorking(true);
     try {
-      const response = await fetch(
-        `${apiUrl}/api/v1/loyalty/program/${business.id}/rewards/${reward.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ isActive: !reward.isActive }),
-        },
-      );
-      if (!response.ok) throw new Error('Could not update reward status');
-      toast.info(
-        reward.isActive ? 'Offer Paused' : 'Offer Published',
-        `"${reward.name}" is now ${reward.isActive ? 'hidden from diners' : 'available for redemption'}.`
-      );
-      await fetchData();
-    } catch (err: any) {
-      toast.error('Error', err.message);
-    }
-  };
-
-  const handleDeleteReward = async () => {
-    if (!rewardToDelete || !business) return;
-    const token = localStorage.getItem('accessToken');
-    try {
-      const response = await fetch(
-        `${apiUrl}/api/v1/loyalty/program/${business.id}/rewards/${rewardToDelete.id}`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      if (!response.ok) throw new Error('Could not delete reward');
-      toast.success('Reward Deleted', `Removed "${rewardToDelete.name}".`);
-      setRewardToDelete(null);
-      await fetchData();
-    } catch (err: any) {
-      toast.error('Delete Failed', err.message);
-    }
-  };
-
-  const handleSearchCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!business || !searchPhone.trim()) return;
-    setSearching(true);
-    setCustomerLookup(null);
-
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/loyalty/public/${business.slug}/${encodeURIComponent(searchPhone.trim())}`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'No wallet found for this phone number');
-      setCustomerLookup(data);
-    } catch (err: any) {
-      toast.warning('Not Found', err.message || 'No loyalty balance recorded for this number.');
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${apiUrl}/api/v1/loyalty/program/${business.id}/${path}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(' ') : data.message);
+      setGuest(data);
+      toast.success(path === 'stamps' ? 'Stamp added' : 'Reward given', data.rewardName || rewardName);
+    } catch (error) {
+      toast.error('Could not update stamps', error instanceof Error ? error.message : 'Try again.');
     } finally {
-      setSearching(false);
+      setWorking(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Loading loyalty program...</p>
-        </div>
-      </div>
-    );
+    return <p className="p-6 text-sm text-slate-500">Loading stamp card…</p>;
   }
 
-  const rewards = program?.rewards || [];
+  const goal = guest?.stampsForReward || stampsForReward;
+  const filled = guest?.stamps || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      {/* Top Header */}
-      <header className="bg-white border-b border-gray-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-xs font-bold transition-colors bg-gray-100 px-3 py-1.5 rounded-xl"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-gray-300">/</span>
-          <div className="flex items-center gap-2">
-            <Coins className="w-5 h-5 text-orange-600" />
-            <h1 className="text-base font-extrabold text-gray-900">Loyalty Rewards &amp; Scratch Cards</h1>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+            <Gift className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-slate-950">Stamp card</h2>
+            <p className="text-sm text-slate-500">One stamp per visit. A full card is one reward.</p>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {/* Banner with Explanation of Scratch Cards */}
-        <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 rounded-3xl p-6 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-xs">
-              <Sparkles className="w-4 h-4 text-purple-200" />
-              <span>Gamified Guest Retention</span>
-            </span>
-            <h2 className="text-2xl font-black tracking-tight">Scratch cards after a completed visit</h2>
-            <p className="text-xs text-purple-100 max-w-xl leading-relaxed">
-              When a visit is completed, customers reveal a scratch card on their phone and earn points for your business. They redeem those points against the offers you publish. Restaurants can also award points when an order is marked complete.
-            </p>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center shrink-0 min-w-56 space-y-1.5">
-            <span className="text-2xl block">🎁</span>
-            <span className="text-xs font-extrabold uppercase tracking-wider text-purple-200 block">
-              Automated Scratch Card
-            </span>
-            <p className="text-[11px] text-purple-100 font-semibold">
-              Active after a completed visit
-            </p>
-          </div>
-        </div>
-
-        {/* Earning Rule Settings & Quick Lookup Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Points Rule Settings Card */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-orange-600">
-                  Earn Rate Formula
-                </span>
-                <h3 className="text-lg font-black text-gray-900 mt-0.5">Points per ₹ Spend</h3>
-              </div>
-              <span className="text-xs bg-emerald-50 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Auto-crediting
-              </span>
-            </div>
-
-            <form onSubmit={handleSaveProgram} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
-                  Points Credited per ₹100 Spent
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={pointsPerRupee * 100}
-                    onChange={(e) => setPointsPerRupee(Number(e.target.value) / 100)}
-                    className="w-36 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-                  />
-                  <span className="text-xs font-bold text-gray-500">Points earned</span>
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1.5">
-                  Formula: A diner spending ₹500 automatically receives <strong>{(pointsPerRupee * 500).toFixed(0)} points</strong> on their phone.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingProgram}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-98"
-              >
-                {savingProgram ? 'Saving Rules...' : 'Update Earning Rate'}
-              </button>
-            </form>
-          </div>
-
-          {/* Customer Balance Lookup Card */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-xs space-y-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Front Counter Tool
-              </span>
-              <h3 className="text-lg font-black text-gray-900 mt-0.5">Customer Balance Lookup</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Quickly verify a diner's available loyalty points by mobile number.
-              </p>
-            </div>
-
-            <form onSubmit={handleSearchCustomer} className="flex gap-2">
-              <input
-                type="tel"
-                required
-                value={searchPhone}
-                onChange={(e) => setSearchPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-              />
-              <button
-                type="submit"
-                disabled={searching}
-                className="bg-gray-900 hover:bg-black text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-xs flex items-center gap-1.5 shrink-0"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>{searching ? 'Looking...' : 'Search'}</span>
-              </button>
-            </form>
-
-            {customerLookup && (
-              <div className="bg-orange-50/80 border border-orange-200 rounded-2xl p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Member</span>
-                    <p className="text-xs font-extrabold text-gray-900">{searchPhone}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Available Balance</span>
-                    <p className="text-xl font-black text-orange-600">{customerLookup.points} pts</p>
-                  </div>
-                </div>
-
-                {customerLookup.transactions && customerLookup.transactions.length > 0 && (
-                  <div className="pt-2 border-t border-orange-200/60 text-xs space-y-1">
-                    <span className="text-[10px] font-bold text-gray-700 block">Recent Activity</span>
-                    {customerLookup.transactions.slice(0, 3).map((t: any) => (
-                      <div key={t.id} className="flex justify-between text-[11px] text-gray-600">
-                        <span>{t.reason || 'Order reward'}</span>
-                        <span className="font-bold text-emerald-700">+{t.points} pts</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Member Rewards Catalog */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-xs space-y-6">
-          <div className="border-b border-gray-100 pb-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-orange-600">
-              Redemption Catalog
-            </span>
-            <h3 className="text-lg font-black text-gray-900 mt-0.5">Manage Member Rewards ({rewards.length})</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Create offers diners can claim during their next visit using points they scratched.
-            </p>
-          </div>
-
-          {/* Add Offer Form */}
-          <form onSubmit={handleCreateReward} className="bg-gray-50 rounded-2xl p-4 border border-gray-200/60 space-y-3">
-            <h4 className="font-bold text-xs uppercase tracking-wider text-gray-700">Add New Reward Offer</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                required
-                maxLength={80}
-                value={rewardForm.name}
-                onChange={(e) => setRewardForm({ ...rewardForm, name: e.target.value })}
-                placeholder="Offer name (e.g. Free Starter)"
-                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
-              />
-              <input
-                type="number"
-                required
-                min={1}
-                max={100000}
-                value={rewardForm.pointsCost}
-                onChange={(e) => setRewardForm({ ...rewardForm, pointsCost: Number(e.target.value) })}
-                placeholder="Points needed"
-                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
-              />
-              <select
-                value={rewardForm.rewardType}
-                onChange={(e) => setRewardForm({ ...rewardForm, rewardType: e.target.value })}
-                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
-              >
-                <option value="DISCOUNT">Bill Discount (₹ or %)</option>
-                <option value="FREE_ITEM">Free Menu Item</option>
-                <option value="OTHER">Custom Special Perk</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                maxLength={200}
-                value={rewardForm.description}
-                onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })}
-                placeholder="Details or redemption note (e.g. Valid on any bill above ₹400)"
-                className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
-              />
-              <button
-                type="submit"
-                disabled={savingReward}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{savingReward ? 'Adding...' : 'Publish Reward'}</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Active Rewards List */}
-          {rewards.length === 0 ? (
-            <EmptyState
-              icon={Gift}
-              title="No rewards configured yet"
-              description="Add member offers above (e.g. Free Dessert for 150 points, ₹50 Off for 100 points) to give customers a compelling reason to revisit!"
+        <form onSubmit={saveCard} className="mt-5 grid gap-4 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
+          <label className="block text-sm font-semibold text-slate-700">
+            Stamps
+            <input
+              type="number"
+              min={2}
+              max={20}
+              value={stampsForReward}
+              onChange={(event) => setStampsForReward(Number(event.target.value))}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
             />
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {rewards.map((reward: any) => (
-                <div key={reward.id} className="py-3.5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-gray-900">{reward.name}</h4>
-                      <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                          reward.isActive
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : 'bg-gray-100 text-gray-500 border-gray-200'
-                        }`}
-                      >
-                        {reward.isActive ? 'Active Offer' : 'Paused'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {reward.description || 'Applicable on next dine-in visit'} · <strong className="text-orange-600 font-bold">{reward.pointsCost} points</strong> required
-                    </p>
-                  </div>
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            Reward
+            <input
+              value={rewardName}
+              onChange={(event) => setRewardName(event.target.value)}
+              maxLength={80}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save card'}
+          </button>
+        </form>
+      </section>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleRewardActive(reward)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors flex items-center gap-1.5 ${
-                        reward.isActive
-                          ? 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
-                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-                      }`}
-                    >
-                      <Power className="w-3.5 h-3.5" />
-                      <span>{reward.isActive ? 'Pause' : 'Activate'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRewardToDelete(reward)}
-                      className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                      title="Delete offer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 className="text-lg font-black text-slate-950">Guest card</h2>
+        <p className="mt-1 text-sm text-slate-500">Look up the mobile number, add a stamp, or give the reward when the card is full.</p>
+        <form onSubmit={lookup} className="mt-4 flex gap-2">
+          <input
+            type="tel"
+            required
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder="Mobile number"
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+          />
+          <button type="submit" disabled={working} className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+            Find
+          </button>
+        </form>
+
+        {guest && (
+          <div className="mt-5">
+            <p className="text-sm font-semibold text-slate-700">
+              {filled} of {goal} stamps
+              {filled >= goal ? ' · ready to redeem' : ` · ${goal - filled} to go`}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Array.from({ length: goal }).map((_, index) => (
+                <span
+                  key={index}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black ${
+                    index < filled ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-200 bg-slate-50 text-slate-300'
+                  }`}
+                >
+                  {index + 1}
+                </span>
               ))}
             </div>
-          )}
-        </div>
-      </main>
-
-      {/* Branded Confirm Modal for Deleting Reward */}
-      <ConfirmModal
-        isOpen={!!rewardToDelete}
-        onClose={() => setRewardToDelete(null)}
-        onConfirm={handleDeleteReward}
-        title="Delete Loyalty Offer?"
-        description={
-          rewardToDelete
-            ? `Are you sure you want to delete "${rewardToDelete.name}"? Diners will no longer be able to claim it.`
-            : 'Are you sure you want to delete this offer?'
-        }
-        confirmLabel="Yes, Delete Offer"
-        cancelLabel="Keep Offer"
-        variant="danger"
-      />
+            <p className="mt-3 text-sm text-slate-600">Reward: {guest.rewardName || rewardName}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={working}
+                onClick={() => void stampAction('stamps')}
+                className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+              >
+                Add stamp
+              </button>
+              <button
+                type="button"
+                disabled={working || filled < goal}
+                onClick={() => void stampAction('redeem')}
+                className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800 disabled:opacity-40"
+              >
+                Give reward
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

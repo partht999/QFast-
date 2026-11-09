@@ -34,6 +34,14 @@ export class BusinessController {
     return this.businessService.explore(category, search, location);
   }
 
+  @Get(':id/today')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Today’s queue and order report' })
+  async today(@Param('id') id: string, @Req() req: any) {
+    return this.businessService.getTodayReport(id, req.user.sub);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
 import { BusinessType, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
@@ -16,6 +17,7 @@ export class QueueService {
   constructor(
     private prisma: PrismaService,
     private events: EventsGateway,
+    private loyalty: LoyaltyService,
   ) {}
 
   async getStatusBySlug(slug: string) {
@@ -648,6 +650,15 @@ export class QueueService {
       type: 'TOKEN_STATUS_CHANGED',
       token,
     });
+
+    if (status === QueueTokenStatus.COMPLETED && token.customerPhone) {
+      await this.loyalty.awardVisit({
+        businessId: token.queue.businessId,
+        phone: token.customerPhone,
+        name: token.customerName,
+        sourceKey: `token:${token.id}`,
+      });
+    }
 
     return token;
   }

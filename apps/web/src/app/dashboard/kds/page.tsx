@@ -239,7 +239,7 @@ export default function KDSPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
       {/* KDS Header Bar */}
-      <header className="bg-neutral-900 border-b border-neutral-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-30">
+      <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-4">
           <Link
             href="/dashboard"
@@ -405,10 +405,10 @@ export default function KDSPage() {
                                 <Square className="w-4 h-4 text-neutral-500 group-hover:text-neutral-400 shrink-0 mt-0.5" />
                               )}
                               <div>
-                                <span className={`font-black text-sm mr-2 ${isChecked ? 'line-through text-neutral-500' : 'text-amber-400'}`}>
+                                <span className={`mr-2 text-lg font-black ${isChecked ? 'line-through text-neutral-500' : 'text-amber-400'}`}>
                                   {item.quantity}×
                                 </span>
-                                <span className={`font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
+                                <span className={`text-base font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
                                   {item.menuItem?.name}
                                 </span>
                                 {item.specialNote && (
@@ -513,10 +513,10 @@ export default function KDSPage() {
                                 <Square className="w-4 h-4 text-neutral-500 group-hover:text-neutral-400 shrink-0 mt-0.5" />
                               )}
                               <div>
-                                <span className={`font-black text-sm mr-2 ${isChecked ? 'line-through text-neutral-500' : 'text-orange-400'}`}>
+                                <span className={`mr-2 text-lg font-black ${isChecked ? 'line-through text-neutral-500' : 'text-orange-400'}`}>
                                   {item.quantity}×
                                 </span>
-                                <span className={`font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
+                                <span className={`text-base font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
                                   {item.menuItem?.name}
                                 </span>
                               </div>

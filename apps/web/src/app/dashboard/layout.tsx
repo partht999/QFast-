@@ -30,7 +30,7 @@ const navigation = [
   { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
   { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
-  { label: 'Loyalty', href: '/dashboard/loyalty', icon: Gift },
+  { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -40,7 +40,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/menu': 'Menu Editor',
   '/dashboard/tables': 'Tables & QR',
   '/dashboard/reviews': 'Google Reviews',
-  '/dashboard/loyalty': 'Loyalty & Points',
+  '/dashboard/loyalty': 'Stamp card',
   '/dashboard/onboarding': 'Onboarding',
 };
 

@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateLoyaltyProgramDto } from './dto/update-loyalty-program.dto';
 import { CreateLoyaltyRewardDto } from './dto/create-loyalty-reward.dto';
 import { UpdateLoyaltyRewardDto } from './dto/update-loyalty-reward.dto';
+import { StampActionDto } from './dto/stamp-action.dto';
 
 @ApiTags('loyalty')
 @Controller('loyalty')
@@ -54,6 +55,30 @@ export class LoyaltyController {
     @Req() req: any,
   ) {
     return this.loyaltyService.updateProgram(businessId, req.user.sub, req.user.role, data);
+  }
+
+  @Post('program/:businessId/stamps')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add one visit stamp' })
+  async addStamp(
+    @Param('businessId') businessId: string,
+    @Body() data: StampActionDto,
+    @Req() req: any,
+  ) {
+    return this.loyaltyService.addStamp(businessId, req.user.sub, req.user.role, data.phone, data.name);
+  }
+
+  @Post('program/:businessId/redeem')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Redeem a completed stamp card' })
+  async redeemStamp(
+    @Param('businessId') businessId: string,
+    @Body() data: StampActionDto,
+    @Req() req: any,
+  ) {
+    return this.loyaltyService.redeemStamp(businessId, req.user.sub, req.user.role, data.phone);
   }
 
   @Post('program/:businessId/rewards')

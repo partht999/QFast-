@@ -250,7 +250,7 @@ export default function TableOrderPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-black tracking-tight text-neutral-900 line-clamp-1">
+                <h1 className="text-lg font-black tracking-tight text-neutral-950 line-clamp-1">
                   {restaurant?.name || 'Restaurant'}
                 </h1>
                 {orderSource === 'QUEUE_PREORDER' ? (
@@ -308,7 +308,7 @@ export default function TableOrderPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search dishes, drinks, starters..."
-              className="w-full bg-neutral-100/80 border border-neutral-200/80 rounded-xl pl-9 pr-8 py-2 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all placeholder:text-neutral-400"
+              className="w-full bg-neutral-100/80 border border-neutral-200/80 rounded-xl pl-9 pr-8 py-3 text-base focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all placeholder:text-neutral-400"
             />
             {searchQuery && (
               <button
@@ -325,7 +325,7 @@ export default function TableOrderPage() {
         <div className="max-w-2xl mx-auto px-4 overflow-x-auto no-scrollbar flex items-center gap-2 py-2 border-t border-neutral-100">
           <button
             onClick={() => setSelectedCategory('ALL')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${selectedCategory === 'ALL'
+            className={`px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === 'ALL'
                 ? 'bg-orange-500 text-white shadow-xs'
                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'
               }`}
@@ -336,7 +336,7 @@ export default function TableOrderPage() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.name)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${selectedCategory === cat.name
+              className={`px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === cat.name
                   ? 'bg-orange-500 text-white shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'
                 }`}
@@ -368,7 +368,7 @@ export default function TableOrderPage() {
       )}
 
       {/* Menu Item Cards */}
-      <main className="max-w-2xl mx-auto p-4 space-y-3">
+      <main className="max-w-2xl mx-auto space-y-3 p-4 pb-28">
         {filteredItems.length === 0 ? (
           <div className="bg-white rounded-3xl p-10 text-center text-neutral-400 border border-neutral-100 shadow-xs mt-4">
             <UtensilsCrossed className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
@@ -409,7 +409,7 @@ export default function TableOrderPage() {
                       >
                         ●
                       </span>
-                      <h3 className="font-bold text-neutral-900 text-sm leading-snug">{item.name}</h3>
+                      <h3 className="font-bold text-neutral-950 text-base leading-snug">{item.name}</h3>
                       {item.isVeg ? (
                         <span className="text-[10px] text-emerald-700 font-semibold hidden sm:inline">Veg</span>
                       ) : (
@@ -417,7 +417,7 @@ export default function TableOrderPage() {
                       )}
                     </div>
 
-                    <div className="font-black text-sm text-neutral-900 mb-1">
+                    <div className="font-black text-base text-neutral-950 mb-1">
                       ₹{Number(item.price).toFixed(2)}
                     </div>
 
@@ -444,24 +444,24 @@ export default function TableOrderPage() {
                     {qty === 0 ? (
                       <button
                         onClick={() => addToCart(item)}
-                        className="bg-orange-50 hover:bg-orange-500 text-orange-600 hover:text-white font-extrabold text-xs px-4 py-2 rounded-xl border border-orange-200 hover:border-orange-500 transition-all shadow-xs active:scale-95 flex items-center gap-1.5"
+                        className="flex min-h-11 items-center gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-extrabold text-orange-700 shadow-xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Add
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2 bg-orange-500 text-white rounded-xl px-2 py-1 shadow-sm">
+                      <div className="flex min-h-11 items-center gap-1 rounded-xl bg-orange-500 px-1.5 text-white shadow-sm">
                         <button
                           onClick={() => removeFromCart(item.id)}
-                          className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-orange-600 rounded transition-colors"
+                          className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
                           aria-label="Decrease quantity"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs font-black w-4 text-center">{qty}</span>
+                        <span className="w-5 text-center text-sm font-black">{qty}</span>
                         <button
                           onClick={() => addToCart(item)}
-                          className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-orange-600 rounded transition-colors"
+                          className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
                           aria-label="Increase quantity"
                         >
                           <Plus className="w-3.5 h-3.5" />

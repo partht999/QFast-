@@ -330,6 +330,19 @@ export default function TablesManagementPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['Tables', tables.length],
+              ['Busy', occupiedTables.length],
+              ['Free', Math.max(tables.length - occupiedTables.length, 0)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+                <p className="mt-1 text-2xl font-black text-gray-950">{value}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Floor Plan Tables Grid */}
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
@@ -381,7 +394,7 @@ export default function TablesManagementPage() {
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-base font-black text-gray-900">{table.name}</span>
+                          <span className="text-xl font-black text-gray-950">{table.name}</span>
                           <span
                             className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
                               isOccupied
@@ -389,7 +402,7 @@ export default function TablesManagementPage() {
                                 : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             }`}
                           >
-                            {isOccupied ? 'Occupied 🍽️' : 'Available ✓'}
+                            {isOccupied ? 'Busy' : 'Free'}
                           </span>
                         </div>
 

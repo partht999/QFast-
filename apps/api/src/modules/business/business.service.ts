@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { BusinessType, PlanTier, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
@@ -305,4 +305,162 @@ export class BusinessService {
     if (!business) throw new NotFoundException('Business not found');
     return business;
   }
+
+  async getTodayReport(businessId: string, userId: string) {
+    const business = await this.prisma.business.findFirst({
+      where: { id: businessId, staff: { some: { userId, isActive: true } } },
+      select: { id: true, name: true, timezone: true, type: true },
+    });
+    if (!business) throw new ForbiddenException('You do not have access to this workspace');
+
+    const timeZone = business.timezone || 'Asia/Kolkata';
+    const start = startOfDayInTimeZone(timeZone);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+    const [tokens, waitingNow, calledNow, orders] = await Promise.all([
+      this.prisma.queueToken.findMany({
+        where: {
+          queue: { businessId },
+          OR: [
+            { createdAt: { gte: start, lt: end } },
+            { calledAt: { gte: start, lt: end } },
+            { completedAt: { gte: start, lt: end } },
+            { cancelledAt: { gte: start, lt: end } },
+            { status: QueueTokenStatus.NO_SHOW, updatedAt: { gte: start, lt: end } },
+          ],
+        },
+        select: {
+          tokenNumber: true,
+          customerName: true,
+          status: true,
+          createdAt: true,
+          calledAt: true,
+          completedAt: true,
+          cancelledAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.queueToken.count({
+        where: { queue: { businessId }, status: QueueTokenStatus.WAITING },
+      }),
+      this.prisma.queueToken.count({
+        where: { queue: { businessId }, status: QueueTokenStatus.CALLED },
+      }),
+      this.prisma.order.findMany({
+        where: { businessId, createdAt: { gte: start, lt: end } },
+        select: { status: true, totalAmount: true, createdAt: true },
+      }),
+    ]);
+
+    const joined = tokens.filter((token) => token.createdAt >= start && token.createdAt < end);
+    const served = tokens.filter((token) => token.completedAt && token.completedAt >= start && token.completedAt < end);
+    const noShow = tokens.filter(
+      (token) => token.status === QueueTokenStatus.NO_SHOW && token.updatedAt >= start && token.updatedAt < end,
+    );
+    const cancelled = tokens.filter(
+      (token) => token.cancelledAt && token.cancelledAt >= start && token.cancelledAt < end,
+    );
+    const waits = joined
+      .filter((token) => token.calledAt)
+      .map((token) => Math.max(0, Math.round((token.calledAt!.getTime() - token.createdAt.getTime()) / 60000)));
+    const services = served
+      .filter((token) => token.calledAt && token.completedAt)
+      .map((token) => Math.max(0, Math.round((token.completedAt!.getTime() - token.calledAt!.getTime()) / 60000)));
+
+    const hourly = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: hourLabel(hour),
+      joined: 0,
+      served: 0,
+    }));
+    for (const token of joined) hourly[hourInTimeZone(token.createdAt, timeZone)].joined += 1;
+    for (const token of served) hourly[hourInTimeZone(token.completedAt!, timeZone)].served += 1;
+    const busiest = hourly.reduce((best, hour) => (hour.joined > best.joined ? hour : best), hourly[0]);
+
+    const completedOrders = orders.filter((order) => order.status === 'COMPLETED');
+    const revenue = completedOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+
+    return {
+      businessName: business.name,
+      dateLabel: new Intl.DateTimeFormat('en-IN', {
+        timeZone,
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(start),
+      queue: {
+        joined: joined.length,
+        served: served.length,
+        noShow: noShow.length,
+        cancelled: cancelled.length,
+        stillWaiting: waitingNow,
+        calledNow,
+        averageWaitMinutes: average(waits),
+        averageServiceMinutes: average(services),
+        busiestHour: busiest.joined > 0 ? busiest.label : null,
+        hourly,
+        servedList: served
+          .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
+          .slice(0, 8)
+          .map((token) => ({
+            tokenNumber: token.tokenNumber,
+            customerName: token.customerName,
+            waitMinutes: token.calledAt
+              ? Math.max(0, Math.round((token.calledAt.getTime() - token.createdAt.getTime()) / 60000))
+              : null,
+          })),
+      },
+      orders: {
+        placed: orders.length,
+        completed: completedOrders.length,
+        open: orders.filter((order) => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)).length,
+        cancelled: orders.filter((order) => order.status === 'CANCELLED' || order.status === 'REJECTED').length,
+        revenue,
+        averageBill: completedOrders.length ? Math.round(revenue / completedOrders.length) : 0,
+      },
+    };
+  }
+}
+
+function average(values: number[]) {
+  if (!values.length) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function hourInTimeZone(date: Date, timeZone: string) {
+  const hour = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', hourCycle: 'h23' }).format(date);
+  return Number(hour) % 24;
+}
+
+function hourLabel(hour: number) {
+  const suffix = hour < 12 ? 'am' : 'pm';
+  const value = hour % 12 || 12;
+  return `${value}${suffix}`;
+}
+
+function startOfDayInTimeZone(timeZone: string, date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  const offset = asUtc - date.getTime();
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) - offset);
 }

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 
@@ -9,6 +10,7 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private events: EventsGateway,
+    private loyalty: LoyaltyService,
   ) {}
 
   async createPublicOrder(dto: CreateOrderDto) {
@@ -338,6 +340,16 @@ export class OrdersService {
       type: 'ORDER_STATUS_CHANGED',
       order,
     });
+
+    if (status === OrderStatus.COMPLETED && order.customerPhone) {
+      await this.loyalty.awardVisit({
+        businessId: order.businessId,
+        phone: order.customerPhone,
+        name: order.customerName,
+        sourceKey: order.queueTokenId ? `token:${order.queueTokenId}` : `order:${order.id}`,
+        orderId: order.id,
+      });
+    }
 
     return order;
   }
