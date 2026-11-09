@@ -421,14 +421,19 @@ export default function JoinQueuePage() {
 
               <div className="relative z-10 pt-2 flex flex-col gap-2.5">
                 {foodBusiness && (
-                  <Link
-                    href={`/r/${slug}/table/1`}
-                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
-                  >
-                    <UtensilsCrossed className="w-4 h-4" />
-                    <span>Browse Menu &amp; Preorder</span>
-                    <ChevronRight className="w-4 h-4 -ml-0.5" />
-                  </Link>
+                  <div className="space-y-1">
+                    <Link
+                      href={`/r/${slug}/table/queue?token=${activeToken.id}`}
+                      className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
+                    >
+                      <UtensilsCrossed className="w-4 h-4" />
+                      <span>Pre-order Food for Your Table</span>
+                      <ChevronRight className="w-4 h-4 -ml-0.5" />
+                    </Link>
+                    <p className="text-[11px] text-center text-neutral-500 font-medium">
+                      Kitchen starts preparing now · Served as soon as you are seated!
+                    </p>
+                  </div>
                 )}
                 <button
                   onClick={handleCancelToken}

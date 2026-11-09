@@ -52,6 +52,11 @@ export class CreateOrderDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  queueTokenId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   tableId?: string;
 
   @ApiProperty({ example: 'Table 4', required: false })

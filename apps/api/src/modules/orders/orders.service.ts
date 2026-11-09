@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -32,6 +32,41 @@ export class OrdersService {
       });
       if (table) tableId = table.id;
     }
+
+    // Lookup queue token if provided
+    let queueTokenId = dto.queueTokenId;
+    let tokenNumber: number | undefined;
+    if (queueTokenId) {
+      const qToken = await this.prisma.queueToken.findUnique({
+        where: { id: queueTokenId },
+      });
+      if (qToken) {
+        tokenNumber = qToken.tokenNumber;
+        if (!dto.customerName && qToken.customerName) {
+          dto.customerName = qToken.customerName;
+        }
+        if (!dto.customerPhone && qToken.customerPhone) {
+          dto.customerPhone = qToken.customerPhone;
+        }
+      } else {
+        queueTokenId = undefined;
+      }
+    }
+
+    const orderSource =
+      dto.source ||
+      (queueTokenId
+        ? OrderSource.QUEUE_PREORDER
+        : tableId
+        ? OrderSource.TABLE_QR
+        : OrderSource.TAKEAWAY);
+
+    const fallbackCustomerName =
+      orderSource === OrderSource.QUEUE_PREORDER || queueTokenId
+        ? (tokenNumber ? `Queue Pre-order #${tokenNumber}` : 'Queue Pre-order Guest')
+        : tableId
+        ? 'Table Diner'
+        : 'Takeaway Guest';
 
     // Compute totals
     let subtotal = 0;
@@ -81,10 +116,11 @@ export class OrdersService {
         businessId: business.id,
         branchId: business.branches[0]?.id,
         tableId,
+        queueTokenId,
         customerId,
-        customerName: dto.customerName || (tableId ? `Table Diner` : 'Takeaway Guest'),
+        customerName: dto.customerName || fallbackCustomerName,
         customerPhone: dto.customerPhone,
-        source: dto.source,
+        source: orderSource,
         status: OrderStatus.PENDING,
         subtotal: new Prisma.Decimal(subtotal),
         taxAmount: new Prisma.Decimal(taxAmount),
@@ -117,6 +153,7 @@ export class OrdersService {
           include: { menuItem: true },
         },
         table: true,
+        queueToken: true,
         payments: true,
       },
     });
@@ -142,6 +179,7 @@ export class OrdersService {
           },
         },
         table: true,
+        queueToken: true,
         items: {
           include: { menuItem: true },
         },
@@ -168,6 +206,7 @@ export class OrdersService {
       },
       include: {
         table: true,
+        queueToken: true,
         items: {
           include: { menuItem: true },
         },
@@ -326,6 +365,7 @@ export class OrdersService {
         orderBy: { createdAt: 'desc' },
         include: {
           table: true,
+          queueToken: true,
           items: { include: { menuItem: true } },
         },
       }),

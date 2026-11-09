@@ -1,6 +1,7 @@
 export function getApiUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1';
     const octets = host.split('.').map(Number);
     const isPrivateIpv4 =
       octets.length === 4 &&
@@ -13,6 +14,15 @@ export function getApiUrl(): string {
 
     if (isPrivateIpv4) {
       return `${window.location.protocol}//${host}:3001`;
+    }
+
+    // If deployed on Netlify or custom domain, never default to localhost:3001
+    if (!isLocalhost && !isPrivateIpv4) {
+      const envUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+        return envUrl;
+      }
+      return 'https://qfast-on1w.onrender.com';
     }
   }
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';

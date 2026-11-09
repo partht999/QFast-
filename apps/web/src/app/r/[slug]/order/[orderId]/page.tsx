@@ -155,7 +155,10 @@ export default function OrderTrackingPage() {
       {/* Top Bar */}
       <header className="px-5 py-3.5 bg-white/95 backdrop-blur-md border-b border-neutral-200 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-2.5">
-          <Link href={`/r/${slug}/table/${encodeURIComponent(order.table?.name || '1')}`} className="text-lg font-black text-orange-600">
+          <Link
+            href={order.table?.name ? `/r/${slug}/table/${encodeURIComponent(order.table.name)}` : `/r/${slug}/join`}
+            className="text-lg font-black text-orange-600"
+          >
             ⚡ Qfast
           </Link>
           <span className="text-neutral-300">/</span>
@@ -169,9 +172,19 @@ export default function OrderTrackingPage() {
             <Gift className="w-3.5 h-3.5 text-orange-600" />
             <span>Rewards</span>
           </Link>
-          <span className="text-xs bg-orange-100 text-orange-800 font-extrabold px-3 py-1 rounded-full border border-orange-200/50">
-            {order.table?.name || 'Takeaway'}
-          </span>
+          {order.table?.name ? (
+            <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-3 py-1 rounded-full border border-emerald-200/50">
+              🍽️ Table {order.table.name}
+            </span>
+          ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
+            <span className="text-xs bg-amber-100 text-amber-900 font-extrabold px-3 py-1 rounded-full border border-amber-300">
+              ⏳ Queue Pre-order {order.queueToken?.tokenNumber ? `#${order.queueToken.tokenNumber}` : ''}
+            </span>
+          ) : (
+            <span className="text-xs bg-purple-100 text-purple-800 font-extrabold px-3 py-1 rounded-full border border-purple-200/50">
+              🛍️ Takeaway / Parcel
+            </span>
+          )}
         </div>
       </header>
 
@@ -187,6 +200,20 @@ export default function OrderTrackingPage() {
 
         {/* Live Order Timeline Card */}
         <div className="bg-white rounded-3xl p-6 border border-neutral-200/80 shadow-xs">
+          {/* Queue Status Callout */}
+          {(order.source === 'QUEUE_PREORDER' || order.queueToken) && (
+            order.table?.name ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-900 mb-4 flex items-center gap-2">
+                <span className="text-base">🍽️</span>
+                <span><strong>Seated at Table {order.table.name}!</strong> Your pre-ordered dishes are being served to your table now.</span>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-950 mb-4 flex items-center gap-2">
+                <span className="text-base">⏳</span>
+                <span><strong>Dine-in Pre-order:</strong> The kitchen is cooking your meal now while you wait for your table. It will be served once you are seated!</span>
+              </div>
+            )
+          )}
           <div className="flex items-center justify-between mb-5">
             <div>
               <span className="text-[11px] font-black text-orange-600 uppercase tracking-wider block">

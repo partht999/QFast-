@@ -22,7 +22,7 @@ export default function KDSPage() {
   const [business, setBusiness] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'ALL' | 'DINE_IN' | 'TAKEAWAY'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'DINE_IN' | 'QUEUE_PREORDER' | 'TAKEAWAY'>('ALL');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const prevOrderCountRef = useRef(0);
   const router = useRouter();
@@ -129,14 +129,52 @@ export default function KDSPage() {
   };
 
   const filteredOrders = orders.filter((o) => {
-    if (filter === 'DINE_IN' && o.source !== 'TABLE_QR') return false;
-    if (filter === 'TAKEAWAY' && o.source === 'TABLE_QR') return false;
+    if (filter === 'DINE_IN' && !o.table?.name && o.source !== 'TABLE_QR') return false;
+    if (filter === 'QUEUE_PREORDER' && o.source !== 'QUEUE_PREORDER' && !o.queueTokenId && !o.queueToken) return false;
+    if (filter === 'TAKEAWAY' && o.source !== 'TAKEAWAY') return false;
     return true;
   });
 
   const pendingOrders = filteredOrders.filter((o) => o.status === 'PENDING' || o.status === 'ACCEPTED');
   const preparingOrders = filteredOrders.filter((o) => o.status === 'PREPARING');
   const readyOrders = filteredOrders.filter((o) => o.status === 'READY');
+
+  const renderOrderTitle = (order: any) => {
+    if (order.table?.name) {
+      return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-base font-black text-white">
+            🍽️ {order.table.name}
+          </span>
+          {order.source === 'QUEUE_PREORDER' && (
+            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-mono px-1.5 py-0.5 rounded border border-amber-500/40">
+              Seated from Queue
+            </span>
+          )}
+        </div>
+      );
+    }
+    if (order.source === 'QUEUE_PREORDER' || order.queueTokenId || order.queueToken) {
+      const tokenNum = order.queueToken?.tokenNumber ? `#${order.queueToken.tokenNumber}` : '';
+      return (
+        <div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-base font-black text-amber-300">
+              ⏳ Queue Pre-order {tokenNum}
+            </span>
+          </div>
+          <span className="text-[10px] text-amber-400 font-semibold block">
+            Dine-in (Seat Pending)
+          </span>
+        </div>
+      );
+    }
+    return (
+      <span className="text-base font-black text-purple-300">
+        🛍️ Takeaway / Parcel
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
@@ -179,7 +217,7 @@ export default function KDSPage() {
 
           {/* Mode Filter */}
           <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-xl border border-neutral-800">
-            {(['ALL', 'DINE_IN', 'TAKEAWAY'] as const).map((mode) => (
+            {(['ALL', 'DINE_IN', 'QUEUE_PREORDER', 'TAKEAWAY'] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setFilter(mode)}
@@ -189,7 +227,13 @@ export default function KDSPage() {
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
-                {mode === 'ALL' ? 'All' : mode === 'DINE_IN' ? 'Dine-in' : 'Takeaway'}
+                {mode === 'ALL'
+                  ? 'All'
+                  : mode === 'DINE_IN'
+                  ? 'Dine-in Tables'
+                  : mode === 'QUEUE_PREORDER'
+                  ? 'Queue Pre-orders'
+                  : 'Takeaway'}
               </button>
             ))}
           </div>
@@ -231,9 +275,7 @@ export default function KDSPage() {
                   >
                     <div className="flex items-center justify-between mb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-black text-white">
-                          {order.table?.name || 'Takeaway'}
-                        </span>
+                        {renderOrderTitle(order)}
                         <span className="text-[10px] font-mono text-neutral-400">
                           #{order.id.slice(-4).toUpperCase()}
                         </span>
@@ -325,9 +367,7 @@ export default function KDSPage() {
                   >
                     <div className="flex items-center justify-between mb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-black text-white">
-                          {order.table?.name || 'Takeaway'}
-                        </span>
+                        {renderOrderTitle(order)}
                         <span className="text-[10px] font-mono text-neutral-400">
                           #{order.id.slice(-4).toUpperCase()}
                         </span>
@@ -403,10 +443,8 @@ export default function KDSPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-base font-black text-white">
-                        {order.table?.name || 'Takeaway'}
-                      </span>
-                      <p className="text-[11px] text-neutral-400">
+                      {renderOrderTitle(order)}
+                      <p className="text-[11px] text-neutral-400 mt-0.5">
                         Guest: <span className="text-neutral-200 font-semibold">{order.customerName || 'Diner'}</span>
                       </p>
                     </div>

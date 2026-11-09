@@ -99,8 +99,18 @@ export class QueueController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Seat the guest at a table' })
-  async seatToken(@Param('tokenId') tokenId: string, @Req() req: any) {
-    return this.queueService.updateTokenStatus(tokenId, QueueTokenStatus.SEATED, req.user.sub, req.user.role);
+  async seatToken(
+    @Param('tokenId') tokenId: string,
+    @Body() body: { tableId?: string },
+    @Req() req: any,
+  ) {
+    return this.queueService.updateTokenStatus(
+      tokenId,
+      QueueTokenStatus.SEATED,
+      req.user.sub,
+      req.user.role,
+      body?.tableId,
+    );
   }
 
   @Patch('manage/token/:tokenId/complete')

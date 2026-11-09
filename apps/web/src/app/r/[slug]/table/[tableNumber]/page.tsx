@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Search,
@@ -34,8 +34,14 @@ interface CartItem {
 
 export default function TableOrderPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params?.slug as string;
   const tableNumber = decodeURIComponent((params?.tableNumber as string) || '');
+  const tokenParam = searchParams?.get('token') || null;
+
+  const isQueueParam = tableNumber.toLowerCase() === 'queue' || Boolean(tokenParam);
+  const isTakeawayParam = tableNumber.toLowerCase() === 'takeaway';
+  const isFixedTable = !isQueueParam && !isTakeawayParam && tableNumber.length > 0;
 
   const [restaurant, setRestaurant] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
@@ -47,6 +53,10 @@ export default function TableOrderPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [orderSource, setOrderSource] = useState<'TABLE_QR' | 'QUEUE_PREORDER' | 'TAKEAWAY'>(
+    isQueueParam ? 'QUEUE_PREORDER' : isTakeawayParam ? 'TAKEAWAY' : 'TABLE_QR'
+  );
+  const [queueToken, setQueueToken] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<'UPI_AT_COUNTER' | 'CASH' | 'RAZORPAY_ONLINE'>('UPI_AT_COUNTER');
   const [tipPercentage, setTipPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -61,6 +71,25 @@ export default function TableOrderPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
+
+  useEffect(() => {
+    const tokenId = tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : null);
+    if (tokenId) {
+      fetch(`${apiUrl}/api/v1/queue/public/token/${tokenId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && (data.status === 'WAITING' || data.status === 'CALLED')) {
+            setQueueToken(data);
+            if (isQueueParam || !isFixedTable) {
+              setOrderSource('QUEUE_PREORDER');
+            }
+            if (data.customerName && !customerName) setCustomerName(data.customerName);
+            if (data.customerPhone && !customerPhone) setCustomerPhone(data.customerPhone);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [slug, tokenParam, isQueueParam, isFixedTable, apiUrl]);
 
   useEffect(() => {
     fetch(`${apiUrl}/api/v1/business/public/${slug}`)
@@ -137,13 +166,19 @@ export default function TableOrderPage() {
     setError('');
 
     try {
+      const resolvedQueueTokenId =
+        orderSource === 'QUEUE_PREORDER'
+          ? (queueToken?.id || tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : undefined) || undefined)
+          : undefined;
+
       const res = await fetch(`${apiUrl}/api/v1/orders/public`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessSlug: slug,
-          source: 'TABLE_QR',
-          tableName: tableNumber,
+          source: orderSource,
+          tableName: orderSource === 'TABLE_QR' ? tableNumber : undefined,
+          queueTokenId: resolvedQueueTokenId,
           customerName: customerName.trim() || undefined,
           customerPhone: customerPhone.trim() || undefined,
           specialInstructions: specialInstructions.trim() || undefined,
@@ -218,11 +253,27 @@ export default function TableOrderPage() {
                 <h1 className="text-base font-black tracking-tight text-neutral-900 line-clamp-1">
                   {restaurant?.name || 'Restaurant'}
                 </h1>
-                <span className="text-[11px] bg-orange-100 text-orange-800 font-extrabold px-2.5 py-0.5 rounded-full border border-orange-200/60 shrink-0">
-                  {tableNumber}
-                </span>
+                {orderSource === 'QUEUE_PREORDER' ? (
+                  <span className="text-[11px] bg-amber-100 text-amber-900 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300 shrink-0">
+                    ⏳ Queue #{queueToken?.tokenNumber || 'Waitlist'}
+                  </span>
+                ) : orderSource === 'TAKEAWAY' ? (
+                  <span className="text-[11px] bg-purple-100 text-purple-900 font-extrabold px-2.5 py-0.5 rounded-full border border-purple-300 shrink-0">
+                    🛍️ Takeaway
+                  </span>
+                ) : (
+                  <span className="text-[11px] bg-orange-100 text-orange-800 font-extrabold px-2.5 py-0.5 rounded-full border border-orange-200/60 shrink-0">
+                    Table {tableNumber}
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-neutral-400 font-medium">Digital Dine-in Menu</p>
+              <p className="text-[11px] text-neutral-400 font-medium">
+                {orderSource === 'QUEUE_PREORDER'
+                  ? 'Dine-in Pre-order · Served when table is ready'
+                  : orderSource === 'TAKEAWAY'
+                  ? 'Takeaway Menu · Pick up at counter'
+                  : 'Digital Dine-in Menu'}
+              </p>
             </div>
           </div>
 
@@ -295,6 +346,26 @@ export default function TableOrderPage() {
           ))}
         </div>
       </header>
+
+      {/* Queue Pre-order Info Banner */}
+      {orderSource === 'QUEUE_PREORDER' && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-950">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⏳</span>
+              <span>
+                <strong>Queue Pre-order:</strong> Food starts cooking now and will be served to your table once seated!
+              </span>
+            </div>
+            <Link
+              href={`/r/${slug}/join`}
+              className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 shrink-0 ml-2"
+            >
+              Waitlist status
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Menu Item Cards */}
       <main className="max-w-2xl mx-auto p-4 space-y-3">
@@ -504,6 +575,49 @@ export default function TableOrderPage() {
 
               {/* Order Info & Options Form */}
               <form onSubmit={handlePlaceOrder} className="pt-4 space-y-3.5">
+                {/* Dining Option Toggle if not a fixed table QR code */}
+                {!isFixedTable && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Dining Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOrderSource('QUEUE_PREORDER')}
+                        className={`p-2.5 rounded-2xl border text-left text-xs transition-all ${
+                          orderSource === 'QUEUE_PREORDER'
+                            ? 'border-orange-500 bg-orange-50/70 text-orange-900 shadow-2xs'
+                            : 'border-neutral-200 text-neutral-600 bg-white hover:border-neutral-300'
+                        }`}
+                      >
+                        <div className="font-bold text-neutral-900 flex items-center gap-1.5">
+                          <span>⏳ Dine-in Pre-order</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-500 block mt-0.5">
+                          Waiting in queue / for table
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderSource('TAKEAWAY')}
+                        className={`p-2.5 rounded-2xl border text-left text-xs transition-all ${
+                          orderSource === 'TAKEAWAY'
+                            ? 'border-orange-500 bg-orange-50/70 text-orange-900 shadow-2xs'
+                            : 'border-neutral-200 text-neutral-600 bg-white hover:border-neutral-300'
+                        }`}
+                      >
+                        <div className="font-bold text-neutral-900 flex items-center gap-1.5">
+                          <span>🛍️ Takeaway / Parcel</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-500 block mt-0.5">
+                          Pick up & pack to go
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">

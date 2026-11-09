@@ -346,9 +346,19 @@ export default function DashboardPage() {
                           <span className="font-bold text-gray-900">
                             #{order.id.slice(-6).toUpperCase()}
                           </span>
-                          <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full text-[10px]">
-                            {order.table?.name || 'Takeaway'}
-                          </span>
+                          {order.table?.name ? (
+                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                              🍽️ {order.table.name}
+                            </span>
+                          ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
+                            <span className="bg-amber-50 text-amber-800 border border-amber-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                              ⏳ Queue #{order.queueToken?.tokenNumber || ''} Pre-order
+                            </span>
+                          ) : (
+                            <span className="bg-purple-50 text-purple-800 border border-purple-200 font-semibold px-2 py-0.5 rounded-full text-[10px]">
+                              🛍️ Takeaway
+                            </span>
+                          )}
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               order.status === 'COMPLETED'

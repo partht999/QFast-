@@ -30,6 +30,9 @@ export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
   const [tokens, setTokens] = useState<any[]>([]);
   const [queue, setQueue] = useState<any>(null);
+  const [tables, setTables] = useState<any[]>([]);
+  const [selectedTokenForSeat, setSelectedTokenForSeat] = useState<any | null>(null);
+  const [targetTableId, setTargetTableId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -68,9 +71,15 @@ export default function DashboardQueuePage() {
         const curBiz = bizList[0];
         setBusiness(curBiz);
 
-        const qRes = await fetch(`${apiUrl}/api/v1/queue/manage/${curBiz.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const [qRes, tablesRes] = await Promise.all([
+          fetch(`${apiUrl}/api/v1/queue/manage/${curBiz.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${apiUrl}/api/v1/tables/${curBiz.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
         if (qRes.ok) {
           const qData = await qRes.json();
           setQueue(qData.queue);
@@ -81,6 +90,11 @@ export default function DashboardQueuePage() {
             });
           }
           setTokens(qData.tokens || []);
+        }
+
+        if (tablesRes.ok) {
+          const tData = await tablesRes.json();
+          setTables(tData || []);
         }
       }
     } catch (err) {
@@ -170,18 +184,28 @@ export default function DashboardQueuePage() {
     }
   };
 
-  const handleUpdateStatus = async (tokenId: string, action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel') => {
+  const handleUpdateStatus = async (
+    tokenId: string,
+    action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel',
+    tableId?: string,
+  ) => {
     const token = localStorage.getItem('accessToken');
     try {
       const response = await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/${action}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tableId }),
       });
       if (!response.ok) {
         const body = await response.json();
         throw new Error(body.message || 'Could not update queue entry');
       }
       setActionError('');
+      setSelectedTokenForSeat(null);
+      setTargetTableId('');
       await fetchData();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not update queue entry');
@@ -494,6 +518,11 @@ export default function DashboardQueuePage() {
                           Arrive by {new Date(token.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
+                      {token.orders && token.orders.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 text-[10px]">
+                          🍳 Pre-order Placed ({token.orders.length})
+                        </span>
+                      )}
                       {token.notes && (
                         <span className="inline-flex items-center gap-1 text-gray-500">
                           <StickyNote className="w-3 h-3" />
@@ -523,13 +552,22 @@ export default function DashboardQueuePage() {
                       Mark arrived
                     </button>
                   )}
-                  {token.status === 'CALLED' && <button
-                    onClick={() => handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete')}
-                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
-                  >
-                    {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
-                    {foodBusiness ? 'Seat Customer' : 'Complete Service'}
-                  </button>}
+                  {token.status === 'CALLED' && (
+                    <button
+                      onClick={() => {
+                        if (foodBusiness && tables.length > 0) {
+                          setSelectedTokenForSeat(token);
+                          setTargetTableId(tables[0]?.id || '');
+                        } else {
+                          handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
+                    >
+                      {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
+                      {foodBusiness ? 'Seat Customer' : 'Complete Service'}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleUpdateStatus(token.id, 'skip')}
                     className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs px-2.5 py-2 rounded-lg transition-all"
@@ -640,6 +678,87 @@ export default function DashboardQueuePage() {
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Table Assignment Modal for Seating */}
+      {selectedTokenForSeat && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Armchair className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900">
+                    Seat Party #{selectedTokenForSeat.tokenNumber}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {selectedTokenForSeat.customerName} ({selectedTokenForSeat.partySize} guests)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedTokenForSeat(null)}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {selectedTokenForSeat.orders && selectedTokenForSeat.orders.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                <span className="font-bold block mb-0.5">🍳 Active Pre-order Detected</span>
+                Assigning a table will automatically transfer their pre-order to that table on KDS and update the guest's tracker screen!
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                Select Available Dining Table
+              </label>
+              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
+                {tables.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTargetTableId(t.id)}
+                    className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
+                      targetTableId === t.id
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs'
+                        : 'border-gray-200 text-gray-700 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="block truncate">{t.name}</span>
+                    <span className="text-[10px] text-gray-400 font-normal">Cap: {t.capacity}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat', targetTableId || undefined)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2"
+              >
+                <Armchair className="w-4 h-4" />
+                <span>
+                  {targetTableId
+                    ? `Seat at ${tables.find((t) => t.id === targetTableId)?.name || 'Selected Table'}`
+                    : 'Confirm Seating'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat')}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition-colors"
+              >
+                Seat without specific table
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -319,6 +319,11 @@ export class QueueService {
         queueId: queue.id,
         createdAt: { gte: todayStart },
       },
+      include: {
+        orders: {
+          select: { id: true, status: true, totalAmount: true },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -330,6 +335,7 @@ export class QueueService {
     status: QueueTokenStatus,
     userId: string,
     userRole?: string,
+    tableId?: string,
   ) {
     const currentToken = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
@@ -385,6 +391,35 @@ export class QueueService {
       data,
       include: { queue: true },
     });
+
+    // If seated and tableId provided, link any queue pre-orders to this table
+    if (status === QueueTokenStatus.SEATED && tableId) {
+      const linkedOrders = await this.prisma.order.findMany({
+        where: { queueTokenId: tokenId },
+      });
+      if (linkedOrders.length > 0) {
+        await this.prisma.order.updateMany({
+          where: { queueTokenId: tokenId },
+          data: { tableId },
+        });
+        for (const order of linkedOrders) {
+          const updated = await this.prisma.order.findUnique({
+            where: { id: order.id },
+            include: {
+              table: true,
+              queueToken: true,
+              items: { include: { menuItem: true } },
+            },
+          });
+          if (updated) {
+            this.events.emitOrderUpdate(token.queue.businessId, order.id, {
+              type: 'ORDER_SEATED_AT_TABLE',
+              order: updated,
+            });
+          }
+        }
+      }
+    }
 
     this.events.emitQueueUpdate(token.queue.businessId, token.queueId, {
       type: 'TOKEN_STATUS_CHANGED',
