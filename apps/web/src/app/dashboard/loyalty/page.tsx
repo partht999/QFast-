@@ -7,6 +7,7 @@ import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function LoyaltyManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -18,6 +19,7 @@ export default function LoyaltyManagementPage() {
   const [restaurantOnly, setRestaurantOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [working, setWorking] = useState(false);
+  const [stampConfirm, setStampConfirm] = useState<'stamps' | 'redeem' | null>(null);
   const router = useRouter();
   const toast = useToast();
   const apiUrl = getApiUrl();
@@ -219,7 +221,7 @@ export default function LoyaltyManagementPage() {
               <button
                 type="button"
                 disabled={working}
-                onClick={() => void stampAction('stamps')}
+                onClick={() => setStampConfirm('stamps')}
                 className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
                 Add stamp
@@ -227,7 +229,7 @@ export default function LoyaltyManagementPage() {
               <button
                 type="button"
                 disabled={working || filled < goal}
-                onClick={() => void stampAction('redeem')}
+                onClick={() => setStampConfirm('redeem')}
                 className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800 disabled:opacity-40"
               >
                 Give reward
@@ -236,6 +238,24 @@ export default function LoyaltyManagementPage() {
           </div>
         )}
       </section>
+      <ConfirmModal
+        isOpen={!!stampConfirm}
+        onClose={() => setStampConfirm(null)}
+        onConfirm={() => {
+          const action = stampConfirm;
+          setStampConfirm(null);
+          if (action) void stampAction(action);
+        }}
+        title={stampConfirm === 'redeem' ? 'Give this reward?' : 'Add a stamp?'}
+        description={
+          stampConfirm === 'redeem'
+            ? `This uses a full card for ${phone.trim()} and starts the next one.`
+            : `Add one visit stamp for ${phone.trim()}.`
+        }
+        confirmLabel={stampConfirm === 'redeem' ? 'Give reward' : 'Add stamp'}
+        cancelLabel="Go back"
+        variant={stampConfirm === 'redeem' ? 'warning' : 'primary'}
+      />
     </div>
   );
 }

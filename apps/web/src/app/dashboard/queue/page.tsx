@@ -33,7 +33,14 @@ export default function DashboardQueuePage() {
   const [tables, setTables] = useState<any[]>([]);
   const [selectedTokenForSeat, setSelectedTokenForSeat] = useState<any | null>(null);
   const [targetTableId, setTargetTableId] = useState<string>('');
-  const [tokenToCancel, setTokenToCancel] = useState<any | null>(null);
+  const [pending, setPending] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    cancelLabel?: string;
+    variant: 'danger' | 'warning' | 'primary';
+    run: () => void | Promise<void>;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'WAITING' | 'CALLED' | 'PREORDER' | 'REMOTE' | 'SKIPPED'>('ALL');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -250,7 +257,6 @@ export default function DashboardQueuePage() {
       setActionError('');
       setSelectedTokenForSeat(null);
       setTargetTableId('');
-      setTokenToCancel(null);
 
       const copy = queueLanguage(business?.type);
       const actionLabels = {
@@ -438,7 +444,18 @@ export default function DashboardQueuePage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={handleToggleQueue}
+          type="button"
+          onClick={() =>
+            setPending({
+              title: queue?.isOpen ? 'Close the line?' : 'Open the line?',
+              description: queue?.isOpen
+                ? 'People will not be able to join until you open it again.'
+                : 'People can take a number again.',
+              confirmLabel: queue?.isOpen ? 'Close the line' : 'Open the line',
+              variant: queue?.isOpen ? 'warning' : 'primary',
+              run: () => handleToggleQueue(),
+            })
+          }
           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
             queue?.isOpen
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -450,7 +467,17 @@ export default function DashboardQueuePage() {
         </button>
         <button
           type="button"
-          onClick={() => void handleToggleRemote()}
+          onClick={() =>
+            setPending({
+              title: queue?.remoteJoinEnabled ? 'Turn off phone join?' : 'Allow phone join?',
+              description: queue?.remoteJoinEnabled
+                ? 'People can still be added here, but they cannot join from their phone.'
+                : 'People can take a number from the join link.',
+              confirmLabel: queue?.remoteJoinEnabled ? 'Turn it off' : 'Turn it on',
+              variant: queue?.remoteJoinEnabled ? 'warning' : 'primary',
+              run: () => handleToggleRemote(),
+            })
+          }
           disabled={!queue}
           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold disabled:opacity-50 ${
             queue?.remoteJoinEnabled
@@ -568,7 +595,15 @@ export default function DashboardQueuePage() {
               <>
                 <button
                   type="button"
-                  onClick={() => handleUpdateStatus(currentServingToken.id, 'call')}
+                  onClick={() =>
+                    setPending({
+                      title: `Call #${currentServingToken.tokenNumber} again?`,
+                      description: `${currentServingToken.customerName} gets another alert that it is their turn.`,
+                      confirmLabel: copy.recall,
+                      variant: 'warning',
+                      run: () => handleUpdateStatus(currentServingToken.id, 'call'),
+                    })
+                  }
                   className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600"
                 >
                   <Bell className="h-4 w-4" />
@@ -577,7 +612,15 @@ export default function DashboardQueuePage() {
                 {currentServingToken.source === 'REMOTE' && !currentServingToken.arrivedAt && (
                   <button
                     type="button"
-                    onClick={() => handleArrive(currentServingToken.id)}
+                    onClick={() =>
+                      setPending({
+                        title: `Mark #${currentServingToken.tokenNumber} as here?`,
+                        description: `${currentServingToken.customerName} has reached the door.`,
+                        confirmLabel: "They're here",
+                        variant: 'primary',
+                        run: () => handleArrive(currentServingToken.id),
+                      })
+                    }
                     className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
                   >
                     <MapPin className="h-4 w-4" />
@@ -596,7 +639,15 @@ export default function DashboardQueuePage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => handleUpdateStatus(currentServingToken.id, 'complete')}
+                    onClick={() =>
+                      setPending({
+                        title: `${copy.finish} for #${currentServingToken.tokenNumber}?`,
+                        description: `${currentServingToken.customerName} will be marked done and leave the line.`,
+                        confirmLabel: copy.finish,
+                        variant: 'primary',
+                        run: () => handleUpdateStatus(currentServingToken.id, 'complete'),
+                      })
+                    }
                     className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
                     <Check className="h-4 w-4" />
@@ -605,7 +656,16 @@ export default function DashboardQueuePage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => handleUpdateStatus(currentServingToken.id, 'skip')}
+                  onClick={() =>
+                    setPending({
+                      title: `Skip #${currentServingToken.tokenNumber}?`,
+                      description: `${currentServingToken.customerName} leaves the active line. You can put them back from Skipped.`,
+                      confirmLabel: 'Skip',
+                      cancelLabel: 'Keep them',
+                      variant: 'warning',
+                      run: () => handleUpdateStatus(currentServingToken.id, 'skip'),
+                    })
+                  }
                   className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                   <SkipForward className="h-4 w-4" />
@@ -615,7 +675,15 @@ export default function DashboardQueuePage() {
             ) : nextInLineToken ? (
               <button
                 type="button"
-                onClick={() => handleUpdateStatus(nextInLineToken.id, 'call')}
+                onClick={() =>
+                  setPending({
+                    title: `${copy.callNext(nextInLineToken.tokenNumber)}?`,
+                    description: `${nextInLineToken.customerName} will be told it is their turn.`,
+                    confirmLabel: 'Call them',
+                    variant: 'primary',
+                    run: () => handleUpdateStatus(nextInLineToken.id, 'call'),
+                  })
+                }
                 className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white hover:bg-orange-600"
               >
                 <Bell className="h-4 w-4" />
@@ -700,7 +768,15 @@ export default function DashboardQueuePage() {
                   {skipped ? (
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus(token.id, 'restore')}
+                      onClick={() =>
+                        setPending({
+                          title: `Put #${token.tokenNumber} back in line?`,
+                          description: `${token.customerName} returns to the waiting list.`,
+                          confirmLabel: 'Put back',
+                          variant: 'primary',
+                          run: () => handleUpdateStatus(token.id, 'restore'),
+                        })
+                      }
                       className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
                       Put back
@@ -708,7 +784,16 @@ export default function DashboardQueuePage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setTokenToCancel(token)}
+                      onClick={() =>
+                        setPending({
+                          title: `Remove #${token.tokenNumber}?`,
+                          description: `${token.customerName} will be taken off the line.`,
+                          confirmLabel: 'Remove',
+                          cancelLabel: 'Keep them',
+                          variant: 'danger',
+                          run: () => handleUpdateStatus(token.id, 'cancel'),
+                        })
+                      }
                       className="shrink-0 text-sm font-medium text-gray-400 hover:text-red-600"
                     >
                       Remove
@@ -1001,24 +1086,18 @@ export default function DashboardQueuePage() {
 
       {/* Branded Confirm Modal for Token Cancellation */}
       <ConfirmModal
-        isOpen={!!tokenToCancel}
-        onClose={() => setTokenToCancel(null)}
-        onConfirm={async () => {
-          if (tokenToCancel) {
-            const id = tokenToCancel.id;
-            setTokenToCancel(null);
-            await handleUpdateStatus(id, 'cancel');
-          }
+        isOpen={!!pending}
+        onClose={() => setPending(null)}
+        onConfirm={() => {
+          const action = pending;
+          setPending(null);
+          void action?.run();
         }}
-        title="Remove this number?"
-        description={
-          tokenToCancel
-            ? `Remove #${tokenToCancel.tokenNumber} for ${tokenToCancel.customerName} from the line?`
-            : 'Remove this number from the line?'
-        }
-        confirmLabel="Remove"
-        cancelLabel="Keep them"
-        variant="danger"
+        title={pending?.title || ''}
+        description={pending?.description || ''}
+        confirmLabel={pending?.confirmLabel}
+        cancelLabel={pending?.cancelLabel || 'Go back'}
+        variant={pending?.variant || 'primary'}
       />
     </section>
   );

@@ -24,6 +24,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function KDSPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -35,6 +36,7 @@ export default function KDSPage() {
   const [checkedItemIds, setCheckedItemIds] = useState<Set<string>>(new Set());
   const [recentlyClearedOrders, setRecentlyClearedOrders] = useState<any[]>([]);
   const [showRecallModal, setShowRecallModal] = useState(false);
+  const [ticketToClear, setTicketToClear] = useState<any>(null);
   const prevOrderCountRef = useRef(0);
   const router = useRouter();
 
@@ -585,7 +587,7 @@ export default function KDSPage() {
                   </div>
 
                   <button
-                    onClick={() => handleUpdateStatus(order.id, 'COMPLETED')}
+                    onClick={() => setTicketToClear(order)}
                     className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold py-2.5 rounded-xl text-xs transition-colors border border-neutral-700 flex items-center justify-center gap-1.5 active:scale-98"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -665,6 +667,24 @@ export default function KDSPage() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={!!ticketToClear}
+        onClose={() => setTicketToClear(null)}
+        onConfirm={() => {
+          const order = ticketToClear;
+          setTicketToClear(null);
+          if (order) void handleUpdateStatus(order.id, 'COMPLETED');
+        }}
+        title="Clear this ticket?"
+        description={
+          ticketToClear
+            ? `${ticketToClear.table?.name ? `Table ${ticketToClear.table.name}` : ticketToClear.customerName || 'This order'} leaves the kitchen screen.`
+            : 'This order leaves the kitchen screen.'
+        }
+        confirmLabel="Order served"
+        cancelLabel="Keep it"
+        variant="warning"
+      />
     </div>
   );
 }

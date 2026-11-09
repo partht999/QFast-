@@ -42,6 +42,7 @@ export default function MenuManagementPage() {
   const [submitting, setSubmitting] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<any | null>(null);
+  const [stockChange, setStockChange] = useState<{ id: string; name: string; isAvailable: boolean } | null>(null);
 
   // Search & Filtering State
   const [searchQuery, setSearchQuery] = useState('');
@@ -526,7 +527,7 @@ export default function MenuManagementPage() {
                         {/* Controls */}
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <button
-                            onClick={() => handleToggleItemAvailability(item.id, item.name, item.isAvailable)}
+                            onClick={() => setStockChange({ id: item.id, name: item.name, isAvailable: item.isAvailable })}
                             className={`text-[11px] font-bold px-3 py-1 rounded-full transition-colors border ${
                               item.isAvailable
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
@@ -789,6 +790,25 @@ export default function MenuManagementPage() {
         confirmLabel="Yes, Delete Category"
         cancelLabel="Keep Category"
         variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={!!stockChange}
+        onClose={() => setStockChange(null)}
+        onConfirm={() => {
+          const change = stockChange;
+          setStockChange(null);
+          if (change) void handleToggleItemAvailability(change.id, change.name, change.isAvailable);
+        }}
+        title={stockChange?.isAvailable ? `Mark ${stockChange.name} sold out?` : `Put ${stockChange?.name || 'this dish'} back on the menu?`}
+        description={
+          stockChange?.isAvailable
+            ? 'Guests will not be able to order it until you turn it back on.'
+            : 'Guests can order it again.'
+        }
+        confirmLabel={stockChange?.isAvailable ? 'Mark sold out' : 'Put it back'}
+        cancelLabel="Go back"
+        variant={stockChange?.isAvailable ? 'warning' : 'primary'}
       />
     </div>
   );

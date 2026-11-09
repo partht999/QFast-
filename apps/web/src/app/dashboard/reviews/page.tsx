@@ -21,6 +21,7 @@ import { getApiUrl } from '@/lib/api';
 import { isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function ReviewsManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -33,6 +34,7 @@ export default function ReviewsManagementPage() {
   const [googlePlaceId, setGooglePlaceId] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PENDING' | 'RESOLVED' | 'POSITIVE' | 'CRITICAL'>('ALL');
+  const [resolveTarget, setResolveTarget] = useState<any>(null);
 
   const router = useRouter();
   const toast = useToast();
@@ -398,7 +400,7 @@ export default function ReviewsManagementPage() {
                       <div className="flex items-center gap-2">
                         {fb.status !== 'RESOLVED' ? (
                           <button
-                            onClick={() => handleUpdateStatus(fb.id, 'RESOLVED')}
+                            onClick={() => setResolveTarget(fb)}
                             className="text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -442,6 +444,24 @@ export default function ReviewsManagementPage() {
           )}
         </div>
       </main>
+      <ConfirmModal
+        isOpen={!!resolveTarget}
+        onClose={() => setResolveTarget(null)}
+        onConfirm={() => {
+          const id = resolveTarget?.id;
+          setResolveTarget(null);
+          if (id) void handleUpdateStatus(id, 'RESOLVED');
+        }}
+        title="Mark this feedback done?"
+        description={
+          resolveTarget
+            ? `The ${resolveTarget.rating}-star note will move to resolved. You can still read it later.`
+            : 'This note will move to resolved.'
+        }
+        confirmLabel="Mark done"
+        cancelLabel="Go back"
+        variant="primary"
+      />
     </div>
   );
 }
