@@ -6,6 +6,32 @@ import Link from 'next/link';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { getBusinessPublicPath } from '@/lib/business-links';
+import {
+  Store,
+  Coffee,
+  Stethoscope,
+  HeartPulse,
+  Scissors,
+  ClipboardList,
+  Wrench,
+  Zap,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+} from 'lucide-react';
+
+const industryIcons: Record<string, typeof Store> = {
+  RESTAURANT: Store,
+  CAFE: Coffee,
+  CLINIC: Stethoscope,
+  HOSPITAL: HeartPulse,
+  SALON: Scissors,
+  DIAGNOSTIC_CENTRE: ClipboardList,
+  SERVICE_CENTRE: Wrench,
+  RETAIL: Store,
+  OTHER: Zap,
+};
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
@@ -18,14 +44,25 @@ export default function OnboardingPage() {
     address: '',
     timezone: 'Asia/Kolkata',
   });
+  // Industry-specific configuration state
+  const [industryConfig, setIndustryConfig] = useState({
+    tablesCount: 12,
+    serviceDurationMin: 30,
+    appointmentMode: false,
+    operatingHours: '09:00 AM - 10:00 PM',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
   useEffect(() => {
     const savedType = localStorage.getItem('qfast_business_type');
-    if (AVAILABLE_BUSINESS_TYPES.includes(savedType as BusinessTypeValue)) {
+    if (savedType && AVAILABLE_BUSINESS_TYPES.includes(savedType as BusinessTypeValue)) {
       setBusinessType(savedType as BusinessTypeValue);
+    }
+    const userEmail = localStorage.getItem('userEmail');
+    if (userEmail) {
+      setForm((f) => ({ ...f, email: userEmail }));
     }
   }, []);
 
@@ -73,162 +110,289 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 to-orange-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-lg border border-orange-100">
-        <div className="mb-6">
-          <span className="text-2xl font-black text-brand-600">⚡ Qfast</span>
-          <h2 className="text-2xl font-bold text-gray-900 mt-2">Set up your organization</h2>
-          <p className="text-gray-500 text-xs mt-1">
-            Step {step} of 2 — {step === 1 ? 'Basic Details' : 'Contact & Location'}
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 py-12">
+      <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-xl border border-slate-100">
+        {/* Header with Steps */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white text-xs">
+                ⚡
+              </span>
+              Qfast Setup
+            </span>
+            <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+              Step {step} of 3
+            </span>
+          </div>
+
+          <h1 className="text-2xl font-black text-slate-900 mt-4">
+            {step === 1 && 'Select your business category'}
+            {step === 2 && 'Essential business details'}
+            {step === 3 && 'Customize your service setup'}
+          </h1>
+          <p className="text-slate-500 text-xs mt-1">
+            {step === 1 && 'Qfast configures specific queue and ordering workflows tailored to your industry.'}
+            {step === 2 && 'This information will be displayed on your public queue links and customer receipts.'}
+            {step === 3 && 'Tailor queue rules, estimated turnovers, and operating hours for your team.'}
           </p>
 
-          <div className="flex gap-2 mt-4">
-            <div className={`h-1.5 flex-1 rounded-full transition-all ${step >= 1 ? 'bg-brand-500' : 'bg-gray-200'}`} />
-            <div className={`h-1.5 flex-1 rounded-full transition-all ${step >= 2 ? 'bg-brand-500' : 'bg-gray-200'}`} />
+          <div className="grid grid-cols-3 gap-2 mt-5">
+            <div className={`h-1.5 rounded-full transition-all ${step >= 1 ? 'bg-orange-500' : 'bg-slate-200'}`} />
+            <div className={`h-1.5 rounded-full transition-all ${step >= 2 ? 'bg-orange-500' : 'bg-slate-200'}`} />
+            <div className={`h-1.5 rounded-full transition-all ${step >= 3 ? 'bg-orange-500' : 'bg-slate-200'}`} />
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {step === 1 && (
-            <>
-              <div>
-                <label htmlFor="business-type" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Business category *
-                </label>
-                <select
-                  id="business-type"
-                  value={businessType}
-                  onChange={(e) => setBusinessType(e.target.value as BusinessTypeValue)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-                >
-                  {BUSINESS_TYPES.map((type) => (
-                    <option
-                      key={type.value}
-                      value={type.value}
-                      disabled={!AVAILABLE_BUSINESS_TYPES.includes(type.value)}
+        {/* Step 1: Industry Category Selection */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
+              {BUSINESS_TYPES.map((b) => {
+                const Icon = industryIcons[b.value] || Store;
+                const isSelected = businessType === b.value;
+                const isAvailable = AVAILABLE_BUSINESS_TYPES.includes(b.value);
+
+                return (
+                  <button
+                    key={b.value}
+                    type="button"
+                    onClick={() => {
+                      if (isAvailable) setBusinessType(b.value);
+                    }}
+                    className={`flex items-start gap-3 p-4 rounded-2xl border text-left transition ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-50/60 ring-2 ring-orange-500/20'
+                        : isAvailable
+                        ? 'border-slate-200 hover:border-orange-300 bg-white'
+                        : 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm ${
+                        isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}
                     >
-                      {type.label}{AVAILABLE_BUSINESS_TYPES.includes(type.value) ? '' : ' — Coming soon'}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">More business categories will be available as their workflows are ready.</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Organization Name *
-                </label>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="font-bold text-sm text-slate-900 leading-tight">{b.label}</p>
+                      <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{b.detail}</p>
+                      {!isAvailable && (
+                        <span className="inline-block text-[10px] text-slate-400 font-semibold mt-1">
+                          Available in FIFO preview
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2 mt-4"
+            >
+              Continue to Details <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: Essential Details */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Business Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={form.name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                placeholder="e.g. Copper Chimney or Apex Clinic"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Unique Slug (for entrance QR &amp; live queue URL) *
+              </label>
+              <div className="flex rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500">
+                <span className="bg-slate-50 px-3 py-3 text-slate-400 text-xs flex items-center border-r border-slate-200">
+                  qfast.in{getBusinessPublicPath('', businessType).replace(/\/$/, '')}/
+                </span>
                 <input
                   type="text"
                   required
-                  value={form.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-                  placeholder="e.g. Olive Kitchen or Greenfield Clinic"
+                  value={form.slug}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                    }))
+                  }
+                  className="flex-1 px-3 py-3 text-sm outline-none font-mono"
+                  placeholder="copper-chimney"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Unique Slug (for QR codes and URLs) *
-                </label>
-                <div className="flex rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-brand-400 focus-within:border-transparent">
-                  <span className="bg-gray-50 px-3 py-3 text-gray-400 text-xs flex items-center border-r border-gray-200">
-                    qfast.in{getBusinessPublicPath('', businessType).replace(/\/$/, '')}/
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={form.slug}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
-                      }))
-                    }
-                    className="flex-1 px-3 py-3 text-sm outline-none"
-                    placeholder="olive-kitchen"
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Your organization’s public Qfast link and QR codes will use this address.</p>
-              </div>
-
-              <button
-                type="button"
-                disabled={!form.name || !form.slug}
-                onClick={() => setStep(2)}
-                className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl transition-all shadow-md mt-4 text-sm"
-              >
-                Continue to Step 2 →
-              </button>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Phone Number
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Mobile Number
                 </label>
                 <input
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                   placeholder="+91 98765 43210"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Public Contact Email
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Contact Email
                 </label>
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-                  placeholder="contact@olivekitchen.com"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  placeholder="contact@business.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Physical Address
+              </label>
+              <textarea
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                rows={2}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                placeholder="100 Feet Rd, Indiranagar, Bengaluru, Karnataka"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                disabled={!form.name || !form.slug}
+                onClick={() => setStep(3)}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md text-sm flex items-center justify-center gap-2"
+              >
+                Service Configuration <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Industry-Specific Service Configuration & Launch */}
+        {step === 3 && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="rounded-2xl bg-orange-50/60 border border-orange-200/80 p-4">
+              <p className="text-xs font-bold text-orange-900 uppercase tracking-wide">
+                Configuring: {businessType}
+              </p>
+              <p className="text-xs text-orange-700/80 mt-0.5">
+                These settings pre-populate your live queue rules and can be fine-tuned at any time.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  {businessType === 'RESTAURANT' || businessType === 'CAFE'
+                    ? 'Total Tables'
+                    : 'Service Counters / Doctors'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={industryConfig.tablesCount}
+                  onChange={(e) =>
+                    setIndustryConfig((c) => ({ ...c, tablesCount: Number(e.target.value) }))
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-                  Address
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Avg. Wait / Service
                 </label>
-                <textarea
-                  value={form.address}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  rows={2}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-                  placeholder="12 Main Street, Indiranagar, Bengaluru"
-                />
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3">
-                  {error}
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="5"
+                    step="5"
+                    value={industryConfig.serviceDurationMin}
+                    onChange={(e) =>
+                      setIndustryConfig((c) => ({
+                        ...c,
+                        serviceDurationMin: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                  <span className="text-xs font-semibold text-slate-400">mins</span>
                 </div>
-              )}
-
-              <div className="flex gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 border border-gray-200 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm"
-                >
-                  ← Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all shadow-md text-sm"
-                >
-                  {loading ? 'Creating restaurant…' : '🚀 Launch Qfast'}
-                </button>
               </div>
-            </>
-          )}
-        </form>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Typical Operating Hours
+              </label>
+              <input
+                type="text"
+                value={industryConfig.operatingHours}
+                onChange={(e) =>
+                  setIndustryConfig((c) => ({ ...c, operatingHours: e.target.value }))
+                }
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                placeholder="e.g. 10:00 AM - 11:00 PM"
+              />
+            </div>
+
+            {error && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 font-medium">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition"
+              >
+                ← Back
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2"
+              >
+                {loading ? 'Creating workspace…' : '🚀 Launch Qfast Workspace'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

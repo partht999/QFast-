@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Zap, ArrowRight, Eye, EyeOff, ShieldCheck, Check } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function LoginPage() {
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('userEmail', form.email);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -39,74 +42,87 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-orange-100 p-4">
-      <section className="w-full max-w-md rounded-3xl border border-orange-100 bg-white p-6 shadow-xl sm:p-8">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-block text-3xl font-black text-brand-600 mb-2">
-            ⚡ Qfast
-          </Link>
-          <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your restaurant dashboard</p>
-        </div>
-
-        <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-4">
-          <div>
-            <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-              Email address
-            </label>
-            <input
-              id="login-email"
-              type="email"
-              required
-              autoComplete="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all"
-              placeholder="owner@yourrestaurant.com"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
-              Password
-            </label>
-            <input
-              id="login-password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all"
-              placeholder="Your password"
-            />
-          </div>
-
-          {error && (
-            <div role="alert" className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            aria-live="polite"
-            className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl transition-all shadow-md mt-2 text-sm"
-          >
-            {loading ? 'Signing in…' : 'Sign in →'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-xs text-gray-500">
-          Don't have an account?{' '}
-          <Link href="/auth/register" className="text-brand-600 font-semibold hover:underline">
-            Start free trial
-          </Link>
+    <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <Link href="/" className="inline-flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/30">
+            <Zap className="h-5 w-5" fill="currentColor" />
+          </span>
+          <span className="text-2xl font-black tracking-tight text-white">Qfast</span>
+        </Link>
+        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Welcome back</h1>
+        <p className="mt-2 text-sm text-slate-400">
+          Sign in to access your business queue and service dashboard
         </p>
-      </section>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
+        <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="login-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Email Address
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                required
+                autoComplete="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                placeholder="owner@yourbusiness.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                  placeholder="Your account password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 font-medium">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2 mt-2"
+            >
+              {loading ? 'Signing in…' : 'Sign In to Workspace'} <ArrowRight className="h-4 w-4" />
+            </button>
+          </form>
+
+          <div className="mt-8 border-t border-slate-100 pt-6 text-center text-xs text-slate-500">
+            Don&apos;t have an account yet?{' '}
+            <Link href="/auth/register" className="font-bold text-orange-600 hover:underline">
+              Start 14-day free trial
+            </Link>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

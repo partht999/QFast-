@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
-import { Gift, Sparkles, ArrowLeft, CircleHelp } from 'lucide-react';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
+import { Gift, Sparkles, ArrowLeft, CircleHelp, Trophy, Clock, CheckCircle2, Ticket } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { ScratchCard } from '@/components/scratch-card';
 
 type Wallet = {
   hasProgram: boolean;
@@ -29,6 +30,8 @@ type Reward = {
 
 export default function CustomerLoyaltyPage() {
   const { slug } = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const phoneParam = searchParams.get('phone') || '';
   const pathname = usePathname();
   const publicPath = pathname.startsWith('/c/')
     ? `/c/${slug}`
@@ -39,11 +42,35 @@ export default function CustomerLoyaltyPage() {
   const [businessName, setBusinessName] = useState('');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [hasProgram, setHasProgram] = useState(true);
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(phoneParam);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loadingOffers, setLoadingOffers] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (phoneParam) {
+      checkBalanceByPhone(phoneParam);
+    }
+  }, [phoneParam]);
+
+  const checkBalanceByPhone = async (num: string) => {
+    if (!num.trim()) return;
+    setChecking(true);
+    setError('');
+    try {
+      const response = await fetch(
+        `${apiUrl}/api/v1/loyalty/public/${slug}/${encodeURIComponent(num.trim())}`,
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Could not check your points');
+      setWallet(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not check your points');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`${apiUrl}/api/v1/loyalty/public/${slug}/offers`)
@@ -100,6 +127,16 @@ export default function CustomerLoyaltyPage() {
             Check points earned from completed orders and explore available offers.
           </p>
         </header>
+
+        {/* Scratch Card Showcase */}
+        <section className="mt-5">
+          <ScratchCard
+            points={50}
+            rewardOffer="15% OFF your next visit order!"
+            businessName={businessName || 'Restaurant'}
+            businessSlug={slug}
+          />
+        </section>
 
         {hasProgram && (
           <section className="mt-5 rounded-3xl border border-orange-100 bg-white p-5 shadow-sm">

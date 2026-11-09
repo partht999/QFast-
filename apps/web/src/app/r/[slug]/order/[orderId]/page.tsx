@@ -20,8 +20,10 @@ import {
   HelpCircle,
   X,
   Share2,
+  Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { ScratchCard } from '@/components/scratch-card';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -159,9 +161,18 @@ export default function OrderTrackingPage() {
           <span className="text-neutral-300">/</span>
           <span className="text-xs text-neutral-500 font-semibold">Live Order Tracker</span>
         </div>
-        <span className="text-xs bg-orange-100 text-orange-800 font-extrabold px-3 py-1 rounded-full border border-orange-200/50">
-          {order.table?.name || 'Takeaway'}
-        </span>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/r/${slug}/loyalty`}
+            className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3 py-1 rounded-full transition shadow-xs"
+          >
+            <Gift className="w-3.5 h-3.5 text-orange-600" />
+            <span>Rewards</span>
+          </Link>
+          <span className="text-xs bg-orange-100 text-orange-800 font-extrabold px-3 py-1 rounded-full border border-orange-200/50">
+            {order.table?.name || 'Takeaway'}
+          </span>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -301,6 +312,14 @@ export default function OrderTrackingPage() {
             </div>
           </div>
         </div>
+
+        {/* Loyalty Scratch Card Component */}
+        <ScratchCard
+          points={Math.max(50, Math.floor(Number(order.subtotal || 200) * 0.1))}
+          rewardOffer="15% OFF your next dining order!"
+          businessName={order.business?.name || 'Restaurant'}
+          businessSlug={slug}
+        />
 
         {/* Review & Feedback Card (Always available, highlighted upon completion) */}
         <div className="bg-white rounded-3xl p-6 border-2 border-orange-200/80 shadow-sm space-y-4">
