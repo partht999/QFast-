@@ -10,7 +10,8 @@ import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
-import { BusinessType, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
+import { BusinessType, OrderStatus, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class QueueService {
@@ -18,6 +19,7 @@ export class QueueService {
     private prisma: PrismaService,
     private events: EventsGateway,
     private loyalty: LoyaltyService,
+    private orders: OrdersService,
   ) {}
 
   async getStatusBySlug(slug: string) {
@@ -262,6 +264,11 @@ export class QueueService {
     const token = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
       include: {
+        table: { select: { id: true, name: true, tableNumber: true } },
+        orders: {
+          include: { items: { include: { menuItem: { select: { name: true } } } } },
+          orderBy: { createdAt: 'asc' },
+        },
         queue: {
           include: {
             business: {
@@ -290,6 +297,11 @@ export class QueueService {
       },
     });
 
+    const food = token.queue.business.type === BusinessType.RESTAURANT || token.queue.business.type === BusinessType.CAFE;
+    const loyalty = food && token.customerPhone
+      ? await this.loyalty.getCustomerBalance(token.queue.business.slug, token.customerPhone)
+      : null;
+
     return {
       ...token,
       position: token.status === QueueTokenStatus.WAITING ? position : 0,
@@ -298,6 +310,7 @@ export class QueueService {
           ? position * (await this.getAverageWaitMinutes(token.queueId))
           : 0,
       business: token.queue.business,
+      loyalty,
     };
   }
 
@@ -400,6 +413,7 @@ export class QueueService {
         createdAt: { gte: todayStart },
       },
       include: {
+        table: { select: { id: true, name: true, tableNumber: true } },
         orders: {
           select: { id: true, status: true, totalAmount: true },
         },
@@ -527,7 +541,7 @@ export class QueueService {
   ) {
     const currentToken = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
-      include: { queue: true },
+      include: { queue: { include: { business: { select: { type: true } } } } },
     });
     if (!currentToken) throw new NotFoundException('Queue entry not found');
     await this.assertBusinessAccess(currentToken.queue.businessId, userId, userRole);
@@ -595,7 +609,12 @@ export class QueueService {
       servedAt?: Date | null;
       completedAt?: Date | null;
       cancelledAt?: Date | null;
+      tableId?: string | null;
     } = { status };
+
+    const foodBusiness =
+      currentToken.queue.business.type === BusinessType.RESTAURANT ||
+      currentToken.queue.business.type === BusinessType.CAFE;
 
     if (status === QueueTokenStatus.WAITING) {
       data.calledAt = null;
@@ -604,15 +623,21 @@ export class QueueService {
       data.servedAt = null;
       data.completedAt = null;
       data.cancelledAt = null;
+      data.tableId = null;
     } else if (status === QueueTokenStatus.CALLED) {
       data.calledAt = new Date();
       data.arrivalDeadlineAt =
         currentToken.source === QueueEntrySource.REMOTE
           ? new Date(Date.now() + currentToken.queue.arrivalGraceMinutes * 60_000)
           : null;
+      if (foodBusiness && !currentToken.tableId) {
+        const table = await this.claimFreeTable(currentToken.queue.businessId);
+        if (table) data.tableId = table.id;
+      }
     } else if (status === QueueTokenStatus.SEATED) {
       data.seatedAt = new Date();
       data.servedAt = new Date();
+      if (tableId) data.tableId = tableId;
     } else if (status === QueueTokenStatus.COMPLETED) {
       data.completedAt = new Date();
       if (!currentToken.servedAt) data.servedAt = new Date();
@@ -620,11 +645,32 @@ export class QueueService {
       data.cancelledAt = new Date();
     }
 
+    if (status === QueueTokenStatus.COMPLETED) {
+      const openOrders = await this.prisma.order.findMany({
+        where: {
+          queueTokenId: tokenId,
+          status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+        },
+        select: { id: true },
+      });
+      for (const order of openOrders) {
+        await this.orders.updateOrderStatus(order.id, OrderStatus.COMPLETED);
+      }
+    }
+
     const token = await this.prisma.queueToken.update({
       where: { id: tokenId },
       data,
-      include: { queue: true },
+      include: { queue: true, table: true },
     });
+
+    const linkedTableId = token.tableId;
+    if (linkedTableId && (status === QueueTokenStatus.CALLED || status === QueueTokenStatus.SEATED)) {
+      await this.prisma.order.updateMany({
+        where: { queueTokenId: tokenId, tableId: null },
+        data: { tableId: linkedTableId },
+      });
+    }
 
     // If seated and tableId provided, link any queue pre-orders to this table
     if (status === QueueTokenStatus.SEATED && tableId) {
@@ -790,6 +836,36 @@ export class QueueService {
       data: { status: QueueTokenStatus.NO_SHOW },
     });
     return result.count;
+  }
+
+  private async claimFreeTable(businessId: string) {
+    const tables = await this.prisma.table.findMany({
+      where: { businessId, isActive: true },
+      orderBy: { tableNumber: 'asc' },
+    });
+    if (!tables.length) return null;
+
+    const held = await this.prisma.queueToken.findMany({
+      where: {
+        tableId: { not: null },
+        status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] },
+        queue: { businessId },
+      },
+      select: { tableId: true },
+    });
+    const openOrders = await this.prisma.order.findMany({
+      where: {
+        businessId,
+        tableId: { not: null },
+        status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+      },
+      select: { tableId: true },
+    });
+    const busy = new Set<string>([
+      ...held.map((row) => row.tableId as string),
+      ...openOrders.map((row) => row.tableId as string),
+    ]);
+    return tables.find((table) => !busy.has(table.id)) || null;
   }
 
   private async assertBusinessAccess(businessId: string, userId: string, userRole?: string) {

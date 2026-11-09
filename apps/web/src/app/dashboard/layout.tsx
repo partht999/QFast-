@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu as MenuIcon,
   MoreHorizontal,
+  Settings,
   Star,
   Utensils,
   X,
@@ -31,6 +32,7 @@ const navigation = [
   { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
+  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -41,6 +43,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/tables': 'Tables & QR',
   '/dashboard/reviews': 'Google Reviews',
   '/dashboard/loyalty': 'Stamp card',
+  '/dashboard/settings': 'Settings',
   '/dashboard/onboarding': 'Onboarding',
 };
 
@@ -60,9 +63,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [businessType, setBusinessType] = useState<string | null>(null);
   const visibleNavigation = !businessType
-    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue'].includes(item.href))
+    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews'].includes(item.href))
+      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings'].includes(item.href))
       : navigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);
@@ -70,30 +73,62 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const businessLabel = BUSINESS_TYPES.find((type) => type.value === businessType)?.label;
 
   useEffect(() => {
-    // Try to read email from localStorage for display in sidebar
     try {
       const stored = localStorage.getItem('userEmail');
       if (stored) setUserEmail(stored);
     } catch {}
 
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      router.replace('/auth/login');
-      return;
-    }
-    fetch(`${getApiUrl()}/api/v1/business`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Could not load organization type for dashboard navigation');
-        return response.json();
-      })
-      .then((businesses) => {
-        if (Array.isArray(businesses) && businesses[0]?.type) {
-          setBusinessType(businesses[0].type);
+    let cancelled = false;
+    const load = async () => {
+      const refreshSession = async () => {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) return null;
+        const response = await fetch(`${getApiUrl()}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.accessToken) localStorage.setItem('accessToken', data.accessToken);
+        if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+        return data.accessToken as string;
+      };
+
+      let token = localStorage.getItem('accessToken');
+      if (!token) token = await refreshSession();
+      if (!token) {
+        router.replace('/auth/login');
+        return;
+      }
+      let response = await fetch(`${getApiUrl()}/api/v1/business`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.status === 401) {
+        token = await refreshSession();
+        if (!token) {
+          localStorage.clear();
+          router.replace('/auth/login');
+          return;
         }
-      })
-      .catch((error) => console.error(error));
+        response = await fetch(`${getApiUrl()}/api/v1/business`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      if (!response.ok) return;
+      const businesses = await response.json();
+      if (!cancelled && Array.isArray(businesses) && businesses[0]?.type) {
+        setBusinessType(businesses[0].type);
+      }
+    };
+    load().catch((error) => console.error(error));
+    const refreshTimer = window.setInterval(() => {
+      load().catch((error) => console.error(error));
+    }, 10 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
   }, [router]);
 
   // Close the more drawer when navigating

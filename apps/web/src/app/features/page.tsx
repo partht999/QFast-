@@ -22,8 +22,8 @@ export default function FeaturesPage() {
     },
     {
       icon: CalendarDays,
-      title: 'Several counters, one board',
-      desc: 'Run separate queues for counters, doctors, or service desks. Restaurants and cafes can also open table ordering and the kitchen display.',
+      title: 'One queue, then the table',
+      desc: 'Everyone waits in one line. Restaurants can add food while waiting, get a table when it is their turn, and see the bill at the end.',
     },
     {
       icon: ShieldCheck,

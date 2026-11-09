@@ -377,7 +377,7 @@ export default function DashboardQueuePage() {
   const foodBusiness = isFoodBusiness(business?.type);
   const copy = queueLanguage(business?.type);
   const earliestWaitingId = waitingTokens.find((token) => token.status === 'WAITING')?.id;
-  const servedTokens = tokens.filter((t) => t.status === (foodBusiness ? 'SEATED' : 'COMPLETED'));
+  const servedTokens = tokens.filter((t) => t.status === 'SEATED' || t.status === 'COMPLETED');
   const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
 
   const currentServingToken = waitingTokens.find((t) => t.status === 'CALLED') || null;
@@ -844,6 +844,11 @@ export default function DashboardQueuePage() {
                           {token.partySize} guests
                         </span>
                       )}
+                      {foodBusiness && token.table && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                          {token.table.name || `Table ${token.table.tableNumber}`}
+                        </span>
+                      )}
                       {token.status === 'CALLED' && (
                         <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full animate-pulse border border-amber-300">
                           <Bell className="w-3 h-3" />
@@ -955,14 +960,7 @@ export default function DashboardQueuePage() {
 
                       {token.status === 'CALLED' && (
                         <button
-                          onClick={() => {
-                            if (foodBusiness && tables.length > 0) {
-                              setSelectedTokenForSeat(token);
-                              setTargetTableId(tables[0]?.id || '');
-                            } else {
-                              handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete');
-                            }
-                          }}
+                          onClick={() => handleUpdateStatus(token.id, 'complete')}
                           className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
                         >
                           {foodBusiness && <Armchair className="w-3.5 h-3.5" />}

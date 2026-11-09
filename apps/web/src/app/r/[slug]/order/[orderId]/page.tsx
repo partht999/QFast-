@@ -23,7 +23,6 @@ import {
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
-import { ScratchCard } from '@/components/scratch-card';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -370,13 +369,11 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        {/* Loyalty Scratch Card Component */}
-        <ScratchCard
-          points={Math.max(50, Math.floor(Number(order.subtotal || 200) * 0.1))}
-          rewardOffer="15% OFF your next dining order!"
-          businessName={order.business?.name || 'Restaurant'}
-          businessSlug={slug}
-        />
+        {order.queueTokenId && (
+          <Link href={`/r/${slug}/join`} className="block rounded-3xl bg-orange-500 px-5 py-4 text-center text-sm font-black text-white">
+            Back to your queue
+          </Link>
+        )}
 
         {/* Review & Feedback Card (Always available, highlighted upon completion) */}
         <div className="bg-white rounded-3xl p-6 border-2 border-orange-200/80 shadow-sm space-y-4">

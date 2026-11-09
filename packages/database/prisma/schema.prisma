@@ -233,18 +233,6 @@ model User {
   updatedAt     DateTime       @updatedAt
 }
 
-model EmailOtp {
-  id         String    @id @default(cuid())
-  email      String
-  codeHash   String
-  expiresAt  DateTime
-  attempts   Int       @default(0)
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
-
-  @@index([email, createdAt])
-}
-
 model RefreshToken {
   id        String    @id @default(cuid())
   token     String    @unique
@@ -497,6 +485,7 @@ model Table {
   orders       Order[]
   qrCode       QRCode?
   reservations Reservation[]
+  queueTokens  QueueToken[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -554,6 +543,8 @@ model QueueToken {
   completedAt      DateTime?
   cancelledAt      DateTime?
   notes            String?
+  tableId          String?
+  table            Table?           @relation(fields: [tableId], references: [id])
   orders           Order[]
   reviewRequests   ReviewRequest[]
   createdAt        DateTime         @default(now())

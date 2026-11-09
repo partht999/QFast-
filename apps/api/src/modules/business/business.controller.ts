@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { UpdateBusinessSettingsDto } from './dto/update-business-settings.dto';
 
 @ApiTags('business')
 @Controller('business')
@@ -32,6 +33,14 @@ export class BusinessController {
   ) {
     const { category, search, location } = req.query;
     return this.businessService.explore(category, search, location);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update workspace, queue, and Google review settings' })
+  async updateSettings(@Param('id') id: string, @Body() dto: UpdateBusinessSettingsDto, @Req() req: any) {
+    return this.businessService.updateSettings(id, req.user.sub, dto);
   }
 
   @Get(':id/today')

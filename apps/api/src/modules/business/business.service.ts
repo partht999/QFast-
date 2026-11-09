@@ -39,6 +39,7 @@ export class BusinessService {
         name: dto.name,
         slug: dto.slug,
         type: dto.type || BusinessType.RESTAURANT,
+        status: BusinessStatus.ACTIVE,
         phone: dto.phone,
         email: dto.email,
         address: dto.address,
@@ -320,6 +321,7 @@ export class BusinessService {
             { createdAt: { gte: start, lt: end } },
             { calledAt: { gte: start, lt: end } },
             { completedAt: { gte: start, lt: end } },
+            { seatedAt: { gte: start, lt: end } },
             { cancelledAt: { gte: start, lt: end } },
             { status: QueueTokenStatus.NO_SHOW, updatedAt: { gte: start, lt: end } },
           ],
@@ -330,6 +332,7 @@ export class BusinessService {
           status: true,
           createdAt: true,
           calledAt: true,
+          seatedAt: true,
           completedAt: true,
           cancelledAt: true,
           updatedAt: true,
@@ -348,7 +351,11 @@ export class BusinessService {
     ]);
 
     const joined = tokens.filter((token) => token.createdAt >= start && token.createdAt < end);
-    const served = tokens.filter((token) => token.completedAt && token.completedAt >= start && token.completedAt < end);
+    const served = tokens.filter((token) => {
+      const completed = token.completedAt && token.completedAt >= start && token.completedAt < end;
+      const seated = token.seatedAt && token.seatedAt >= start && token.seatedAt < end;
+      return Boolean(completed || seated);
+    });
     const noShow = tokens.filter(
       (token) => token.status === QueueTokenStatus.NO_SHOW && token.updatedAt >= start && token.updatedAt < end,
     );
@@ -369,7 +376,10 @@ export class BusinessService {
       served: 0,
     }));
     for (const token of joined) hourly[hourInTimeZone(token.createdAt, timeZone)].joined += 1;
-    for (const token of served) hourly[hourInTimeZone(token.completedAt!, timeZone)].served += 1;
+    for (const token of served) {
+      const when = token.completedAt && token.completedAt >= start ? token.completedAt : token.seatedAt!;
+      hourly[hourInTimeZone(when, timeZone)].served += 1;
+    }
     const busiest = hourly.reduce((best, hour) => (hour.joined > best.joined ? hour : best), hourly[0]);
 
     const completedOrders = orders.filter((order) => order.status === 'COMPLETED');
@@ -395,7 +405,7 @@ export class BusinessService {
         busiestHour: busiest.joined > 0 ? busiest.label : null,
         hourly,
         servedList: served
-          .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
+          .sort((a, b) => ((b.completedAt || b.seatedAt)!.getTime() - (a.completedAt || a.seatedAt)!.getTime()))
           .slice(0, 8)
           .map((token) => ({
             tokenNumber: token.tokenNumber,
@@ -414,6 +424,60 @@ export class BusinessService {
         averageBill: completedOrders.length ? Math.round(revenue / completedOrders.length) : 0,
       },
     };
+  }
+
+  async updateSettings(
+    businessId: string,
+    userId: string,
+    dto: {
+      name?: string;
+      phone?: string;
+      address?: string;
+      googlePlaceId?: string;
+      averageWaitMinutes?: number;
+      isOpen?: boolean;
+      remoteJoinEnabled?: boolean;
+    },
+  ) {
+    const business = await this.prisma.business.findFirst({
+      where: { id: businessId, staff: { some: { userId, isActive: true } } },
+    });
+    if (!business) throw new ForbiddenException('You do not have access to this workspace');
+
+    const googleReviewUrl = dto.googlePlaceId
+      ? `https://search.google.com/local/writereview?placeid=${dto.googlePlaceId.trim()}`
+      : undefined;
+
+    const updated = await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        ...(dto.name ? { name: dto.name.trim() } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
+        ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
+        ...(dto.googlePlaceId !== undefined
+          ? { googlePlaceId: dto.googlePlaceId.trim(), googleReviewUrl }
+          : {}),
+      },
+    });
+
+    if (dto.averageWaitMinutes != null || dto.isOpen != null || dto.remoteJoinEnabled != null) {
+      const queue = await this.prisma.queue.findFirst({
+        where: { businessId, isArchived: false },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (queue) {
+        await this.prisma.queue.update({
+          where: { id: queue.id },
+          data: {
+            ...(dto.averageWaitMinutes != null ? { averageWaitMinutes: dto.averageWaitMinutes } : {}),
+            ...(dto.isOpen != null ? { isOpen: dto.isOpen } : {}),
+            ...(dto.remoteJoinEnabled != null ? { remoteJoinEnabled: dto.remoteJoinEnabled } : {}),
+          },
+        });
+      }
+    }
+
+    return updated;
   }
 }
 

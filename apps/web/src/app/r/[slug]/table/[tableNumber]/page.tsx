@@ -22,6 +22,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { readGuest, saveGuest } from '@/lib/guest';
 
 interface CartItem {
   id: string;
@@ -73,6 +74,11 @@ export default function TableOrderPage() {
   };
 
   useEffect(() => {
+    const guest = readGuest(slug);
+    if (guest) {
+      setCustomerName((current) => current || guest.name);
+      setCustomerPhone((current) => current || guest.phone);
+    }
     const tokenId = tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : null);
     if (tokenId) {
       fetch(`${apiUrl}/api/v1/queue/public/token/${tokenId}`)
@@ -197,7 +203,14 @@ export default function TableOrderPage() {
 
       setCart([]);
       setIsCartOpen(false);
-      router.push(`/r/${slug}/order/${orderData.id}`);
+      if (customerName.trim() && customerPhone.trim()) {
+        saveGuest(slug, { name: customerName.trim(), phone: customerPhone.trim() });
+      }
+      if (resolvedQueueTokenId) {
+        router.push(`/r/${slug}/join`);
+      } else {
+        router.push(`/r/${slug}/order/${orderData.id}`);
+      }
     } catch (err: any) {
       setError(err.message || 'Could not place order');
       setPlacingOrder(false);
@@ -280,8 +293,8 @@ export default function TableOrderPage() {
           <div className="flex items-center gap-2">
             <Link
               href={`/r/${slug}/loyalty`}
-              aria-label="View loyalty points and rewards"
-              title="Points and rewards"
+              aria-label="View stamp card"
+              title="Stamp card"
               className="rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-800 hover:bg-amber-100"
             >
               <Gift className="h-4 w-4" />
@@ -618,6 +631,11 @@ export default function TableOrderPage() {
                   </div>
                 )}
 
+                {customerName && customerPhone ? (
+                  <p className="rounded-xl bg-orange-50 px-3 py-2 text-xs font-bold text-orange-950">
+                    Ordering as {customerName} · {customerPhone}
+                  </p>
+                ) : (
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
@@ -644,6 +662,7 @@ export default function TableOrderPage() {
                     />
                   </div>
                 </div>
+                )}
 
                 <div>
                   <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">

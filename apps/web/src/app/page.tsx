@@ -55,10 +55,10 @@ const outcomes = [
 ];
 
 const industries = [
-  { icon: Stethoscope, label: 'Clinics', href: '/clinics', detail: 'A line for each doctor or OPD.' },
-  { icon: Scissors, label: 'Salons', href: '/salons', detail: 'Walk-ins for each desk, in arrival order.' },
-  { icon: ClipboardList, label: 'Diagnostics', href: '/diagnostics', detail: 'Collection and imaging desks with their own queues.' },
-  { icon: Wrench, label: 'Service centres', href: '/service-centres', detail: 'Inspection, claims, and pickup counters.' },
+  { icon: Stethoscope, label: 'Clinics', href: '/clinics', detail: 'One live queue. A completed visit asks for a Google review.' },
+  { icon: Scissors, label: 'Salons', href: '/salons', detail: 'One walk-in queue, in arrival order.' },
+  { icon: ClipboardList, label: 'Diagnostics', href: '/diagnostics', detail: 'One queue for collection and imaging.' },
+  { icon: Wrench, label: 'Service centres', href: '/service-centres', detail: 'One queue for the counter.' },
   { icon: Store, label: 'Restaurants', href: '/restaurants', detail: 'The waitlist, plus table ordering and the kitchen when you need them.' },
 ];
 

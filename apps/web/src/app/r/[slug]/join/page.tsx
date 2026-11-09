@@ -25,6 +25,7 @@ import {
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
+import { readGuest, saveGuest } from '@/lib/guest';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function JoinQueuePage() {
@@ -46,6 +47,8 @@ export default function JoinQueuePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [stampBurst, setStampBurst] = useState(false);
+  const [editingGuest, setEditingGuest] = useState(false);
   const [joinSource, setJoinSource] = useState<'REMOTE' | 'WALK_IN'>('REMOTE');
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const lastNotifiedToken = useRef<string | null>(null);
@@ -114,6 +117,7 @@ export default function JoinQueuePage() {
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED' || data.status === 'COMPLETED') {
+            noteVisit(data);
             setActiveToken(data);
             if (data.status === 'CALLED' && typeof window !== 'undefined' && 'vibrate' in navigator) {
               navigator.vibrate([300, 100, 300]);
@@ -127,6 +131,20 @@ export default function JoinQueuePage() {
       }
     }
   };
+
+  const noteVisit = (data: any) => {
+    if (data?.status === 'COMPLETED' && data?.loyalty?.hasProgram && !sessionStorage.getItem(`qfast_stamp_${data.id}`)) {
+      setStampBurst(true);
+      sessionStorage.setItem(`qfast_stamp_${data.id}`, '1');
+    }
+  };
+
+  useEffect(() => {
+    const guest = readGuest(slug);
+    if (guest) {
+      setForm((current) => ({ ...current, customerName: guest.name, customerPhone: guest.phone }));
+    }
+  }, [slug]);
 
   useEffect(() => {
     const source = new URLSearchParams(window.location.search).get('source');
@@ -172,6 +190,7 @@ export default function JoinQueuePage() {
                 });
                 lastBrowserAlertToken.current = data.id;
               }
+              noteVisit(data);
               if (data.status === 'NO_SHOW') {
                 localStorage.removeItem(`qfast_token_${slug}`);
                 setActiveToken(null);
@@ -208,6 +227,7 @@ export default function JoinQueuePage() {
 
       setActiveToken(data);
       localStorage.setItem(`qfast_token_${slug}`, data.id);
+      saveGuest(slug, { name: form.customerName, phone: form.customerPhone });
       setError('');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -445,6 +465,36 @@ export default function JoinQueuePage() {
                   </div>
                 )}
                 <p className="text-sm font-bold text-neutral-800 mt-2">{activeToken.customerName}</p>
+                {foodBusiness && activeToken.status === 'CALLED' && (
+                  <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
+                    {activeToken.table
+                      ? `Your table is ${activeToken.table.name || activeToken.table.tableNumber}. Head in when you are ready.`
+                      : 'Your turn is here. A table will be assigned as soon as one is free.'}
+                  </p>
+                )}
+                {foodBusiness && Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-left">
+                    <p className="text-xs font-black uppercase tracking-wider text-neutral-500">
+                      {activeToken.status === 'COMPLETED' ? 'Your bill' : 'Items on your visit'}
+                    </p>
+                    <div className="mt-2 space-y-1.5">
+                      {activeToken.orders.flatMap((order: any) =>
+                        (order.items || []).map((item: any) => (
+                          <div key={item.id} className="flex justify-between text-sm text-neutral-800">
+                            <span>{item.quantity} × {item.menuItem?.name || 'Item'}</span>
+                            <span>₹{Number(item.totalPrice || 0).toFixed(0)}</span>
+                          </div>
+                        )),
+                      )}
+                    </div>
+                    <div className="mt-2 flex justify-between border-t border-neutral-200 pt-2 text-sm font-black text-neutral-950">
+                      <span>Total</span>
+                      <span>
+                        ₹{activeToken.orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0).toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {foodBusiness && (
                   <div className="flex items-center justify-center gap-1 mt-1 text-neutral-400">
                     {Array.from({ length: activeToken.partySize }).map((_, i) => (
@@ -455,10 +505,11 @@ export default function JoinQueuePage() {
                 )}
               </div>
 
-              {(activeToken.status === 'COMPLETED' || activeToken.status === 'SEATED') && (
+              {(activeToken.status === 'COMPLETED' || (!foodBusiness && activeToken.status === 'SEATED')) && (
                 <VisitFinished
                   foodBusiness={foodBusiness}
                   clinicalBusiness={clinicalBusiness}
+                  loyalty={activeToken.loyalty}
                   reviewUrl={
                     activeToken.business?.googleReviewUrl
                     || (activeToken.business?.googlePlaceId
@@ -517,7 +568,7 @@ export default function JoinQueuePage() {
                       className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
                     >
                       <UtensilsCrossed className="w-4 h-4" />
-                      <span>Pre-order Food for Your Table</span>
+                      <span>{activeToken.orders?.length ? 'Add more items' : 'Add items while you wait'}</span>
                       <ChevronRight className="w-4 h-4 -ml-0.5" />
                     </Link>
                     <p className="text-[11px] text-center text-neutral-500 font-medium">
@@ -634,6 +685,16 @@ export default function JoinQueuePage() {
                     </div>
                   )}
 
+                  {!editingGuest && form.customerName && form.customerPhone ? (
+                    <div className="rounded-2xl border border-orange-100 bg-orange-50 px-3 py-3 text-left">
+                      <p className="text-sm font-black text-neutral-950">Continuing as {form.customerName}</p>
+                      <p className="text-xs text-neutral-600">{form.customerPhone}</p>
+                      <button type="button" onClick={() => setEditingGuest(true)} className="mt-2 text-xs font-bold text-orange-700">
+                        Use different details
+                      </button>
+                    </div>
+                  ) : (
+                  <>
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       Your Name *
@@ -664,6 +725,8 @@ export default function JoinQueuePage() {
                       placeholder="+91 98765 43210"
                     />
                   </div>
+                  </>
+                  )}
 
                   {foodBusiness && <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
@@ -746,6 +809,22 @@ export default function JoinQueuePage() {
       </footer>
 
       {/* Cancel Queue Confirmation Modal */}
+      {stampBurst && foodBusiness && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-orange-500 text-5xl text-white shadow-lg shadow-orange-300 animate-bounce">
+              ★
+            </div>
+            <h2 className="mt-4 text-2xl font-black text-neutral-950">A stamp was added</h2>
+            <p className="mt-2 text-sm text-neutral-600">
+              Collect stamps each time you are served. {activeToken?.loyalty?.stamps || 1} of {activeToken?.loyalty?.stampsForReward || 8} toward {activeToken?.loyalty?.rewardName || 'a free visit'}.
+            </p>
+            <button type="button" onClick={() => setStampBurst(false)} className="mt-5 w-full rounded-2xl bg-orange-500 py-3 text-sm font-black text-white">
+              Keep collecting
+            </button>
+          </div>
+        </div>
+      )}
       <ConfirmModal
         isOpen={showCancelModal}
         onClose={() => setShowCancelModal(false)}
@@ -765,23 +844,29 @@ function VisitFinished({
   clinicalBusiness,
   reviewUrl,
   stampsHref,
+  loyalty,
 }: {
   foodBusiness: boolean;
   clinicalBusiness: boolean;
   reviewUrl: string;
   stampsHref: string;
+  loyalty?: { stamps?: number; stampsForReward?: number; rewardName?: string } | null;
 }) {
+  const stamps = loyalty?.stamps || 0;
+  const goal = loyalty?.stampsForReward || 8;
   return (
     <div className="relative z-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left">
       <div className="flex items-center gap-2 text-emerald-800">
         <CheckCircle2 className="h-5 w-5" />
-        <p className="font-black">{foodBusiness ? 'You are seated' : 'Visit complete'}</p>
+        <p className="font-black">{foodBusiness ? 'Visit complete' : 'Visit complete'}</p>
       </div>
       {foodBusiness ? (
         <div className="mt-3">
-          <p className="text-sm text-emerald-900">Ask the team to add a stamp, or open your card.</p>
+          <p className="text-sm text-emerald-900">
+            You have {stamps} of {goal} stamps. Collect them and come back for {loyalty?.rewardName || 'a free visit'}.
+          </p>
           <Link href={stampsHref} className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
-            View stamp card
+            Open your stamp card
           </Link>
         </div>
       ) : (
