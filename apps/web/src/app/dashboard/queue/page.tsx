@@ -5,21 +5,16 @@ import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
-import { queueDisplayDetail, queueDisplayName, queueLanguage } from '@/lib/queue-language';
+import { queueDisplayName, queueLanguage } from '@/lib/queue-language';
 import {
-  Users,
-  Phone,
   Hash,
   Bell,
   Check,
-  XCircle,
   UserPlus,
   Clock,
   SkipForward,
-  RefreshCw,
   Armchair,
   X,
-  StickyNote,
   Copy,
   MapPin,
   Save,
@@ -28,7 +23,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
-import { EmptyState } from '@/components/ui/empty-state';
 
 export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
@@ -376,16 +370,10 @@ export default function DashboardQueuePage() {
   const skippedTokens = tokens.filter((t) => t.status === 'SKIPPED' || t.status === 'CANCELLED');
   const foodBusiness = isFoodBusiness(business?.type);
   const copy = queueLanguage(business?.type);
-  const earliestWaitingId = waitingTokens.find((token) => token.status === 'WAITING')?.id;
   const servedTokens = tokens.filter((t) => t.status === 'SEATED' || t.status === 'COMPLETED');
-  const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
 
   const currentServingToken = waitingTokens.find((t) => t.status === 'CALLED') || null;
   const nextInLineToken = waitingTokens.find((t) => t.status === 'WAITING') || null;
-
-  const calledCount = waitingTokens.filter((t) => t.status === 'CALLED').length;
-  const preorderCount = waitingTokens.filter((t) => t.orders && t.orders.length > 0).length;
-  const remoteCount = waitingTokens.filter((t) => t.source === 'REMOTE').length;
 
   const baseTokens = activeFilter === 'SKIPPED' ? skippedTokens : waitingTokens;
   const filteredTokens = baseTokens.filter((token) => {
@@ -404,112 +392,81 @@ export default function DashboardQueuePage() {
     return true;
   });
 
+  const featuredId = currentServingToken?.id || nextInLineToken?.id;
+  const lineTokens = activeFilter === 'SKIPPED'
+    ? filteredTokens
+    : filteredTokens.filter((token) => token.id !== featuredId);
+
   return (
-    <section className="space-y-6">
-      {/* Page Title */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{copy.pageTitle}</h1>
-          <p className="mt-1 text-sm text-gray-500">{copy.pageHint}</p>
+          <h1 className="text-xl font-bold text-gray-900">{copy.pageTitle}</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {waitingTokens.length} waiting
+            <span className="mx-1.5 text-gray-300">·</span>
+            {servedTokens.length} done today
+            <span className="mx-1.5 text-gray-300">·</span>
+            about {queue?.averageWaitMinutes || 8} min each
+          </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.98]"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
         >
           <UserPlus className="h-4 w-4" />
           {copy.addButton}
         </button>
       </div>
 
-      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {copy.steps.map((step, index) => (
-          <li key={step} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700">
-              {index + 1}
-            </span>
-            <span className="text-sm font-medium text-gray-800">{step}</span>
-          </li>
-        ))}
-      </ol>
+      {queues.length > 1 && (
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-600">
+          Line
+          <select
+            value={selectedQueueId || queue?.id || ''}
+            onChange={(e) => setSelectedQueueId(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+          >
+            {queues.map((q) => (
+              <option key={q.id} value={q.id}>
+                {queueDisplayName(q, business?.type)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {queues.map((q) => {
-          const isSelected = selectedQueueId === q.id || (!selectedQueueId && queue?.id === q.id);
-          const detail = queueDisplayDetail(q, business?.type);
-          if (queues.length < 2) return null;
-          return (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => setSelectedQueueId(q.id)}
-              className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-left text-xs font-bold transition ${
-                isSelected ? 'bg-neutral-900 text-white shadow-sm' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span className="block">{queueDisplayName(q, business?.type)}</span>
-              {detail && <span className={`mt-0.5 block font-medium ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>{detail}</span>}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setShowCreateQueueModal(true)}
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-600 hover:border-orange-300 hover:text-orange-700"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {copy.addLine}
-        </button>
-      </div>
-
-      {/* Status Bar */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{business?.name}</h2>
-          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
-            {copy.guestLink}:{' '}
-            <a
-              href={getBusinessPublicPath(business?.slug, business?.type)}
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-orange-600 transition-colors hover:text-orange-700 hover:underline"
-            >
-              {getBusinessPublicPath(business?.slug, business?.type)}
-            </a>
-            <button
-              type="button"
-              onClick={() => void handleCopyLink()}
-              className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 font-semibold text-orange-700 hover:bg-orange-100"
-            >
-              <Copy className="h-3 w-3" />
-              {linkCopied ? 'Copied' : 'Copy link'}
-            </button>
-          </p>
-        </div>
-
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={handleToggleQueue}
-          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all border active:scale-[0.98] ${
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
             queue?.isOpen
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-700'
           }`}
         >
-          <span className={`w-2.5 h-2.5 rounded-full ${queue?.isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          {queue?.isOpen ? copy.open : copy.closed}
-          <span className="ml-1 text-xs opacity-60">(tap to change)</span>
+          <span className={`h-2 w-2 rounded-full ${queue?.isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+          {queue?.isOpen ? 'Open' : 'Closed'}
         </button>
         <button
           type="button"
           onClick={() => void handleToggleRemote()}
           disabled={!queue}
-          className={`inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all disabled:opacity-50 ${
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold disabled:opacity-50 ${
             queue?.remoteJoinEnabled
-              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-              : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+              ? 'border-blue-200 bg-blue-50 text-blue-700'
+              : 'border-gray-200 bg-white text-gray-600'
           }`}
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${queue?.remoteJoinEnabled ? 'bg-blue-500' : 'bg-gray-400'}`} />
-          {queue?.remoteJoinEnabled ? copy.phoneOn : copy.phoneOff}
+          {queue?.remoteJoinEnabled ? 'Phone join on' : 'Phone join off'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleCopyLink()}
+          className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {linkCopied ? 'Copied' : 'Copy join link'}
         </button>
       </div>
       {actionError && (
@@ -518,481 +475,252 @@ export default function DashboardQueuePage() {
         </div>
       )}
 
-      <form
-        onSubmit={handleSaveSettings}
-        className="flex flex-col gap-4 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-end"
-      >
-        <div className="flex-1">
-          <label htmlFor="average-wait" className="mb-1 block text-xs font-semibold text-gray-600">
-            {copy.waitSetting}
-          </label>
-          <input
-            id="average-wait"
-            type="number"
-            min="1"
-            max="60"
-            required
-            value={settingsForm.averageWaitMinutes}
-            onChange={(e) => {
-              setSettingsDirty(true);
-              setSettingsForm((current) => ({
-                ...current,
-                averageWaitMinutes: Number(e.target.value),
-              }));
-            }}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-[11px] text-gray-400">{copy.waitHint}</p>
-        </div>
-        <div className="flex-1">
-          <label htmlFor="arrival-grace" className="mb-1 block text-xs font-semibold text-gray-600">
-            {copy.graceSetting}
-          </label>
-          <input
-            id="arrival-grace"
-            type="number"
-            min="1"
-            max="60"
-            required
-            value={settingsForm.arrivalGraceMinutes}
-            onChange={(e) => {
-              setSettingsDirty(true);
-              setSettingsForm((current) => ({
-                ...current,
-                arrivalGraceMinutes: Number(e.target.value),
-              }));
-            }}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-[11px] text-gray-400">{copy.graceHint}</p>
-        </div>
-        <button
-          type="submit"
-          disabled={savingSettings || !queue}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" />
-          {savingSettings ? 'Saving…' : 'Save settings'}
-        </button>
-      </form>
+      <details className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-gray-700">Settings</summary>
+        <form onSubmit={handleSaveSettings} className="mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm text-gray-600">
+              {copy.waitSetting}
+              <input
+                id="average-wait"
+                type="number"
+                min="1"
+                max="60"
+                required
+                value={settingsForm.averageWaitMinutes}
+                onChange={(e) => {
+                  setSettingsDirty(true);
+                  setSettingsForm((current) => ({
+                    ...current,
+                    averageWaitMinutes: Number(e.target.value),
+                  }));
+                }}
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900"
+              />
+            </label>
+            <label className="block text-sm text-gray-600">
+              {copy.graceSetting}
+              <input
+                id="arrival-grace"
+                type="number"
+                min="1"
+                max="60"
+                required
+                value={settingsForm.arrivalGraceMinutes}
+                onChange={(e) => {
+                  setSettingsDirty(true);
+                  setSettingsForm((current) => ({
+                    ...current,
+                    arrivalGraceMinutes: Number(e.target.value),
+                  }));
+                }}
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={savingSettings || !queue}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {savingSettings ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCreateQueueModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <Plus className="h-4 w-4" />
+              {copy.addLine}
+            </button>
+          </div>
+        </form>
+      </details>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-            <Users className="w-5 h-5 text-orange-600" />
-          </div>
+      <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          {currentServingToken ? copy.nowLabel : nextInLineToken ? copy.readyLabel : 'Line'}
+        </p>
+        <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="text-xs font-medium text-gray-500">{copy.waitingStat}</span>
-            <div className="text-2xl font-bold text-gray-900 mt-0.5">{waitingTokens.length}</div>
-            <span className="text-xs text-gray-400">{copy.waitingHint}</span>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {currentServingToken
+                ? `#${currentServingToken.tokenNumber} ${currentServingToken.customerName}`
+                : nextInLineToken
+                ? `#${nextInLineToken.tokenNumber} ${nextInLineToken.customerName}`
+                : copy.emptyNow}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {currentServingToken
+                ? currentServingToken.customerPhone
+                : nextInLineToken
+                ? 'Next in line'
+                : copy.readyDetail}
+              {currentServingToken?.source === 'REMOTE' ? ` · ${copy.remote}` : ''}
+              {currentServingToken?.arrivedAt ? ` · ${copy.arrived}` : ''}
+              {foodBusiness && currentServingToken ? ` · ${currentServingToken.partySize} guests` : ''}
+            </p>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-            <Check className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <span className="text-xs font-medium text-gray-500">{copy.doneStat}</span>
-            <div className="text-2xl font-bold text-gray-900 mt-0.5">{servedTokens.length}</div>
-            <span className="text-xs text-gray-400">{copy.doneHint}</span>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Clock className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <span className="text-xs font-medium text-gray-500">About how long</span>
-            <div className="text-2xl font-bold text-gray-900 mt-0.5">~{estimatedQueueWait} min</div>
-            <span className="text-xs text-gray-400">about {queue?.averageWaitMinutes || 8} min for each {copy.peopleNoun === 'parties' ? 'party' : 'person'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Dominant Counter Operations Panel (Now Serving & Call Next) ── */}
-      <div className="rounded-3xl border-2 border-orange-400/90 bg-gradient-to-br from-orange-50/70 via-white to-amber-50/60 p-6 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md ${
-              currentServingToken ? 'bg-orange-500 animate-pulse' : 'bg-neutral-800'
-            }`}>
-              {currentServingToken ? `#${currentServingToken.tokenNumber}` : '—'}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
-                  {currentServingToken ? copy.nowLabel : copy.readyLabel}
-                </span>
-                {currentServingToken?.source === 'REMOTE' && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                    {copy.remote}
-                  </span>
-                )}
-              </div>
-              <h3 className="text-xl font-black text-neutral-900 mt-1">
-                {currentServingToken
-                  ? currentServingToken.customerName
-                  : nextInLineToken
-                  ? `${copy.nextPrefix}: #${nextInLineToken.tokenNumber} ${nextInLineToken.customerName}`
-                  : copy.emptyNow}
-              </h3>
-              <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-2">
-                {currentServingToken ? (
-                  <>
-                    <span>Phone: {currentServingToken.customerPhone}</span>
-                    {foodBusiness && (
-                      <>
-                        <span>•</span>
-                        <span>Party: {currentServingToken.partySize}</span>
-                      </>
-                    )}
-                    {copy.showStaff && currentServingToken.doctorName && (
-                      <>
-                        <span>•</span>
-                        <span className="font-semibold text-neutral-700">{currentServingToken.doctorName}</span>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <span>{copy.readyDetail}</span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Counter Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-2">
             {currentServingToken ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleUpdateStatus(currentServingToken.id, 'call')}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-98"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600"
                 >
-                  <Bell className="w-4 h-4" />
-                  <span>{copy.recall}</span>
+                  <Bell className="h-4 w-4" />
+                  {copy.recall}
                 </button>
-
+                {currentServingToken.source === 'REMOTE' && !currentServingToken.arrivedAt && (
+                  <button
+                    type="button"
+                    onClick={() => handleArrive(currentServingToken.id)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    They're here
+                  </button>
+                )}
                 {foodBusiness ? (
                   <button
                     type="button"
                     onClick={() => setSelectedTokenForSeat(currentServingToken)}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
-                    <Armchair className="w-4 h-4" />
-                    <span>{copy.finish}</span>
+                    <Armchair className="h-4 w-4" />
+                    {copy.finish}
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => handleUpdateStatus(currentServingToken.id, 'complete')}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
-                    <Check className="w-4 h-4" />
-                    <span>{copy.finish}</span>
+                    <Check className="h-4 w-4" />
+                    {copy.finish}
                   </button>
                 )}
-
                 <button
                   type="button"
                   onClick={() => handleUpdateStatus(currentServingToken.id, 'skip')}
-                  className="px-3.5 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs transition"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
-                  <SkipForward className="w-3.5 h-3.5" />
-                  <span>Skip</span>
+                  <SkipForward className="h-4 w-4" />
+                  Skip
                 </button>
               </>
             ) : nextInLineToken ? (
               <button
                 type="button"
                 onClick={() => handleUpdateStatus(nextInLineToken.id, 'call')}
-                className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-md flex items-center gap-2 transition active:scale-98"
+                className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white hover:bg-orange-600"
               >
-                <Bell className="w-4 h-4" />
-                <span>{copy.callNext(nextInLineToken.tokenNumber)}</span>
+                <Bell className="h-4 w-4" />
+                {copy.callNext(nextInLineToken.tokenNumber)}
               </button>
             ) : null}
           </div>
         </div>
       </div>
 
-      {/* Live Waiting List Card */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
-          <div>
-            <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
-              <span>{copy.listTitle} ({waitingTokens.length})</span>
-              {filteredTokens.length !== waitingTokens.length && (
-                <span className="text-xs font-semibold text-gray-400 font-normal">
-                  (Showing {filteredTokens.length})
-                </span>
+      {(lineTokens.length > 0 || activeFilter === 'SKIPPED' || searchQuery || skippedTokens.length > 0) && (
+      <div className="rounded-2xl border border-gray-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-gray-900">
+            {activeFilter === 'SKIPPED' ? `Skipped (${skippedTokens.length})` : `Still waiting (${lineTokens.length})`}
+          </h3>
+          <button
+            type="button"
+            onClick={() => setActiveFilter(activeFilter === 'SKIPPED' ? 'ALL' : 'SKIPPED')}
+            className="text-sm font-semibold text-orange-600 hover:underline"
+          >
+            {activeFilter === 'SKIPPED' ? 'Show the line' : `Skipped (${skippedTokens.length})`}
+          </button>
+        </div>
+
+        {(waitingTokens.length > 4 || searchQuery) && (
+          <div className="border-b border-gray-100 px-4 py-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name, phone, or number"
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-8 text-sm focus:border-orange-500 focus:bg-white focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
-            </h3>
-            <p className="text-xs text-gray-500">{copy.listHint}</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200/60">
-              <RefreshCw className="w-3 h-3 animate-spin text-orange-500" style={{ animationDuration: '3s' }} />
-              Auto-sync 3s
-            </span>
-          </div>
-        </div>
-
-        {/* Search Bar & Filter Tabs */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, phone, or number"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all placeholder:text-gray-400"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-            {[
-              { id: 'ALL', label: `All (${waitingTokens.length})` },
-              { id: 'WAITING', label: 'Waiting' },
-              { id: 'CALLED', label: `Called (${calledCount})` },
-              ...(foodBusiness ? [{ id: 'PREORDER', label: `${copy.ordered} (${preorderCount})` }] : []),
-              { id: 'REMOTE', label: `${copy.remote} (${remoteCount})` },
-              { id: 'SKIPPED', label: `Skipped (${skippedTokens.length})` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveFilter(tab.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                  activeFilter === tab.id
-                    ? 'bg-orange-500 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200/70'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {baseTokens.length === 0 ? (
-          activeFilter === 'SKIPPED' ? (
-            <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-              <Check className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-xs font-bold text-gray-700">{copy.skippedEmpty}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{copy.skippedHint}</p>
             </div>
-          ) : (
-            <EmptyState
-              emoji="🎉"
-              title={copy.emptyTitle}
-              description={copy.emptyBody}
-              tip="The entrance QR is the easiest way for someone to take a number."
-              actionLabel={copy.addButton}
-              onAction={() => setShowAddModal(true)}
-              className="py-12"
-            />
-          )
-        ) : filteredTokens.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-            <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-gray-700">Nothing matches that search</p>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setActiveFilter('ALL');
-              }}
-              className="mt-2 text-xs font-bold text-orange-600 hover:underline"
-            >
-              Reset filters
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredTokens.map((token, idx) => (
-              <article
-                key={token.id}
-                className="rounded-xl border border-gray-100 hover:border-gray-200 bg-gray-50/50 hover:bg-gray-50 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  {/* Avatar / Token Number */}
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold text-lg shadow-sm flex-shrink-0">
-                    <Hash className="w-3.5 h-3.5 opacity-70" />
-                    {token.tokenNumber}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-sm text-gray-900">{token.customerName}</h4>
-                      {foodBusiness && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 font-medium px-2 py-0.5 rounded-full">
-                          <Users className="w-3 h-3" />
-                          {token.partySize} guests
-                        </span>
-                      )}
-                      {foodBusiness && token.table && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                          {token.table.name}
-                        </span>
-                      )}
-                      {token.status === 'CALLED' && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full animate-pulse border border-amber-300">
-                          <Bell className="w-3 h-3" />
-                          CALLED
-                        </span>
-                      )}
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                          token.source === 'REMOTE'
-                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {token.source === 'REMOTE' ? copy.remote : copy.walkIn}
-                      </span>
-                      {token.source === 'REMOTE' && token.onTheWayAt && !token.arrivedAt && (
-                        <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-800 border border-cyan-200">
-                          {copy.onTheWay}
-                        </span>
-                      )}
-                      {token.arrivedAt && (
-                        <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800 border border-green-200">
-                          {copy.arrived}
-                        </span>
-                      )}
-                      {foodBusiness && token.orders && token.orders.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 text-[10px]">
-                          {copy.ordered} ({token.orders.length})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
-                      <span className="inline-flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {token.customerPhone}
-                      </span>
-                      <span>Position #{idx + 1}</span>
-                      <span>Est. ~{token.estimatedWaitMin ?? idx * (queue?.averageWaitMinutes || 8)} min</span>
-                      {token.status === 'CALLED' && token.arrivalDeadlineAt && !token.arrivedAt && (
-                        <span className="font-semibold text-amber-700">
-                          Arrive by {new Date(token.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                      {token.notes && (
-                        <span className="inline-flex items-center gap-1 text-gray-500 italic">
-                          <StickyNote className="w-3 h-3" />
-                          "{token.notes}"
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
-                  {/* Skipped or Cancelled token restoration */}
-                  {token.status === 'SKIPPED' || token.status === 'CANCELLED' ? (
-                    <>
-                      <button
-                        onClick={() => handleUpdateStatus(token.id, 'restore')}
-                        className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3.5 py-2 rounded-lg border border-blue-200 transition-all active:scale-[0.97]"
-                        title="Restore customer back to waiting line"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Put back in line
-                      </button>
-                      <button
-                        onClick={() => handleUpdateStatus(token.id, 'call')}
-                        className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all shadow-xs active:scale-[0.97]"
-                        title="Call guest forward now"
-                      >
-                        <Bell className="w-3.5 h-3.5" />
-                        Call now
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {/* WAITING or CALLED tokens */}
-                      {token.status === 'CALLED' ? (
-                        <button
-                          onClick={() => handleUpdateStatus(token.id, 'call')}
-                          title="Buzz / Alert customer again"
-                          className="inline-flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs px-3.5 py-2 rounded-lg border border-amber-300 transition-all active:scale-[0.97]"
-                        >
-                          <Bell className="w-3.5 h-3.5 animate-bounce text-amber-600" />
-                          {copy.recall}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleUpdateStatus(token.id, 'call')}
-                          disabled={token.id !== earliestWaitingId}
-                          title={token.id !== earliestWaitingId ? 'Call the person at the front of the line first' : 'Call this person'}
-                          className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
-                        >
-                          <Bell className="w-3.5 h-3.5" />
-                          Call
-                        </button>
-                      )}
-
-                      {token.source === 'REMOTE' && token.status === 'CALLED' && !token.arrivedAt && (
-                        <button
-                          onClick={() => handleArrive(token.id)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
-                        >
-                          <MapPin className="h-3.5 w-3.5" />
-                          They're here
-                        </button>
-                      )}
-
-                      {token.status === 'CALLED' && (
-                        <button
-                          onClick={() => handleUpdateStatus(token.id, 'complete')}
-                          className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
-                        >
-                          {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
-                          {copy.finish}
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleUpdateStatus(token.id, 'skip')}
-                        className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs px-2.5 py-2 rounded-lg transition-all"
-                        title="Temporarily skip guest"
-                      >
-                        <SkipForward className="w-3.5 h-3.5" />
-                        Skip
-                      </button>
-
-                      <button
-                        onClick={() => setTokenToCancel(token)}
-                        className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 hover:bg-red-50 text-xs px-2.5 py-2 rounded-lg transition-all"
-                        title="Cancel token"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
           </div>
         )}
+
+        {lineTokens.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm font-medium text-gray-700">
+              {activeFilter === 'SKIPPED' ? copy.skippedEmpty : searchQuery ? 'Nothing matches that search' : featuredId ? 'No one else is waiting.' : copy.emptyTitle}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {activeFilter === 'SKIPPED' ? copy.skippedHint : searchQuery ? 'Try another name or number.' : featuredId ? 'They are shown above.' : copy.emptyBody}
+            </p>
+          </div>
+        ) : (
+          <ul>
+            {lineTokens.map((token) => {
+              const skipped = token.status === 'SKIPPED' || token.status === 'CANCELLED';
+              const detail = [
+                token.customerPhone,
+                foodBusiness ? `${token.partySize} guests` : '',
+                token.table?.name,
+                token.source === 'REMOTE' ? copy.remote : '',
+                token.onTheWayAt && !token.arrivedAt ? copy.onTheWay : '',
+                token.arrivedAt ? copy.arrived : '',
+                token.orders?.length ? `${copy.ordered}` : '',
+                token.notes,
+              ].filter(Boolean).join(' · ');
+              return (
+                <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-gray-900">
+                      <span className="mr-2 text-orange-600">#{token.tokenNumber}</span>
+                      {token.customerName}
+                    </p>
+                    <p className="truncate text-sm text-gray-500">{detail}</p>
+                  </div>
+                  {skipped ? (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStatus(token.id, 'restore')}
+                      className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Put back
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setTokenToCancel(token)}
+                      className="shrink-0 text-sm font-medium text-gray-400 hover:text-red-600"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
+      )}
 
       {/* Add Walk-in Modal */}
       {showAddModal && (
