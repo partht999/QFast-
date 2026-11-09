@@ -37,15 +37,15 @@ export function VisitBill({
   const [people, setPeople] = useState(1);
   const share = people > 1 ? Math.ceil((total / people) * 100) / 100 : total;
 
-  const download = () => {
+  const receiptHtml = () => {
     const rows = lines
       .map(
         (line) =>
           `<tr><td>${line.quantity} × ${line.name}${line.note ? `<br><small>${line.note}</small>` : ''}</td><td style="text-align:right">${money(line.amount)}</td></tr>`,
       )
       .join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
-      <style>body{font-family:sans-serif;max-width:420px;margin:32px auto;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse}td{padding:8px 0;border-bottom:1px solid #eee;vertical-align:top} .total{font-size:18px;font-weight:800}</style>
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+      <style>body{font-family:Georgia,serif;max-width:360px;margin:24px auto;color:#111}h1{font-size:22px;margin-bottom:0}p{margin:6px 0}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 0;border-bottom:1px dashed #ccc;vertical-align:top}.total{font-size:20px;font-weight:700;border-top:2px solid #111;padding-top:8px}</style>
       </head><body>
       <h1>${businessName || 'Qfast'}</h1>
       <p>${detail || title}</p>
@@ -53,14 +53,23 @@ export function VisitBill({
       <p>Subtotal ${money(subtotal)}<br>GST ${money(tax)}</p>
       <p class="total">Total ${money(total)}</p>
       ${people > 1 ? `<p>Split ${people} ways · ${money(share)} each</p>` : ''}
+      <script>window.onload=function(){window.print()}<\/script>
       </body></html>`;
-    const blob = new Blob([html], { type: 'text/html' });
+  };
+
+  const download = () => {
+    const blob = new Blob([receiptHtml().replace('<script>window.onload=function(){window.print()}<' + '/script>', '')], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `${downloadName}.html`;
     link.click();
     URL.revokeObjectURL(url);
+    const popup = window.open('', 'qfast-bill', 'width=420,height=720');
+    if (popup) {
+      popup.document.write(receiptHtml());
+      popup.document.close();
+    }
   };
 
   return (

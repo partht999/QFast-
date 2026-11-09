@@ -37,6 +37,7 @@ export default function KDSPage() {
   const [recentlyClearedOrders, setRecentlyClearedOrders] = useState<any[]>([]);
   const [showRecallModal, setShowRecallModal] = useState(false);
   const [ticketToClear, setTicketToClear] = useState<any>(null);
+  const [kitchenError, setKitchenError] = useState('');
   const prevOrderCountRef = useRef(0);
   const router = useRouter();
 
@@ -152,10 +153,13 @@ export default function KDSPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const kitchenHeld = (order: any) =>
+    Boolean(order.queueToken) && order.queueToken.status !== 'CALLED' && order.queueToken.status !== 'SEATED';
+
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const token = localStorage.getItem('accessToken');
     try {
-      await fetch(`${apiUrl}/api/v1/orders/${orderId}/status`, {
+      const response = await fetch(`${apiUrl}/api/v1/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -163,10 +167,34 @@ export default function KDSPage() {
         },
         body: JSON.stringify({ status: newStatus }),
       });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+        setKitchenError(message || 'The kitchen could not update that order.');
+        return;
+      }
+      setKitchenError('');
       fetchOrders();
     } catch (err) {
       console.error(err);
+      setKitchenError('The kitchen could not update that order.');
     }
+  };
+
+  const handleMarkPaid = async (orderId: string) => {
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${apiUrl}/api/v1/orders/${orderId}/pay`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+      setKitchenError(message || 'Could not mark this order paid.');
+      return;
+    }
+    setKitchenError('');
+    fetchOrders();
   };
 
   const handleRecallOrder = async (orderId: string, targetStatus: string = 'READY') => {
@@ -329,6 +357,11 @@ export default function KDSPage() {
       </header>
 
       {/* 3-Column Kitchen Operations Grid */}
+      {kitchenError && (
+        <p className="mx-6 mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100">
+          {kitchenError}
+        </p>
+      )}
       <main className="flex-1 p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-x-auto">
         {/* Column 1: New / Pending Tickets */}
         <div className="flex flex-col bg-neutral-900/50 rounded-3xl border border-neutral-800/80 overflow-hidden">
@@ -425,6 +458,11 @@ export default function KDSPage() {
                       })}
                     </div>
 
+                    {kitchenHeld(order) ? (
+                      <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs font-bold text-amber-200">
+                        Held until party #{order.queueToken?.tokenNumber} is called
+                      </p>
+                    ) : (
                     <button
                       onClick={() => handleUpdateStatus(order.id, 'PREPARING')}
                       className="w-full bg-amber-500 hover:bg-amber-600 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-md active:scale-98"
@@ -432,6 +470,7 @@ export default function KDSPage() {
                       <Play className="w-3.5 h-3.5 fill-black" />
                       <span>Start Cooking</span>
                     </button>
+                    )}
                   </div>
                 );
               })
@@ -528,6 +567,11 @@ export default function KDSPage() {
                       })}
                     </div>
 
+                    {kitchenHeld(order) ? (
+                      <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs font-bold text-amber-200">
+                        Held until party #{order.queueToken?.tokenNumber} is called
+                      </p>
+                    ) : (
                     <button
                       onClick={() => handleUpdateStatus(order.id, 'READY')}
                       className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-md active:scale-98"
@@ -535,6 +579,7 @@ export default function KDSPage() {
                       <Bell className="w-3.5 h-3.5" />
                       <span>{order.source === 'TAKEAWAY' ? 'Ready to collect' : 'Mark Ready to Serve'}</span>
                     </button>
+                    )}
                   </div>
                 );
               })
@@ -586,13 +631,22 @@ export default function KDSPage() {
                     ))}
                   </div>
 
+                  {(order.payments || []).some((payment: any) => payment.status === 'PENDING') ? (
+                    <button
+                      onClick={() => void handleMarkPaid(order.id)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs"
+                    >
+                      Mark bill paid
+                    </button>
+                  ) : (
                   <button
                     onClick={() => setTicketToClear(order)}
                     className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold py-2.5 rounded-xl text-xs transition-colors border border-neutral-700 flex items-center justify-center gap-1.5 active:scale-98"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{order.source === 'TAKEAWAY' ? 'Mark collected' : 'Clear Ticket (Order Served)'}</span>
+                    <span>{order.source === 'TAKEAWAY' ? 'Mark collected' : 'Served'}</span>
                   </button>
+                  )}
                 </div>
               ))
             )}

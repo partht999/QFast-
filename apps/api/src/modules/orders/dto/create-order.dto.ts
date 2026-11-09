@@ -79,6 +79,17 @@ export class CreateOrderDto {
   @IsOptional()
   specialInstructions?: string;
 
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  tipAmount?: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
+
   @ApiProperty({ enum: PaymentMethod, default: PaymentMethod.UPI_AT_COUNTER })
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;

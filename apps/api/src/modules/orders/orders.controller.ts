@@ -26,6 +26,20 @@ export class OrdersController {
     return this.ordersService.createPublicOrder(dto);
   }
 
+  @Post('public/:orderId/help')
+  @ApiOperation({ summary: 'Ask staff for a waiter or the bill' })
+  async requestHelp(@Param('orderId') orderId: string, @Body('kind') kind: 'waiter' | 'bill') {
+    return this.ordersService.requestStaffHelp(orderId, kind === 'bill' ? 'bill' : 'waiter');
+  }
+
+  @Patch(':id/pay')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark one order paid after the kitchen is finished' })
+  async markPaid(@Param('id') id: string) {
+    return this.ordersService.markOrderPaid(id);
+  }
+
   @Get('public/:orderId')
   @ApiOperation({ summary: 'Customer live tracking for their active order' })
   async getPublicOrder(@Param('orderId') orderId: string) {

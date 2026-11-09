@@ -48,6 +48,7 @@ export default function JoinQueuePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [takeawayId, setTakeawayId] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
   const [stampBurst, setStampBurst] = useState(false);
   const [editingGuest, setEditingGuest] = useState(false);
@@ -140,6 +141,11 @@ export default function JoinQueuePage() {
       sessionStorage.setItem(`qfast_stamp_${data.id}`, '1');
     }
   };
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`qfast_takeaway_${slug}`);
+    if (saved) setTakeawayId(saved);
+  }, [slug]);
 
   useEffect(() => {
     const guest = readGuest(slug);
@@ -679,6 +685,11 @@ export default function JoinQueuePage() {
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
+                  {foodBusiness && takeawayId && (
+                    <Link href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-900">
+                      Your takeaway order is open. Check if it is ready.
+                    </Link>
+                  )}
                   {foodBusiness && (
                     <Link
                       href={`/r/${slug}/table/takeaway`}

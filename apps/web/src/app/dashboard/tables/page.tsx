@@ -384,7 +384,6 @@ export default function TablesManagementPage() {
                 {tables.map((table) => {
                   const heldParty = table.queueTokens?.[0];
                   const isOccupied = (table.orders && table.orders.length > 0) || Boolean(heldParty);
-                  const tableUrl = `${origin}/r/${business?.slug}/table/${encodeURIComponent(table.name)}`;
 
                   return (
                     <div
@@ -427,14 +426,6 @@ export default function TablesManagementPage() {
                       </div>
 
                       <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                        <button
-                          onClick={() => setSelectedTableForQR({ ...table, url: tableUrl })}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1"
-                        >
-                          <QrCode className="w-3.5 h-3.5 text-gray-600" />
-                          <span>QR Code</span>
-                        </button>
-
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => openEditModal(table)}

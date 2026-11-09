@@ -32,6 +32,8 @@ export default function DashboardQueuePage() {
   const [queue, setQueue] = useState<any>(null);
   const [tables, setTables] = useState<any[]>([]);
   const [selectedTokenForSeat, setSelectedTokenForSeat] = useState<any | null>(null);
+  const [assignMode, setAssignMode] = useState<'call' | 'seat'>('seat');
+  const [alerts, setAlerts] = useState<any[]>([]);
   const [targetTableId, setTargetTableId] = useState<string>('');
   const [pending, setPending] = useState<{
     title: string;
@@ -114,6 +116,7 @@ export default function DashboardQueuePage() {
             });
           }
           setTokens(qData.tokens || []);
+          setAlerts(qData.alerts || []);
         }
 
         if (tablesRes.ok) {
@@ -255,15 +258,10 @@ export default function DashboardQueuePage() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         const message = readApiError(body, 'Could not update queue entry');
-        if (action === 'call' && message.includes('No free table')) {
-          setPending({
-            title: 'No free table',
-            description: `${party?.customerName || 'This party'} is next, but every table is taken. Call them anyway? You can seat them when a table opens.`,
-            confirmLabel: 'Call anyway',
-            cancelLabel: 'Wait for a table',
-            variant: 'warning',
-            run: () => handleUpdateStatus(tokenId, 'call', undefined, true),
-          });
+        if (action === 'call' && message.includes('Choose a table') && party) {
+          setAssignMode('call');
+          setTargetTableId('');
+          setSelectedTokenForSeat(party);
           return;
         }
         throw new Error(message);
@@ -294,6 +292,31 @@ export default function DashboardQueuePage() {
       setActionError(msg);
       toast.error('Action failed', msg);
     }
+  };
+
+  const handleMarkPaid = async (tokenId: string) => {
+    const token = localStorage.getItem('accessToken');
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/pay`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(body, 'Could not mark the bill paid'));
+      toast.success('Bill paid', 'You can close the visit when you are ready.');
+      await fetchData();
+    } catch (err) {
+      toast.error('Payment not taken', err instanceof Error ? err.message : 'Could not mark the bill paid');
+    }
+  };
+
+  const dismissAlert = async (alertId: string) => {
+    const token = localStorage.getItem('accessToken');
+    await fetch(`${apiUrl}/api/v1/queue/manage/alert/${alertId}/dismiss`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setAlerts((current) => current.filter((alert) => alert.id !== alertId));
   };
 
   const handleToggleQueue = async () => {
@@ -460,6 +483,22 @@ export default function DashboardQueuePage() {
             ))}
           </select>
         </label>
+      )}
+
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert) => (
+            <div key={alert.id} className="flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-950">{alert.subject}</p>
+                <p className="text-sm text-amber-900">{alert.body}</p>
+              </div>
+              <button type="button" onClick={() => void dismissAlert(alert.id)} className="text-sm font-semibold text-amber-800">
+                Done
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -660,6 +699,8 @@ export default function DashboardQueuePage() {
                           run: () => handleUpdateStatus(currentServingToken.id, 'seat', currentServingToken.table.id),
                         });
                       } else {
+                        setAssignMode('seat');
+                        setTargetTableId('');
                         setSelectedTokenForSeat(currentServingToken);
                       }
                     }}
@@ -707,15 +748,21 @@ export default function DashboardQueuePage() {
             ) : nextInLineToken ? (
               <button
                 type="button"
-                onClick={() =>
-                  setPending({
-                    title: `${copy.callNext(nextInLineToken.tokenNumber)}?`,
-                    description: `${nextInLineToken.customerName} will be told it is their turn.`,
-                    confirmLabel: 'Call them',
-                    variant: 'primary',
-                    run: () => handleUpdateStatus(nextInLineToken.id, 'call'),
-                  })
-                }
+                onClick={() => {
+                  if (!foodBusiness) {
+                    setPending({
+                      title: `${copy.callNext(nextInLineToken.tokenNumber)}?`,
+                      description: `${nextInLineToken.customerName} will be told it is their turn.`,
+                      confirmLabel: 'Call them',
+                      variant: 'primary',
+                      run: () => handleUpdateStatus(nextInLineToken.id, 'call'),
+                    });
+                    return;
+                  }
+                  setAssignMode('call');
+                  setTargetTableId('');
+                  setSelectedTokenForSeat(nextInLineToken);
+                }}
                 className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white hover:bg-orange-600"
               >
                 <Bell className="h-4 w-4" />
@@ -843,10 +890,15 @@ export default function DashboardQueuePage() {
         <div className="rounded-2xl border border-gray-200 bg-white">
           <div className="border-b border-gray-100 px-4 py-3">
             <h3 className="text-sm font-semibold text-gray-900">Seated</h3>
-            <p className="text-sm text-gray-500">Close the bill when they are finished. They can still add items until then.</p>
+            <p className="text-sm text-gray-500">Close the bill only after the kitchen is finished and the bill is paid.</p>
           </div>
           <ul>
-            {tokens.filter((token) => token.status === 'SEATED').map((token) => (
+            {tokens.filter((token) => token.status === 'SEATED').map((token) => {
+              const openOrders = (token.orders || []).filter((order: any) => !['CANCELLED', 'REJECTED'].includes(order.status));
+              const cooking = openOrders.some((order: any) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status));
+              const unpaid = openOrders.some((order: any) => (order.payments || []).some((payment: any) => payment.status === 'PENDING') || (!(order.payments || []).length && openOrders.length));
+              const note = cooking ? 'Kitchen is still cooking' : unpaid ? 'Bill is not paid yet' : token.table?.name || 'Ready to close';
+              return (
               <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-gray-900">
@@ -854,27 +906,39 @@ export default function DashboardQueuePage() {
                     {token.customerName}
                   </p>
                   <p className="truncate text-sm text-gray-500">
-                    {token.table?.name || 'No table'}
-                    {token.orders?.length ? ` · ${token.orders.length} order${token.orders.length === 1 ? '' : 's'}` : ''}
+                    {token.table?.name || 'No table'} · {note}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPending({
-                      title: `Close the bill for #${token.tokenNumber}?`,
-                      description: `${token.customerName} leaves the table and can download the bill.`,
-                      confirmLabel: 'Close bill',
-                      variant: 'primary',
-                      run: () => handleUpdateStatus(token.id, 'complete'),
-                    })
-                  }
-                  className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"
-                >
-                  Close bill
-                </button>
+                <div className="flex shrink-0 gap-2">
+                  {!cooking && unpaid && (
+                    <button
+                      type="button"
+                      onClick={() => void handleMarkPaid(token.id)}
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                    >
+                      Mark paid
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={cooking || unpaid}
+                    onClick={() =>
+                      setPending({
+                        title: `Close the bill for #${token.tokenNumber}?`,
+                        description: `${token.customerName} leaves the table. The food is ready and the bill is paid.`,
+                        confirmLabel: 'Close bill',
+                        variant: 'primary',
+                        run: () => handleUpdateStatus(token.id, 'complete'),
+                      })
+                    }
+                    className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Close bill
+                  </button>
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
@@ -1085,7 +1149,7 @@ export default function DashboardQueuePage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-gray-900">
-                    Seat Party #{selectedTokenForSeat.tokenNumber}
+                    {assignMode === 'call' ? 'Call' : 'Seat'} party #{selectedTokenForSeat.tokenNumber}
                   </h3>
                   <p className="text-xs text-gray-500">
                     {selectedTokenForSeat.customerName} ({selectedTokenForSeat.partySize} guests)
@@ -1103,24 +1167,24 @@ export default function DashboardQueuePage() {
             {selectedTokenForSeat.orders && selectedTokenForSeat.orders.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
                 <span className="mb-0.5 block font-bold">They already ordered</span>
-                Seating them moves that order to the table in the kitchen.
+                The pre-order does not hold a table. It can be cooked after you call them.
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                Choose a table
+                Tables for {selectedTokenForSeat.partySize || 1} guests
               </label>
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
                 {tables.map((t) => {
-                  const busy =
-                    (t.orders?.length || 0) > 0 ||
-                    (t.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id);
+                  const busy = (t.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id);
+                  const tooSmall = Number(t.capacity) < Number(selectedTokenForSeat.partySize || 1);
+                  const disabled = busy || tooSmall;
                   return (
                     <button
                       key={t.id}
                       type="button"
-                      disabled={busy}
+                      disabled={disabled}
                       onClick={() => setTargetTableId(t.id)}
                       className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetTableId === t.id
@@ -1129,7 +1193,9 @@ export default function DashboardQueuePage() {
                       }`}
                     >
                       <span className="block truncate">{t.name}</span>
-                      <span className="text-[10px] text-gray-400 font-normal">{busy ? 'Taken' : `Seats ${t.capacity}`}</span>
+                      <span className="text-[10px] text-gray-400 font-normal">
+                        {busy ? 'Taken' : tooSmall ? `Only ${t.capacity}` : `Seats ${t.capacity}`}
+                      </span>
                     </button>
                   );
                 })}
@@ -1139,23 +1205,37 @@ export default function DashboardQueuePage() {
             <div className="pt-2 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat', targetTableId || undefined)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2"
+                disabled={!targetTableId}
+                onClick={() =>
+                  handleUpdateStatus(
+                    selectedTokenForSeat.id,
+                    assignMode === 'call' ? 'call' : 'seat',
+                    targetTableId,
+                  )
+                }
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2"
               >
                 <Armchair className="w-4 h-4" />
                 <span>
                   {targetTableId
-                    ? `Seat at ${tables.find((t) => t.id === targetTableId)?.name || 'this table'}`
-                    : 'Seat them'}
+                    ? `${assignMode === 'call' ? 'Call to' : 'Seat at'} ${tables.find((t) => t.id === targetTableId)?.name || 'this table'}`
+                    : 'Choose a table'}
                 </span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat')}
+                onClick={() =>
+                  handleUpdateStatus(
+                    selectedTokenForSeat.id,
+                    assignMode === 'call' ? 'call' : 'seat',
+                    undefined,
+                    assignMode === 'call',
+                  )
+                }
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition-colors"
               >
-                Seat anyway, without a table
+                {assignMode === 'call' ? 'Call without a table' : 'Seat anyway, without a table'}
               </button>
             </div>
           </div>

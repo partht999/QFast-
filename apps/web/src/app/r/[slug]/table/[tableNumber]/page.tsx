@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -62,6 +62,7 @@ export default function TableOrderPage() {
   const [tipPercentage, setTipPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [placingOrder, setPlacingOrder] = useState(false);
+  const orderKey = useRef('');
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const router = useRouter();
@@ -72,6 +73,10 @@ export default function TableOrderPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
+
+  useEffect(() => {
+    if (isFixedTable) router.replace(`/r/${slug}/join`);
+  }, [isFixedTable, router, slug]);
 
   useEffect(() => {
     const guest = readGuest(slug);
@@ -168,6 +173,7 @@ export default function TableOrderPage() {
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+    if (!orderKey.current) orderKey.current = crypto.randomUUID();
     setPlacingOrder(true);
     setError('');
 
@@ -189,6 +195,8 @@ export default function TableOrderPage() {
           customerPhone: customerPhone.trim() || undefined,
           specialInstructions: specialInstructions.trim() || undefined,
           paymentMethod,
+          tipAmount,
+          idempotencyKey: orderKey.current,
           items: cart.map((i) => ({
             menuItemId: i.id,
             quantity: i.quantity,
@@ -206,9 +214,11 @@ export default function TableOrderPage() {
       if (customerName.trim() && customerPhone.trim()) {
         saveGuest(slug, { name: customerName.trim(), phone: customerPhone.trim() });
       }
+      orderKey.current = '';
       if (resolvedQueueTokenId) {
         router.push(`/r/${slug}/join`);
       } else {
+        localStorage.setItem(`qfast_takeaway_${slug}`, orderData.id);
         router.push(`/r/${slug}/order/${orderData.id}`);
       }
     } catch (err: any) {
@@ -216,6 +226,14 @@ export default function TableOrderPage() {
       setPlacingOrder(false);
     }
   };
+
+  if (isFixedTable) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6 text-center">
+        <p className="text-sm font-semibold text-neutral-600">Tables are assigned when your party is called. Opening the queue.</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

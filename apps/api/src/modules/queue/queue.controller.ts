@@ -208,6 +208,22 @@ export class QueueController {
     );
   }
 
+  @Patch('manage/token/:tokenId/pay')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark the party bill as paid once the kitchen is finished' })
+  async payToken(@Param('tokenId') tokenId: string, @Req() req: any) {
+    return this.queueService.markTokenPaid(tokenId, req.user.sub, req.user.role);
+  }
+
+  @Patch('manage/alert/:alertId/dismiss')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Dismiss a guest help or bill alert' })
+  async dismissAlert(@Param('alertId') alertId: string, @Req() req: any) {
+    return this.queueService.dismissAlert(alertId, req.user.sub, req.user.role);
+  }
+
   @Patch('manage/token/:tokenId/complete')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

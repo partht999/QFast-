@@ -10,7 +10,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
-import { BusinessType, OrderStatus, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
+import { BusinessType, OrderStatus, PaymentStatus, Prisma, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
@@ -415,13 +415,24 @@ export class QueueService {
       include: {
         table: { select: { id: true, name: true } },
         orders: {
-          select: { id: true, status: true, totalAmount: true },
+          select: {
+            id: true,
+            status: true,
+            totalAmount: true,
+            payments: { select: { status: true } },
+          },
         },
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    return { queues, queue: selectedQueue, tokens };
+    const alerts = await this.prisma.notification.findMany({
+      where: { businessId, templateKey: 'staff-alert', createdAt: { gte: todayStart } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return { queues, queue: selectedQueue, tokens, alerts };
   }
 
   async getQueuesForBusiness(businessId: string, userId: string, userRole?: string) {
@@ -631,13 +642,15 @@ export class QueueService {
         currentToken.source === QueueEntrySource.REMOTE
           ? new Date(Date.now() + currentToken.queue.arrivalGraceMinutes * 60_000)
           : null;
-      if (foodBusiness && !currentToken.tableId) {
-        const table = await this.claimFreeTable(currentToken.queue.businessId);
-        if (table) {
-          data.tableId = table.id;
-        } else if (!allowWithoutTable && currentToken.status !== QueueTokenStatus.CALLED) {
-          throw new ConflictException('No free table. Seat them anyway?');
-        }
+      if (foodBusiness && tableId) data.tableId = tableId;
+      if (
+        foodBusiness &&
+        !tableId &&
+        !currentToken.tableId &&
+        !allowWithoutTable &&
+        currentToken.status !== QueueTokenStatus.CALLED
+      ) {
+        throw new BadRequestException('Choose a table that fits this party.');
       }
     } else if (status === QueueTokenStatus.SEATED) {
       data.seatedAt = new Date();
@@ -648,26 +661,36 @@ export class QueueService {
       if (!currentToken.servedAt) data.servedAt = new Date();
     } else if (status === QueueTokenStatus.CANCELLED) {
       data.cancelledAt = new Date();
+      data.tableId = null;
+    } else if (status === QueueTokenStatus.SKIPPED) {
+      data.tableId = null;
     }
 
-    if (status === QueueTokenStatus.COMPLETED) {
-      const openOrders = await this.prisma.order.findMany({
-        where: {
-          queueTokenId: tokenId,
-          status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
-        },
+    if (status === QueueTokenStatus.COMPLETED && foodBusiness) {
+      await this.assertBillCanClose(tokenId);
+      const readyOrders = await this.prisma.order.findMany({
+        where: { queueTokenId: tokenId, status: OrderStatus.READY },
         select: { id: true },
       });
-      for (const order of openOrders) {
+      for (const order of readyOrders) {
         await this.orders.updateOrderStatus(order.id, OrderStatus.COMPLETED);
       }
     }
 
-    const token = await this.prisma.queueToken.update({
-      where: { id: tokenId },
+    const token = await this.saveTokenWithTable(
+      tokenId,
+      currentToken.queue.businessId,
+      currentToken.partySize,
       data,
-      include: { queue: true, table: true },
-    });
+    );
+
+    if (
+      status === QueueTokenStatus.SKIPPED ||
+      status === QueueTokenStatus.CANCELLED ||
+      status === QueueTokenStatus.WAITING
+    ) {
+      await this.releasePartyTable(tokenId);
+    }
 
     const linkedTableId = token.tableId;
     if (linkedTableId && (status === QueueTokenStatus.CALLED || status === QueueTokenStatus.SEATED)) {
@@ -827,9 +850,128 @@ export class QueueService {
     return queue.averageWaitMinutes ?? 8;
   }
 
+  async markTokenPaid(tokenId: string, userId: string, userRole?: string) {
+    const token = await this.prisma.queueToken.findUnique({
+      where: { id: tokenId },
+      include: { queue: true },
+    });
+    if (!token) throw new NotFoundException('Queue entry not found');
+    await this.assertBusinessAccess(token.queue.businessId, userId, userRole);
+    const orders = await this.prisma.order.findMany({
+      where: { queueTokenId: tokenId, status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
+      select: { id: true, status: true },
+    });
+    if (orders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status))) {
+      throw new ConflictException('The kitchen is still cooking. Take payment when the food is ready.');
+    }
+    await this.prisma.payment.updateMany({
+      where: { orderId: { in: orders.map((order) => order.id) }, status: PaymentStatus.PENDING },
+      data: { status: PaymentStatus.PAID, paidAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  async dismissAlert(alertId: string, userId: string, userRole?: string) {
+    const alert = await this.prisma.notification.findUnique({ where: { id: alertId } });
+    if (!alert || alert.templateKey !== 'staff-alert') throw new NotFoundException('Alert not found');
+    await this.assertBusinessAccess(alert.businessId, userId, userRole);
+    await this.prisma.notification.delete({ where: { id: alertId } });
+    return { ok: true };
+  }
+
+  private async releasePartyTable(tokenId: string) {
+    await this.prisma.order.updateMany({
+      where: { queueTokenId: tokenId },
+      data: { tableId: null },
+    });
+    await this.prisma.order.updateMany({
+      where: {
+        queueTokenId: tokenId,
+        status: { in: [OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING] },
+      },
+      data: { status: OrderStatus.PENDING },
+    });
+  }
+
+  private async assertBillCanClose(tokenId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { queueTokenId: tokenId, status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
+      include: { payments: true },
+    });
+    if (orders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status))) {
+      throw new ConflictException('The kitchen is still cooking. Close the bill when the food is ready.');
+    }
+    if (orders.some((order) => order.payments.some((payment) => payment.status === PaymentStatus.PENDING))) {
+      throw new ConflictException('Mark the bill paid before closing it.');
+    }
+  }
+
+  private async saveTokenWithTable(
+    tokenId: string,
+    businessId: string,
+    partySize: number,
+    data: Prisma.QueueTokenUncheckedUpdateInput,
+  ) {
+    const tableId = typeof data.tableId === 'string' ? data.tableId : undefined;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            if (tableId) await this.assertTableFits(tx, businessId, tokenId, tableId, partySize);
+            const token = await tx.queueToken.update({
+              where: { id: tokenId },
+              data,
+              include: { queue: true, table: true },
+            });
+            if (token.tableId) {
+              const holders = await tx.queueToken.count({
+                where: {
+                  tableId: token.tableId,
+                  status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] },
+                },
+              });
+              if (holders > 1) throw new ConflictException('That table was just given to another party.');
+            }
+            return token;
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (attempt === 0 && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new ConflictException('That table was just given to another party.');
+  }
+
+  private async assertTableFits(
+    tx: Prisma.TransactionClient,
+    businessId: string,
+    tokenId: string,
+    tableId: string,
+    partySize: number,
+  ) {
+    const table = await tx.table.findFirst({ where: { id: tableId, businessId, isActive: true } });
+    if (!table) throw new BadRequestException('That table is not available.');
+    if (table.capacity < partySize) {
+      throw new BadRequestException(`${table.name} seats ${table.capacity}. This party has ${partySize}.`);
+    }
+    const holder = await tx.queueToken.findFirst({
+      where: {
+        tableId,
+        id: { not: tokenId },
+        status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] },
+      },
+      select: { tokenNumber: true },
+    });
+    if (holder) throw new ConflictException(`${table.name} is already with party #${holder.tokenNumber}.`);
+  }
+
   private async expireOverdueRemoteTokens(queueId?: string, tokenId?: string) {
     const now = new Date();
-    const result = await this.prisma.queueToken.updateMany({
+    const overdue = await this.prisma.queueToken.findMany({
       where: {
         ...(queueId ? { queueId } : {}),
         ...(tokenId ? { id: tokenId } : {}),
@@ -838,39 +980,16 @@ export class QueueService {
         arrivedAt: null,
         arrivalDeadlineAt: { lte: now },
       },
-      data: { status: QueueTokenStatus.NO_SHOW },
+      select: { id: true },
     });
-    return result.count;
-  }
-
-  private async claimFreeTable(businessId: string) {
-    const tables = await this.prisma.table.findMany({
-      where: { businessId, isActive: true },
-      orderBy: { name: 'asc' },
+    if (!overdue.length) return 0;
+    const ids = overdue.map((token) => token.id);
+    await this.prisma.queueToken.updateMany({
+      where: { id: { in: ids } },
+      data: { status: QueueTokenStatus.NO_SHOW, tableId: null },
     });
-    if (!tables.length) return null;
-
-    const held = await this.prisma.queueToken.findMany({
-      where: {
-        tableId: { not: null },
-        status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] },
-        queue: { businessId },
-      },
-      select: { tableId: true },
-    });
-    const openOrders = await this.prisma.order.findMany({
-      where: {
-        businessId,
-        tableId: { not: null },
-        status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
-      },
-      select: { tableId: true },
-    });
-    const busy = new Set<string>([
-      ...held.map((row) => row.tableId as string),
-      ...openOrders.map((row) => row.tableId as string),
-    ]);
-    return tables.find((table) => !busy.has(table.id)) || null;
+    for (const id of ids) await this.releasePartyTable(id);
+    return ids.length;
   }
 
   private async assertBusinessAccess(businessId: string, userId: string, userRole?: string) {

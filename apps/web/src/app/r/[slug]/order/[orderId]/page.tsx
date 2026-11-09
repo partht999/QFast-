@@ -65,15 +65,31 @@ export default function OrderTrackingPage() {
     return () => clearInterval(interval);
   }, [orderId]);
 
-  const handleWaiterRequest = (reason: string) => {
+  const askStaff = async (kind: 'waiter' | 'bill', reason?: string) => {
     setShowCallWaiterModal(false);
-    setAssistanceMsg(`Server alerted for: "${reason}". Someone will assist your table shortly!`);
+    try {
+      await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      });
+      setAssistanceMsg(
+        kind === 'bill'
+          ? 'The host has your bill request.'
+          : `The host knows you need someone${reason ? ` for ${reason}` : ''}.`,
+      );
+    } catch {
+      setAssistanceMsg('Could not reach the host. Please wave someone down.');
+    }
     setTimeout(() => setAssistanceMsg(''), 6000);
   };
 
+  const handleWaiterRequest = (reason: string) => {
+    void askStaff('waiter', reason);
+  };
+
   const handleRequestBill = () => {
-    setAssistanceMsg('Bill request sent to billing desk. A staff member is on the way!');
-    setTimeout(() => setAssistanceMsg(''), 6000);
+    void askStaff('bill');
   };
 
   const toggleTag = (t: string) => {
