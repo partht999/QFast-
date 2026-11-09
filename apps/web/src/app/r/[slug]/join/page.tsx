@@ -26,6 +26,7 @@ import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { readGuest, saveGuest } from '@/lib/guest';
+import { reviewHref } from '@/lib/google-place';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function JoinQueuePage() {
@@ -510,12 +511,7 @@ export default function JoinQueuePage() {
                   foodBusiness={foodBusiness}
                   clinicalBusiness={clinicalBusiness}
                   loyalty={activeToken.loyalty}
-                  reviewUrl={
-                    activeToken.business?.googleReviewUrl
-                    || (activeToken.business?.googlePlaceId
-                      ? `https://search.google.com/local/writereview?placeid=${activeToken.business.googlePlaceId}`
-                      : '')
-                  }
+                  reviewUrl={reviewHref(activeToken.business?.googleReviewUrl, activeToken.business?.googlePlaceId)}
                   stampsHref={`${publicPath}/loyalty?phone=${encodeURIComponent(activeToken.customerPhone || '')}`}
                 />
               )}

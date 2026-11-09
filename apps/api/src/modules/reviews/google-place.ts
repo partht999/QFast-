@@ -32,45 +32,62 @@ export function extractGooglePlaceId(input: string): string | null {
   return null;
 }
 
-export function isShortGoogleMapsLink(input: string) {
-  return /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(input);
-}
-
-export async function resolveGooglePlaceId(input: string): Promise<string | null> {
-  const direct = extractGooglePlaceId(input);
-  if (direct) return direct;
+/** A Maps link the guest's browser can open. Short links have no Place ID inside them. */
+export function mapsListingUrl(input: string): string | null {
   const trimmed = input.trim();
-  if (!isShortGoogleMapsLink(trimmed)) return null;
-
-  let current = trimmed;
-  for (let hop = 0; hop < 5; hop += 1) {
-    const response = await fetch(current, {
-      redirect: 'manual',
-      headers: { 'user-agent': 'Mozilla/5.0', accept: 'text/html' },
-    });
-    const location = response.headers.get('location');
-    if (!location) return null;
-    const next = new URL(location, current).toString();
-    const found = extractGooglePlaceId(next);
-    if (found) return found;
-    current = next;
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    return null;
   }
-  return extractGooglePlaceId(current);
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  const short =
+    host === 'maps.app.goo.gl' ||
+    host === 'g.page' ||
+    (host === 'goo.gl' && url.pathname.startsWith('/maps'));
+  const maps =
+    host === 'maps.google.com' ||
+    ((host.endsWith('.google.com') || host.endsWith('.google.co.in') || host === 'google.com') &&
+      url.pathname.startsWith('/maps'));
+  const reviewForm = host === 'search.google.com' && url.pathname.startsWith('/local/');
+  if (!short && !maps && !reviewForm) return null;
+  return url.toString();
 }
 
 export function googleReviewLink(placeId: string) {
   return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`;
 }
 
-export async function placeIdFromInput(value?: string) {
+/** Where the review button should go. A real Place ID opens the review form. A Maps link opens that link. */
+export function googleReviewTarget(input: string): { placeId: string; reviewUrl: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const extracted = extractGooglePlaceId(trimmed);
+  if (extracted && PLACE_ID.test(extracted)) {
+    return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
+  }
+
+  const listing = mapsListingUrl(trimmed);
+  if (listing) return { placeId: trimmed, reviewUrl: listing };
+
+  if (extracted) return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
+  return null;
+}
+
+export function reviewFieldsFromInput(value?: string) {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  const placeId = await resolveGooglePlaceId(trimmed);
-  if (!placeId) {
-    throw new BadRequestException(
-      'That Google Maps link does not include a Place ID. Open the listing and paste the full address-bar link.',
-    );
+  if (!trimmed) return { googlePlaceId: null as string | null, googleReviewUrl: null as string | null };
+
+  const target = googleReviewTarget(trimmed);
+  if (!target) {
+    throw new BadRequestException('Paste the Google Maps link for your listing. A short maps.app.goo.gl link works.');
   }
-  return placeId;
+
+  const placeId = target.placeId && PLACE_ID.test(target.placeId) ? target.placeId : trimmed;
+  return { googlePlaceId: placeId, googleReviewUrl: target.reviewUrl };
 }

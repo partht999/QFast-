@@ -30,10 +30,54 @@ export function extractGooglePlaceId(input: string): string | null {
   return null;
 }
 
-export function isShortGoogleMapsLink(input: string) {
-  return /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(input);
+/** A Maps link the guest's browser can open. Short links have no Place ID inside them. */
+export function mapsListingUrl(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  const short =
+    host === 'maps.app.goo.gl' ||
+    host === 'g.page' ||
+    (host === 'goo.gl' && url.pathname.startsWith('/maps'));
+  const maps =
+    host === 'maps.google.com' ||
+    ((host.endsWith('.google.com') || host.endsWith('.google.co.in') || host === 'google.com') &&
+      url.pathname.startsWith('/maps'));
+  const reviewForm = host === 'search.google.com' && url.pathname.startsWith('/local/');
+  if (!short && !maps && !reviewForm) return null;
+  return url.toString();
 }
 
 export function googleReviewLink(placeId: string) {
   return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`;
+}
+
+/** Where the review button should go. A real Place ID opens the review form. A Maps link opens that link. */
+export function googleReviewTarget(input: string): { placeId: string; reviewUrl: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const extracted = extractGooglePlaceId(trimmed);
+  if (extracted && PLACE_ID.test(extracted)) {
+    return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
+  }
+
+  const listing = mapsListingUrl(trimmed);
+  if (listing) return { placeId: trimmed, reviewUrl: listing };
+
+  if (extracted) return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
+  return null;
+}
+
+export function reviewHref(reviewUrl?: string | null, placeId?: string | null) {
+  if (reviewUrl) return reviewUrl;
+  if (!placeId) return '';
+  return googleReviewTarget(placeId)?.reviewUrl || '';
 }

@@ -23,6 +23,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { reviewHref } from '@/lib/google-place';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -389,7 +390,7 @@ export default function OrderTrackingPage() {
 
           {/* Official Google Review Button (Strictly un-gated, compliant with Google Review Guidelines) */}
           <a
-            href={order.business?.googleReviewUrl || `https://search.google.com/local/writereview?placeid=${order.business?.googlePlaceId || ''}`}
+            href={reviewHref(order.business?.googleReviewUrl, order.business?.googlePlaceId) || undefined}
             target="_blank"
             rel="noreferrer"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl transition-all shadow-xs flex items-center justify-center gap-2 text-xs active:scale-98"
