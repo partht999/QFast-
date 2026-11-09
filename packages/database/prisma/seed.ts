@@ -2,99 +2,120 @@ import { PrismaClient, PlanTier } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🌱 Seeding database...');
+type Feature = { featureKey: string; enabled: boolean; limitValue?: number | null };
 
-  // ── Plans ──────────────────────────────────────────────────────────────────
-  const essential = await prisma.plan.upsert({
-    where: { tier: PlanTier.ESSENTIAL },
-    update: {},
-    create: {
-      name: 'Essential',
-      tier: PlanTier.ESSENTIAL,
-      description: 'Complete restaurant operations — queue, ordering, kitchen and analytics.',
+const keys = [
+  'queue.enabled',
+  'reservations.enabled',
+  'table_ordering.enabled',
+  'takeaway.enabled',
+  'kds.enabled',
+  'menu.multilingual',
+  'staff.limit',
+  'branches',
+  'reviews.google_prompt',
+  'reviews.feedback_inbox',
+  'analytics.basic',
+  'payments.online',
+  'whatsapp.enabled',
+  'loyalty.program',
+  'offers.enabled',
+  'campaigns.enabled',
+  'sponsorships.enabled',
+  'analytics.advanced',
+  'integrations.third_party',
+  'api.access',
+  'split_bill',
+  'tips',
+  'no_show_deposit',
+  'feedback.recovery_workflow',
+  'loyalty.tiers',
+  'customer_profiles.full',
+];
+
+function features(enabled: Record<string, boolean | number>): Feature[] {
+  return keys.map((featureKey) => {
+    const value = enabled[featureKey];
+    if (typeof value === 'number') return { featureKey, enabled: true, limitValue: value };
+    return { featureKey, enabled: Boolean(value), limitValue: null };
+  });
+}
+
+async function savePlan(
+  tier: PlanTier,
+  data: { name: string; description: string; priceMonthly: number; priceYearly: number },
+  planFeatures: Feature[],
+) {
+  const plan = await prisma.plan.upsert({
+    where: { tier },
+    update: { ...data, isActive: true },
+    create: { tier, ...data },
+  });
+  await prisma.planFeature.deleteMany({ where: { planId: plan.id } });
+  await prisma.planFeature.createMany({
+    data: planFeatures.map((feature) => ({ ...feature, planId: plan.id })),
+  });
+  return plan;
+}
+
+async function main() {
+  console.log('Seeding plans...');
+
+  const free = await savePlan(
+    PlanTier.FREE,
+    {
+      name: 'Free',
+      description: 'One live queue, an entrance QR, and a staff board.',
+      priceMonthly: 0,
+      priceYearly: 0,
+    },
+    features({
+      'queue.enabled': true,
+      'staff.limit': 3,
+      branches: 1,
+    }),
+  );
+
+  const plus = await savePlan(
+    PlanTier.ESSENTIAL,
+    {
+      name: 'Plus',
+      description: 'Multiple counters, live wait times, table ordering, and review prompts.',
       priceMonthly: 999,
       priceYearly: 9990,
-      features: {
-        create: [
-          { featureKey: 'queue.enabled',           enabled: true  },
-          { featureKey: 'reservations.enabled',     enabled: true  },
-          { featureKey: 'table_ordering.enabled',   enabled: true  },
-          { featureKey: 'takeaway.enabled',         enabled: true  },
-          { featureKey: 'kds.enabled',              enabled: true  },
-          { featureKey: 'menu.multilingual',        enabled: true,  limitValue: 1 },
-          { featureKey: 'staff.limit',              enabled: true,  limitValue: 5 },
-          { featureKey: 'branches',                 enabled: true,  limitValue: 1 },
-          { featureKey: 'reviews.google_prompt',    enabled: true  },
-          { featureKey: 'reviews.feedback_inbox',   enabled: true  },
-          { featureKey: 'analytics.basic',          enabled: true  },
-          { featureKey: 'payments.online',          enabled: false },
-          { featureKey: 'whatsapp.enabled',         enabled: false },
-          { featureKey: 'loyalty.program',          enabled: false },
-          { featureKey: 'offers.enabled',           enabled: false },
-          { featureKey: 'campaigns.enabled',        enabled: false },
-          { featureKey: 'sponsorships.enabled',     enabled: false },
-          { featureKey: 'analytics.advanced',       enabled: false },
-          { featureKey: 'integrations.third_party', enabled: false },
-          { featureKey: 'api.access',               enabled: false },
-          { featureKey: 'split_bill',               enabled: false },
-          { featureKey: 'tips',                     enabled: false },
-          { featureKey: 'no_show_deposit',          enabled: false },
-          { featureKey: 'feedback.recovery_workflow', enabled: false },
-          { featureKey: 'loyalty.tiers',            enabled: false },
-          { featureKey: 'customer_profiles.full',   enabled: false },
-        ],
-      },
     },
-  });
+    features({
+      'queue.enabled': true,
+      'table_ordering.enabled': true,
+      'takeaway.enabled': true,
+      'reviews.google_prompt': true,
+      'reviews.feedback_inbox': true,
+      'analytics.basic': true,
+      'staff.limit': 10,
+      branches: 1,
+    }),
+  );
 
-  const advanced = await prisma.plan.upsert({
-    where: { tier: PlanTier.ADVANCED },
-    update: {},
-    create: {
-      name: 'Advanced',
-      tier: PlanTier.ADVANCED,
-      description: 'Full platform — payments, loyalty, offers, analytics and sponsored placements.',
-      priceMonthly: 2999,
-      priceYearly: 29990,
-      features: {
-        create: [
-          { featureKey: 'queue.enabled',              enabled: true                },
-          { featureKey: 'reservations.enabled',       enabled: true                },
-          { featureKey: 'table_ordering.enabled',     enabled: true                },
-          { featureKey: 'takeaway.enabled',           enabled: true                },
-          { featureKey: 'kds.enabled',                enabled: true                },
-          { featureKey: 'menu.multilingual',          enabled: true,  limitValue: -1 },
-          { featureKey: 'staff.limit',                enabled: false               },
-          { featureKey: 'branches',                   enabled: true,  limitValue: -1 },
-          { featureKey: 'reviews.google_prompt',      enabled: true                },
-          { featureKey: 'reviews.feedback_inbox',     enabled: true                },
-          { featureKey: 'analytics.basic',            enabled: true                },
-          { featureKey: 'payments.online',            enabled: true                },
-          { featureKey: 'whatsapp.enabled',           enabled: true                },
-          { featureKey: 'loyalty.program',            enabled: true                },
-          { featureKey: 'offers.enabled',             enabled: true                },
-          { featureKey: 'campaigns.enabled',          enabled: true                },
-          { featureKey: 'sponsorships.enabled',       enabled: true                },
-          { featureKey: 'analytics.advanced',         enabled: true                },
-          { featureKey: 'integrations.third_party',   enabled: true                },
-          { featureKey: 'api.access',                 enabled: true                },
-          { featureKey: 'split_bill',                 enabled: true                },
-          { featureKey: 'tips',                       enabled: true                },
-          { featureKey: 'no_show_deposit',            enabled: true                },
-          { featureKey: 'feedback.recovery_workflow', enabled: true                },
-          { featureKey: 'loyalty.tiers',              enabled: true                },
-          { featureKey: 'customer_profiles.full',     enabled: true                },
-        ],
-      },
+  const pro = await savePlan(
+    PlanTier.ADVANCED,
+    {
+      name: 'Pro',
+      description: 'The full workspace. The first month is free, then ₹3,999/month.',
+      priceMonthly: 3999,
+      priceYearly: 39990,
     },
-  });
+    features(Object.fromEntries(keys.map((key) => [key, key === 'branches' || key === 'staff.limit' ? -1 : true]))),
+  );
 
-  console.log('✅ Seed complete');
-  console.log(`   Essential plan: ${essential.id}`);
-  console.log(`   Advanced plan:  ${advanced.id}`);
+  console.log('Seed complete');
+  console.log(`   Free: ${free.id}`);
+  console.log(`   Plus: ${plus.id}`);
+  console.log(`   Pro:  ${pro.id}`);
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

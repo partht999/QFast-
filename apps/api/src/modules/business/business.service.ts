@@ -11,14 +11,19 @@ export class BusinessService {
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
 
-    const essentialPlan = await this.prisma.plan.findUnique({
-      where: { tier: PlanTier.ESSENTIAL },
-    });
-    if (!essentialPlan) {
-      throw new Error('Default Essential plan is not seeded. Run database seed.');
+    const requestedPlan = dto.plan || 'free';
+    const tier = requestedPlan === 'pro'
+      ? PlanTier.ADVANCED
+      : requestedPlan === 'plus'
+        ? PlanTier.ESSENTIAL
+        : PlanTier.FREE;
+    const selectedPlan = await this.prisma.plan.findUnique({ where: { tier } });
+    if (!selectedPlan) {
+      throw new BadRequestException('Plans are not ready yet. Run the database seed and try again.');
     }
 
-    const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const proTrial = requestedPlan === 'pro';
 
     const business = await this.prisma.business.create({
       data: {
@@ -44,11 +49,11 @@ export class BusinessService {
         },
         subscriptions: {
           create: {
-            planId: essentialPlan.id,
-            status: SubscriptionStatus.TRIALING,
+            planId: selectedPlan.id,
+            status: proTrial ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE,
             currentPeriodStart: new Date(),
-            currentPeriodEnd: trialEnd,
-            trialEndsAt: trialEnd,
+            currentPeriodEnd: periodEnd,
+            trialEndsAt: proTrial ? periodEnd : null,
           },
         },
         queues: {
@@ -95,6 +100,14 @@ export class BusinessService {
   }
 
   async findByOwner(userId: string) {
+    const businesses = await this.prisma.business.findMany({
+      where: { staff: { some: { userId } } },
+      include: {
+        branches: true,
+        subscriptions: { include: { plan: true } },
+      },
+    });
+    await Promise.all(businesses.map((business) => this.settleExpiredProTrial(business.id)));
     return this.prisma.business.findMany({
       where: { staff: { some: { userId } } },
       include: {
@@ -104,7 +117,34 @@ export class BusinessService {
     });
   }
 
+  private async settleExpiredProTrial(businessId: string) {
+    const subscription = await this.prisma.subscription.findUnique({ where: { businessId } });
+    if (
+      !subscription ||
+      subscription.status !== SubscriptionStatus.TRIALING ||
+      !subscription.trialEndsAt ||
+      subscription.trialEndsAt > new Date()
+    ) {
+      return;
+    }
+
+    const freePlan = await this.prisma.plan.findUnique({ where: { tier: PlanTier.FREE } });
+    if (!freePlan) return;
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        planId: freePlan.id,
+        status: SubscriptionStatus.ACTIVE,
+        trialEndsAt: null,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
   async findById(id: string) {
+    await this.settleExpiredProTrial(id);
     const business = await this.prisma.business.findUnique({
       where: { id },
       include: {

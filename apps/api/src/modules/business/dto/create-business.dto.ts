@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsEnum, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsEnum, IsIn, MinLength, MaxLength, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BusinessType } from '@prisma/client';
 
@@ -40,4 +40,9 @@ export class CreateBusinessDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({ enum: ['free', 'plus', 'pro'], default: 'free' })
+  @IsOptional()
+  @IsIn(['free', 'plus', 'pro'])
+  plan?: 'free' | 'plus' | 'pro';
 }

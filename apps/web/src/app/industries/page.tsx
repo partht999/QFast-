@@ -49,7 +49,7 @@ export default function IndustriesPage() {
           {BUSINESS_TYPES.map((industry) => {
             const Icon = industryIcons[industry.value] || Store;
             const isAvailable = AVAILABLE_BUSINESS_TYPES.includes(industry.value);
-            const detailUrl = industryUrls[industry.value] || '/for-business';
+            const detailUrl = industryUrls[industry.value] || '/';
 
             return (
               <div

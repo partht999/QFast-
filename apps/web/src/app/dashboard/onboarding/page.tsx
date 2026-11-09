@@ -96,7 +96,11 @@ export default function OnboardingPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...form, type: businessType }),
+        body: JSON.stringify({
+          ...form,
+          type: businessType,
+          plan: localStorage.getItem('qfast_plan') || 'free',
+        }),
       });
 
       const data = await res.json();
@@ -116,7 +120,7 @@ export default function OnboardingPage() {
         {/* Header with Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <BrandMark href="/for-business" size="sm" label="Qfast" />
+            <BrandMark href="/" size="sm" label="Qfast" />
             <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
               Step {step} of 3
             </span>

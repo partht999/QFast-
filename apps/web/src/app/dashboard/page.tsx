@@ -312,7 +312,12 @@ export default function DashboardPage() {
                     {`Active ${BUSINESS_TYPES.find((type) => type.value === selectedBusiness?.type)?.label || 'business'}`}
                   </span>
                   <span className="text-xs text-neutral-400">
-                    Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Essential'}</strong>
+                    Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Free'}</strong>
+                    {selectedBusiness?.subscriptions?.[0]?.status === 'TRIALING' && selectedBusiness?.subscriptions?.[0]?.trialEndsAt && (
+                      <span className="ml-2 text-orange-300">
+                        free until {new Date(selectedBusiness.subscriptions[0].trialEndsAt).toLocaleDateString()}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
