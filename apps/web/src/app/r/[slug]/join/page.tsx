@@ -438,12 +438,14 @@ export default function JoinQueuePage() {
                   </div>
                 )}
                 <p className="text-sm font-bold text-neutral-800 mt-2">{activeToken.customerName}</p>
-                <div className="flex items-center justify-center gap-1 mt-1 text-neutral-400">
-                  {Array.from({ length: activeToken.partySize }).map((_, i) => (
-                    <UserRound key={i} className="w-3.5 h-3.5" />
-                  ))}
-                  <span className="text-xs ml-1">Party of {activeToken.partySize}</span>
-                </div>
+                {foodBusiness && (
+                  <div className="flex items-center justify-center gap-1 mt-1 text-neutral-400">
+                    {Array.from({ length: activeToken.partySize }).map((_, i) => (
+                      <UserRound key={i} className="w-3.5 h-3.5" />
+                    ))}
+                    <span className="text-xs ml-1">Party of {activeToken.partySize}</span>
+                  </div>
+                )}
               </div>
 
               {/* Wait Progress Bar */}

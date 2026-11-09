@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
+import { readApiError } from '@/lib/read-api-error';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -29,7 +30,7 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invalid credentials');
+      if (!res.ok) throw new Error(readApiError(data, 'Invalid credentials'));
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);

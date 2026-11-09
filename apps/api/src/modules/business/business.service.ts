@@ -24,6 +24,27 @@ export class BusinessService {
 
     const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const proTrial = requestedPlan === 'pro';
+    const foodBusiness = !dto.type || dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE;
+    const queueLimit = tier === PlanTier.ADVANCED ? 20 : tier === PlanTier.ESSENTIAL ? 8 : 1;
+    const tableLimit = tier === PlanTier.ADVANCED ? 40 : tier === PlanTier.ESSENTIAL ? 20 : 4;
+    const requestedCount = dto.counterCount || (foodBusiness ? 4 : 1);
+    const setupCount = Math.min(requestedCount, foodBusiness ? tableLimit : queueLimit);
+    const averageWaitMinutes = dto.averageWaitMinutes || 10;
+    const queueBase = foodBusiness
+      ? 'Walk-in queue'
+      : dto.type === BusinessType.CLINIC || dto.type === BusinessType.HOSPITAL
+        ? 'Consultation'
+        : dto.type === BusinessType.SALON
+          ? 'Service desk'
+          : dto.type === BusinessType.DIAGNOSTIC_CENTRE
+            ? 'Collection desk'
+            : 'Service counter';
+    const queues = foodBusiness
+      ? [{ name: queueBase, averageWaitMinutes }]
+      : Array.from({ length: setupCount }, (_, index) => ({
+          name: setupCount === 1 ? queueBase : `${queueBase} ${index + 1}`,
+          averageWaitMinutes,
+        }));
 
     const business = await this.prisma.business.create({
       data: {
@@ -57,9 +78,7 @@ export class BusinessService {
           },
         },
         queues: {
-          create: {
-            name: 'General Queue',
-          },
+          create: queues,
         },
         ...(dto.type === BusinessType.RESTAURANT ||
         dto.type === BusinessType.CAFE ||
@@ -95,6 +114,27 @@ export class BusinessService {
         staff: true,
       },
     });
+
+    if (foodBusiness) {
+      for (let index = 1; index <= setupCount; index += 1) {
+        const name = `Table ${index}`;
+        await this.prisma.table.create({
+          data: {
+            businessId: business.id,
+            name,
+            capacity: 4,
+            qrCode: {
+              create: {
+                businessId: business.id,
+                type: 'TABLE',
+                slug: `${dto.slug}-table-${index}`,
+                targetUrl: `/r/${dto.slug}/table/${encodeURIComponent(name)}`,
+              },
+            },
+          },
+        });
+      }
+    }
 
     return business;
   }

@@ -59,9 +59,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [businessType, setBusinessType] = useState<string | null>(null);
-  const visibleNavigation = businessType && !isFoodBusiness(businessType)
-    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/loyalty'].includes(item.href))
-    : navigation;
+  const visibleNavigation = !businessType
+    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue'].includes(item.href))
+    : !isFoodBusiness(businessType)
+      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/loyalty'].includes(item.href))
+      : navigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);
   const moreIsActive = moreNavigation.some((item) => isActive(pathname, item.href));
@@ -75,7 +77,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } catch {}
 
     const token = localStorage.getItem('accessToken');
-    if (!token) return;
+    if (!token) {
+      router.replace('/auth/login');
+      return;
+    }
     fetch(`${getApiUrl()}/api/v1/business`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -89,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       })
       .catch((error) => console.error(error));
-  }, []);
+  }, [router]);
 
   // Close the more drawer when navigating
   useEffect(() => {

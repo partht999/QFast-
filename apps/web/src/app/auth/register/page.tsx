@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
+import { readApiError } from '@/lib/read-api-error';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { isPlanId, PLANS, PlanId } from '@/lib/plans';
 
@@ -56,7 +57,7 @@ export default function RegisterPage() {
           throw new Error('This email is already registered. Please sign in instead.');
         }
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Registration failed. Please try again.');
+        throw new Error(readApiError(errData, 'Registration failed. Please try again.'));
       }
 
       const data = await res.json();

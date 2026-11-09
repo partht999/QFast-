@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { getBusinessPublicPath } from '@/lib/business-links';
+import { isPlanId, PLANS, PlanId } from '@/lib/plans';
+import { readApiError } from '@/lib/read-api-error';
 import {
   Store,
   Coffee,
@@ -17,9 +18,6 @@ import {
   Wrench,
   Zap,
   ArrowRight,
-  CheckCircle2,
-  Clock,
-  Sparkles,
 } from 'lucide-react';
 
 const industryIcons: Record<string, typeof Store> = {
@@ -52,9 +50,14 @@ export default function OnboardingPage() {
     appointmentMode: false,
     operatingHours: '09:00 AM - 10:00 PM',
   });
+  const [plan, setPlan] = useState<PlanId>('free');
+  const [origin, setOrigin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const selectedType = BUSINESS_TYPES.find((type) => type.value === businessType);
+  const foodBusiness = businessType === 'RESTAURANT' || businessType === 'CAFE';
+  const setupLimit = plan === 'pro' ? (foodBusiness ? 40 : 20) : plan === 'plus' ? (foodBusiness ? 20 : 8) : foodBusiness ? 4 : 1;
 
   useEffect(() => {
     const savedType = localStorage.getItem('qfast_business_type');
@@ -65,7 +68,18 @@ export default function OnboardingPage() {
     if (userEmail) {
       setForm((f) => ({ ...f, email: userEmail }));
     }
+    const savedPlan = localStorage.getItem('qfast_plan');
+    if (isPlanId(savedPlan)) setPlan(savedPlan);
+    setOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    setIndustryConfig((current) => {
+      const next = Math.min(Math.max(current.tablesCount || 1, 1), setupLimit);
+      if (next === current.tablesCount) return current;
+      return { ...current, tablesCount: next };
+    });
+  }, [setupLimit]);
 
   const handleNameChange = (name: string) => {
     const slug = name
@@ -99,12 +113,14 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           ...form,
           type: businessType,
-          plan: localStorage.getItem('qfast_plan') || 'free',
+          plan,
+          counterCount: Math.min(Math.max(industryConfig.tablesCount || 1, 1), setupLimit),
+          averageWaitMinutes: Math.min(Math.max(industryConfig.serviceDurationMin || 10, 1), 180),
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create business');
+      if (!res.ok) throw new Error(readApiError(data, 'Failed to create business'));
 
       router.push('/dashboard');
     } catch (err: any) {
@@ -134,7 +150,7 @@ export default function OnboardingPage() {
           <p className="text-slate-500 text-xs mt-1">
             {step === 1 && 'Choose the industry. Qfast opens a live queue, and restaurants also get table ordering.'}
             {step === 2 && 'This appears on your public queue page and entrance QR.'}
-            {step === 3 && 'Tailor queue rules, estimated turnovers, and operating hours for your team.'}
+            {step === 3 && 'These choices create the queues or tables your team starts with.'}
           </p>
 
           <div className="grid grid-cols-3 gap-2 mt-5">
@@ -222,7 +238,7 @@ export default function OnboardingPage() {
               </label>
               <div className="flex rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500">
                 <span className="bg-slate-50 px-3 py-3 text-slate-400 text-xs flex items-center border-r border-slate-200">
-                  qfast.in{getBusinessPublicPath('', businessType).replace(/\/$/, '')}/
+                  {origin || 'your-site'}{getBusinessPublicPath('', businessType).replace(/\/$/, '')}/
                 </span>
                 <input
                   type="text"
@@ -290,7 +306,7 @@ export default function OnboardingPage() {
               </button>
               <button
                 type="button"
-                disabled={!form.name || !form.slug}
+                disabled={!form.name.trim() || form.slug.trim().length < 3}
                 onClick={() => setStep(3)}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md text-sm flex items-center justify-center gap-2"
               >
@@ -305,10 +321,13 @@ export default function OnboardingPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="rounded-2xl bg-orange-50/60 border border-orange-200/80 p-4">
               <p className="text-xs font-bold text-orange-900 uppercase tracking-wide">
-                Configuring: {businessType}
+                {selectedType?.label || 'Business'} · {PLANS.find((item) => item.id === plan)?.name} plan
               </p>
               <p className="text-xs text-orange-700/80 mt-0.5">
-                These settings pre-populate your live queue rules and can be fine-tuned at any time.
+                {foodBusiness
+                  ? `This opens one walk-in queue and ${Math.min(industryConfig.tablesCount || 1, setupLimit)} table QR codes.`
+                  : `This opens ${Math.min(industryConfig.tablesCount || 1, setupLimit)} queue${Math.min(industryConfig.tablesCount || 1, setupLimit) === 1 ? '' : 's'} with a ${industryConfig.serviceDurationMin || 10} minute average wait.`}
+                {plan === 'free' ? ' Plus and Pro add more counters.' : ''}
               </p>
             </div>
 
@@ -321,9 +340,9 @@ export default function OnboardingPage() {
                 </label>
                 <input
                   type="number"
-                  min="1"
-                  max="100"
-                  value={industryConfig.tablesCount}
+                  min={1}
+                  max={setupLimit}
+                  value={Math.min(industryConfig.tablesCount, setupLimit)}
                   onChange={(e) =>
                     setIndustryConfig((c) => ({ ...c, tablesCount: Number(e.target.value) }))
                   }
@@ -354,21 +373,6 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Typical Operating Hours
-              </label>
-              <input
-                type="text"
-                value={industryConfig.operatingHours}
-                onChange={(e) =>
-                  setIndustryConfig((c) => ({ ...c, operatingHours: e.target.value }))
-                }
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                placeholder="e.g. 10:00 AM - 11:00 PM"
-              />
-            </div>
-
             {error && (
               <div role="alert" className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 font-medium">
                 {error}
@@ -388,7 +392,7 @@ export default function OnboardingPage() {
                 disabled={loading}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2"
               >
-                {loading ? 'Creating workspace…' : '🚀 Launch Qfast Workspace'}
+                {loading ? 'Creating workspace…' : 'Open my queue'}
               </button>
             </div>
           </form>

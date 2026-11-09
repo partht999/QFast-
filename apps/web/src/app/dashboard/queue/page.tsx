@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
+import { readApiError } from '@/lib/read-api-error';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import {
   Users,
@@ -340,7 +341,7 @@ export default function DashboardQueuePage() {
       });
       if (!response.ok) {
         const body = await response.json();
-        throw new Error(body.message || 'Could not create queue');
+        throw new Error(readApiError(body, 'Could not create queue'));
       }
 
       const created = await response.json();
@@ -1071,7 +1072,7 @@ export default function DashboardQueuePage() {
                   value={addForm.notes}
                   onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow"
-                  placeholder="e.g. Needs high chair"
+                  placeholder={foodBusiness ? 'e.g. Needs a high chair' : 'e.g. Arrived with a previous token'}
                 />
               </div>
 
