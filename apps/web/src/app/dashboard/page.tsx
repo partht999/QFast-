@@ -3,10 +3,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Download, RefreshCw } from 'lucide-react';
+import {
+  Download,
+  RefreshCw,
+  Copy,
+  Check,
+  ExternalLink,
+  Users,
+  ChefHat,
+  UtensilsCrossed,
+  DollarSign,
+  ArrowRight,
+  Sparkles,
+  QrCode,
+  ListOrdered,
+  Menu as MenuIcon,
+  Star,
+  Gift,
+  X,
+  Receipt,
+  Clock,
+} from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { useToast } from '@/components/ui/toast';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -20,8 +42,11 @@ export default function DashboardPage() {
   const [entranceQrDataUrl, setEntranceQrDataUrl] = useState('');
   const [qrDownloading, setQrDownloading] = useState(false);
   const [qrError, setQrError] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<any | null>(null);
   const isFetching = useRef(false);
   const router = useRouter();
+  const toast = useToast();
 
   const apiUrl = getApiUrl();
 
@@ -134,6 +159,18 @@ export default function DashboardPage() {
       setQrError('Could not download the entrance QR code. Please try again.');
     } finally {
       setQrDownloading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!entranceUrl) return;
+    try {
+      await navigator.clipboard.writeText(entranceUrl);
+      setCopiedLink(true);
+      toast.success('Waitlist link copied!', 'Share this URL with guests or add to your website.');
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      toast.error('Copy failed', 'Please copy URL from the browser bar.');
     }
   };
 
