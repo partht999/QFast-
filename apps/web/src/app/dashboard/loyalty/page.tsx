@@ -259,9 +259,9 @@ export default function LoyaltyManagementPage() {
               <Sparkles className="w-4 h-4 text-purple-200" />
               <span>Gamified Guest Retention</span>
             </span>
-            <h2 className="text-2xl font-black tracking-tight">Post-Order Scratch Card Rewards</h2>
+            <h2 className="text-2xl font-black tracking-tight">Scratch cards after a completed visit</h2>
             <p className="text-xs text-purple-100 max-w-xl leading-relaxed">
-              When customers complete any order (dine-in or pre-order), they reveal an interactive scratch card on their phone earning loyalty points specifically for your restaurant. Points can be redeemed for your custom offers on their next visit!
+              When a visit is completed, customers reveal a scratch card on their phone and earn points for your business. They redeem those points against the offers you publish. Restaurants can also award points when an order is marked complete.
             </p>
           </div>
 
@@ -271,7 +271,7 @@ export default function LoyaltyManagementPage() {
               Automated Scratch Card
             </span>
             <p className="text-[11px] text-purple-100 font-semibold">
-              Active for all completing diners
+              Active after a completed visit
             </p>
           </div>
         </div>

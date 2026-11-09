@@ -24,6 +24,7 @@ import {
   Filter,
   Ticket,
 } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 
 // Fallback seed providers for instant, consumer-grade experience
@@ -279,17 +280,12 @@ export default function ConsumerDiscoveryPage() {
       <header className="sticky top-0 z-30 border-b border-neutral-200/80 bg-white/95 backdrop-blur-md shadow-xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2" aria-label="Qfast Discovery">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-md shadow-orange-500/20">
-                <Sparkles className="h-5 w-5" />
+            <div className="flex items-center gap-2">
+              <BrandMark href="/" label="Qfast home" />
+              <span className="hidden rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-600 sm:inline-block">
+                Find a queue
               </span>
-              <div>
-                <span className="text-xl font-black tracking-tight text-neutral-950">Qfast</span>
-                <span className="hidden sm:inline-block ml-2 text-xs font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md">
-                  Live Queue Discovery
-                </span>
-              </div>
-            </Link>
+            </div>
 
             {/* Location Picker */}
             <div className="relative hidden md:flex items-center ml-4 pl-4 border-l border-neutral-200 text-xs font-bold text-neutral-700">
@@ -313,13 +309,13 @@ export default function ConsumerDiscoveryPage() {
               href="/for-business"
               className="text-xs font-bold text-neutral-600 hover:text-orange-600 bg-neutral-100 hover:bg-orange-50 px-3.5 py-2 rounded-xl transition"
             >
-              For Business / Partner
+              For business
             </Link>
             <Link
               href="/auth/login"
               className="rounded-xl bg-neutral-900 hover:bg-black text-white text-xs font-bold px-4 py-2 transition"
             >
-              Staff Login
+              Log in
             </Link>
           </div>
         </div>

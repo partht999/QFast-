@@ -4,8 +4,6 @@ import Link from 'next/link';
 import {
   ArrowRight,
   CalendarDays,
-  Check,
-  ChevronRight,
   ClipboardList,
   Coffee,
   HeartPulse,
@@ -15,10 +13,10 @@ import {
   Ticket,
   Wrench,
   Zap,
-  Sparkles,
-  Search,
 } from 'lucide-react';
-import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES } from '@/lib/business-types';
+import { MarketingFooter } from '@/components/marketing-footer';
+import { MarketingHeader } from '@/components/marketing-header';
+import { BUSINESS_TYPES } from '@/lib/business-types';
 
 const industryIcons: Record<string, typeof Store> = {
   RESTAURANT: Store,
@@ -53,38 +51,7 @@ const coreFeatures = [
 export default function ForBusinessPage() {
   return (
     <main className="min-h-screen bg-white text-slate-950">
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Qfast home">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-200">
-              <Zap className="h-5 w-5" fill="currentColor" />
-            </span>
-            <span className="text-xl font-black tracking-tight">Qfast</span>
-            <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">Business</span>
-          </Link>
-
-          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
-            <Link href="/" className="flex items-center gap-1.5 text-orange-600 font-semibold hover:text-orange-700">
-              <Search className="w-4 h-4" /> Consumer Discovery
-            </Link>
-            <a href="#features" className="hover:text-orange-600">Features</a>
-            <a href="#industries" className="hover:text-orange-600">Industries</a>
-            <a href="#pricing" className="hover:text-orange-600">Pricing</a>
-          </nav>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/auth/login" className="px-2 py-2 text-sm font-semibold text-slate-600 hover:text-slate-950">
-              Log in
-            </Link>
-            <Link
-              href="/auth/register"
-              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-200 transition hover:bg-orange-600"
-            >
-              Start Free Trial <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <section className="relative overflow-hidden bg-slate-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_30%,rgba(249,115,22,0.22),transparent_42%)]" />
@@ -100,7 +67,7 @@ export default function ForBusinessPage() {
               </span>
             </h1>
             <p className="mt-7 max-w-xl text-lg leading-8 text-slate-300">
-              Automated FIFO queue management, multi-doctor OPD queues, salon appointment lists, and counter operations that delight customers.
+              Live first-come queues for clinics, salons, labs, service centres, and restaurants, with a separate line for each counter or doctor.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <Link
@@ -113,7 +80,7 @@ export default function ForBusinessPage() {
                 href="/"
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-base font-semibold text-white backdrop-blur transition hover:bg-white/15"
               >
-                Explore Consumer Portal
+                Find a queue
               </Link>
             </div>
             <p className="mt-4 text-xs text-slate-400">
@@ -255,11 +222,12 @@ export default function ForBusinessPage() {
               href="/"
               className="rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-bold text-slate-300 hover:bg-slate-700 transition"
             >
-              Back to Consumer Portal
+              Find a queue
             </Link>
           </div>
         </div>
       </footer>
+      <MarketingFooter />
     </main>
   );
 }

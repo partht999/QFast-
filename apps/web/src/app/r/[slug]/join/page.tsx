@@ -22,6 +22,7 @@ import {
   Stethoscope,
   Scissors,
 } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -278,14 +279,11 @@ export default function JoinQueuePage() {
 
       {/* Top Header */}
       <header className="px-6 py-4 bg-white/90 backdrop-blur-md border-b border-orange-100/80 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center shadow-sm">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <span className="text-base font-black text-neutral-900 tracking-tight">Qfast</span>
-            <span className="text-[10px] text-neutral-400 font-medium block -mt-0.5">Live Queue</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <BrandMark href="/" size="sm" label="Qfast home" />
+          <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+            Live queue
+          </span>
         </div>
         <nav className="flex items-center gap-2">
           <Link
@@ -716,7 +714,9 @@ export default function JoinQueuePage() {
       <footer className="py-5 text-center text-[11px] text-neutral-400 font-medium">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="w-3 h-3 text-orange-400" />
-          Qfast customer queue • No app install required
+          <Link href="/" className="font-bold text-neutral-500 hover:text-orange-600">Find another queue</Link>
+          <span aria-hidden="true">·</span>
+          No app install required
         </span>
       </footer>
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandMark } from './brand-mark';
 
 const industryLinks = [
   ['Restaurants', '/restaurants'],
@@ -15,19 +16,20 @@ export function MarketingFooter() {
     <footer className="border-t border-slate-200 bg-slate-50 px-5 py-12 sm:px-8">
       <div className="mx-auto grid max-w-7xl gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
-          <Link href="/" className="text-xl font-black tracking-tight text-slate-950">Qfast</Link>
+          <BrandMark href="/" />
           <p className="mt-3 max-w-xs text-sm leading-6 text-slate-600">
-            Customer-flow tools for businesses. Restaurants and cafes are available now;
-            additional industry workflows are in development.
+            Live queues for clinics, salons, labs, service centres, and restaurants.
+            Customers join in the browser. Staff call the next person from one board.
           </p>
         </div>
         <div>
           <h2 className="text-xs font-black uppercase tracking-wider text-slate-900">Product</h2>
           <ul className="mt-4 space-y-3 text-sm text-slate-600">
+            <li><Link href="/" className="hover:text-orange-600">Find a queue</Link></li>
+            <li><Link href="/for-business" className="hover:text-orange-600">For business</Link></li>
             <li><Link href="/features" className="hover:text-orange-600">Features</Link></li>
             <li><Link href="/pricing" className="hover:text-orange-600">Pricing</Link></li>
-            <li><Link href="/auth/login" className="hover:text-orange-600">Business login</Link></li>
-            <li><Link href="/auth/register" className="hover:text-orange-600">Register</Link></li>
+            <li><Link href="/auth/login" className="hover:text-orange-600">Log in</Link></li>
           </ul>
         </div>
         <div>

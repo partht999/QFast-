@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Zap, ArrowRight, Eye, EyeOff, ShieldCheck, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 
@@ -70,12 +71,7 @@ export default function RegisterPage() {
   return (
     <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <Link href="/" className="inline-flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/30">
-            <Zap className="h-5 w-5" fill="currentColor" />
-          </span>
-          <span className="text-2xl font-black tracking-tight text-white">Qfast</span>
-        </Link>
+        <BrandMark href="/for-business" tone="light" size="lg" label="Qfast for business" />
         <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Start your 14-day free trial</h1>
         <p className="mt-2 text-sm text-slate-400">
           No credit card required. Configure your business and launch your first live queue in 2 minutes.
@@ -101,7 +97,7 @@ export default function RegisterPage() {
                     value={type.value}
                     disabled={!AVAILABLE_BUSINESS_TYPES.includes(type.value)}
                   >
-                    {type.label}{AVAILABLE_BUSINESS_TYPES.includes(type.value) ? '' : ' — Available for FIFO Queue'}
+                    {type.label}
                   </option>
                 ))}
               </select>
@@ -186,6 +182,12 @@ export default function RegisterPage() {
             <Link href="/auth/login" className="font-bold text-orange-600 hover:underline">
               Sign in
             </Link>
+            <p className="mt-3">
+              Looking for a place in line?{' '}
+              <Link href="/" className="font-bold text-slate-700 hover:text-orange-600">
+                Find a queue
+              </Link>
+            </p>
           </div>
         </div>
       </div>

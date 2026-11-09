@@ -46,33 +46,33 @@ const industryContent: Record<string, {
   },
   CLINIC: {
     title: 'A clearer wait for clinic visitors.',
-    description: 'Qfast is exploring simple, first-in-first-out waiting lists for suitable clinic reception workflows.',
-    useCases: ['One visible place in a FIFO line', 'A shareable customer-facing queue page', 'Staff tools to call and complete the next entry'],
-    note: 'Clinic-specific appointments, doctor schedules, patient workflows, and compliance features are not available yet. Do not enter medical or diagnostic information.',
+    description: 'Run named doctor and OPD queues. Visitors join from the discovery page or a QR code, then follow their place in line.',
+    useCases: ['Separate queues for each doctor or OPD', 'A public join page with live wait estimates', 'Staff tools to call, recall, and complete the next visitor'],
+    note: 'Appointments, clinical records, and priority triage are not part of Qfast. Do not enter medical or diagnostic information.',
   },
   HOSPITAL: {
     title: 'Make non-emergency waiting easier to follow.',
-    description: 'Explore a simple arrival-order queue for suitable non-emergency hospital services.',
+    description: 'Give suitable non-emergency departments an arrival-order queue that visitors can join and follow.',
     useCases: ['A clear arrival-order line for eligible services', 'Customer-facing queue status and wait estimates', 'Staff-managed call and service completion'],
-    note: 'Qfast does not support emergency, triage, or clinical priority workflows. Hospital-specific workflows are not currently available.',
+    note: 'Qfast does not support emergency, triage, or clinical priority workflows. Do not enter medical information.',
   },
   SALON: {
     title: 'Make walk-in waiting easier at your salon.',
-    description: 'Qfast is working toward a clear first-in-first-out waitlist for salon and spa walk-ins.',
-    useCases: ['A clear place in a walk-in line', 'A customer-facing queue page', 'A shared staff view of waiting customers'],
-    note: 'Stylist schedules, service duration, and appointments are not available yet.',
+    description: 'Give each stylist desk or service counter its own live walk-in queue, and let guests join before they reach the door.',
+    useCases: ['A clear place in a walk-in line', 'Separate counters for styling, skin, and spa desks', 'A shared staff view of who is waiting'],
+    note: 'Stylist calendars and appointment booking are not included. Qfast keeps an arrival-order waitlist.',
   },
   DIAGNOSTIC_CENTRE: {
     title: 'A clearer queue for diagnostic visits.',
-    description: 'Qfast is exploring arrival-order queues for suitable diagnostic-centre service counters.',
-    useCases: ['A visible place in a customer line', 'A QR code or public link for joining', 'Staff tools for managing the queue'],
-    note: 'Test booking, sample workflows, and clinical-data handling are not available. Do not enter health information.',
+    description: 'Open arrival-order queues for collection and imaging desks so visitors know which counter to join.',
+    useCases: ['A visible place in a customer line', 'Separate desks for collection and imaging', 'Staff tools for calling the next visitor'],
+    note: 'Test booking and clinical-data handling are not included. Do not enter health information.',
   },
   SERVICE_CENTRE: {
     title: 'Keep customer service moving.',
-    description: 'Give walk-in customers a clear place in line and help your team call the next person in arrival order.',
-    useCases: ['Manage a simple FIFO walk-in line', 'Share a public queue link or QR code', 'Track waiting and completed entries'],
-    note: 'Job tracking and service-centre-specific workflows are not currently available.',
+    description: 'Run inspection, warranty, and pickup counters as live queues, and call the next customer in arrival order.',
+    useCases: ['Separate counters for inspection, claims, and pickups', 'A public queue link or entrance QR', 'A staff board of waiting and completed visits'],
+    note: 'Repair job tracking beyond the queue is not included.',
   },
 };
 
@@ -170,9 +170,9 @@ export function IndustryLandingPage({ type }: { type: string }) {
       <section className="border-y border-slate-100 bg-slate-50 px-5 py-16 sm:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <CalendarDays className="mx-auto h-8 w-8 text-orange-600" />
-          <h2 className="mt-4 text-2xl font-black">Appointments and specialist workflows</h2>
+          <h2 className="mt-4 text-2xl font-black">What stays out of the queue</h2>
           <p className="mt-3 leading-7 text-slate-600">
-            Appointment booking, staff schedules, multi-service configuration, and industry-specific operations are not part of the current release. We will make these capabilities available only after they are implemented and validated.
+            Qfast runs live, first-come queues and multiple counters. Appointment booking, clinical records, and repair job tracking stay outside the product. Restaurants and cafes can add table QR ordering and a kitchen display on top of the same queue.
           </p>
         </div>
       </section>

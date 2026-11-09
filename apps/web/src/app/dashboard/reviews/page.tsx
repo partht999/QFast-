@@ -185,7 +185,7 @@ export default function ReviewsManagementPage() {
             </span>
             <h2 className="text-2xl font-black tracking-tight">Boost 5-Star Google Reviews Automatically</h2>
             <p className="text-xs text-emerald-100 max-w-xl leading-relaxed">
-              When guests complete an order, happy diners (4–5★) are directed with 1-click to your verified Google Maps listing. Constructive feedback (1–3★) is kept private in this inbox so you can resolve issues directly before they become public complaints.
+              After a completed visit, happy customers (4–5★) get a one-tap link to your Google listing. Lower ratings stay private in this inbox so you can respond before they become public.
             </p>
           </div>
 
@@ -197,7 +197,7 @@ export default function ReviewsManagementPage() {
               {items.length > 0 ? Math.round((positiveCount / items.length) * 100) : 100}%
             </div>
             <p className="text-[11px] text-emerald-100">
-              {positiveCount} happy diners guided to Google
+              {positiveCount} happy customers guided to Google
             </p>
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function ReviewsManagementPage() {
                   )}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Enter your Google Place ID to automatically generate 1-click review prompts for 5-star diners.
+                  Enter your Google Place ID to send one-tap review prompts to customers who rate you 5 stars.
                 </p>
               </div>
               <a

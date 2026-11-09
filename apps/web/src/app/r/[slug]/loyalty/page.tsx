@@ -38,6 +38,7 @@ export default function CustomerLoyaltyPage() {
     : pathname.startsWith('/b/')
       ? `/b/${slug}`
       : `/r/${slug}`;
+  const foodVisit = publicPath.startsWith('/r/');
   const apiUrl = getApiUrl();
   const [businessName, setBusinessName] = useState('');
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -114,17 +115,19 @@ export default function CustomerLoyaltyPage() {
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-500 hover:text-neutral-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to restaurant
+          Back to queue
         </Link>
 
         <header className="rounded-3xl bg-gradient-to-br from-orange-600 to-amber-500 p-6 text-white shadow-lg">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20">
             <Sparkles className="h-6 w-6" />
           </div>
-          <p className="text-sm font-semibold text-orange-100">{businessName || 'Restaurant'}</p>
+          <p className="text-sm font-semibold text-orange-100">{businessName || 'This business'}</p>
           <h1 className="mt-1 text-3xl font-black">Your rewards</h1>
           <p className="mt-2 text-sm text-orange-50">
-            Check points earned from completed orders and explore available offers.
+            {foodVisit
+              ? 'Check points from completed orders and browse the offers you can redeem.'
+              : 'Check points from completed visits and browse the offers you can redeem.'}
           </p>
         </header>
 
@@ -132,8 +135,8 @@ export default function CustomerLoyaltyPage() {
         <section className="mt-5">
           <ScratchCard
             points={50}
-            rewardOffer="15% OFF your next visit order!"
-            businessName={businessName || 'Restaurant'}
+            rewardOffer="15% off your next visit"
+            businessName={businessName || 'This business'}
             businessSlug={slug}
           />
         </section>
@@ -142,7 +145,7 @@ export default function CustomerLoyaltyPage() {
           <section className="mt-5 rounded-3xl border border-orange-100 bg-white p-5 shadow-sm">
             <h2 className="font-extrabold">Check your points</h2>
             <p className="mt-1 text-xs text-neutral-500">
-              Use the same mobile number you gave when placing your order.
+              Use the same mobile number you gave when you joined.
             </p>
             <form onSubmit={checkBalance} className="mt-4 flex gap-2">
               <input
@@ -201,7 +204,7 @@ export default function CustomerLoyaltyPage() {
             </div>
             <div>
               <h2 className="font-extrabold">Available offers</h2>
-              <p className="text-xs text-neutral-500">Rewards published by this restaurant</p>
+              <p className="text-xs text-neutral-500">Rewards published by this business</p>
             </div>
           </div>
 
@@ -239,7 +242,9 @@ export default function CustomerLoyaltyPage() {
 
         {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <p className="mt-5 text-center text-[11px] leading-relaxed text-neutral-400">
-          Points are added after your order is marked complete. Ask restaurant staff how to redeem an offer.
+          {foodVisit
+            ? 'Points are added after your order is marked complete. Ask the team how to redeem an offer.'
+            : 'Points are added after your visit is marked complete. Ask the team how to redeem an offer.'}
         </p>
       </div>
     </main>

@@ -18,7 +18,9 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
+import { BUSINESS_TYPES } from '@/lib/business-types';
 import { isFoodBusiness } from '@/lib/business-links';
 
 const navigation = [
@@ -63,6 +65,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);
   const moreIsActive = moreNavigation.some((item) => isActive(pathname, item.href));
+  const businessLabel = BUSINESS_TYPES.find((type) => type.value === businessType)?.label;
 
   useEffect(() => {
     // Try to read email from localStorage for display in sidebar
@@ -111,15 +114,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }`}
       >
         {/* Logo area */}
-        <div className="flex h-16 items-center gap-2.5 border-b border-neutral-800 px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500">
-            <Zap size={16} className="text-white" strokeWidth={2.5} />
-          </div>
-          {!sidebarCollapsed && (
-            <span className="text-lg font-extrabold tracking-tight text-white">
-              Qfast
-            </span>
-          )}
+        <div className="flex h-16 items-center border-b border-neutral-800 px-4">
+          <BrandMark href="/dashboard" tone="light" size="sm" showWordmark={!sidebarCollapsed} label="Qfast dashboard" />
         </div>
 
         {/* Navigation items */}
@@ -190,7 +186,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div className="flex-1 overflow-hidden">
                 <p className="truncate text-xs font-medium text-neutral-300">
-                  {userEmail || 'Restaurant Owner'}
+                  {userEmail || 'Business account'}
+                </p>
+                <p className="truncate text-[11px] text-neutral-500">
+                  {businessLabel || 'Staff workspace'}
                 </p>
                 <button
                   type="button"

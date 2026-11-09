@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Zap, ArrowRight, Eye, EyeOff, ShieldCheck, Check } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 
 export default function LoginPage() {
@@ -44,12 +45,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <Link href="/" className="inline-flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/30">
-            <Zap className="h-5 w-5" fill="currentColor" />
-          </span>
-          <span className="text-2xl font-black tracking-tight text-white">Qfast</span>
-        </Link>
+        <BrandMark href="/" tone="light" size="lg" label="Qfast home" />
         <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Welcome back</h1>
         <p className="mt-2 text-sm text-slate-400">
           Sign in to access your business queue and service dashboard
@@ -120,6 +116,12 @@ export default function LoginPage() {
             <Link href="/auth/register" className="font-bold text-orange-600 hover:underline">
               Start 14-day free trial
             </Link>
+            <p className="mt-3">
+              Looking for a place in line?{' '}
+              <Link href="/" className="font-bold text-slate-700 hover:text-orange-600">
+                Find a queue
+              </Link>
+            </p>
           </div>
         </div>
       </div>

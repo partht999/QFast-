@@ -39,7 +39,7 @@ export default function IndustriesPage() {
             Customer flow solutions for every service industry
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            From busy dining rooms to healthcare reception desks and appointment salons, Qfast simplifies queues and keeps your customers informed.
+            Clinics, salons, diagnostic labs, service centres, and restaurants use the same live queue, QR check-in, and staff board.
           </p>
         </div>
       </section>
@@ -49,7 +49,7 @@ export default function IndustriesPage() {
           {BUSINESS_TYPES.map((industry) => {
             const Icon = industryIcons[industry.value] || Store;
             const isAvailable = AVAILABLE_BUSINESS_TYPES.includes(industry.value);
-            const detailUrl = industryUrls[industry.value] || '/restaurants';
+            const detailUrl = industryUrls[industry.value] || '/for-business';
 
             return (
               <div

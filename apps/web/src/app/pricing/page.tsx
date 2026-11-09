@@ -16,7 +16,7 @@ export default function PricingPage() {
         'Unlimited QR Scans & Tokens',
         'Customer SMS & Status Alerts',
         'Basic Floor / Counter Management',
-        'Digital Menu & Table Ordering',
+        'Table ordering for restaurants and cafes',
         'Single Branch Operations',
         'Standard Email Support',
       ],

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { getBusinessPublicPath } from '@/lib/business-links';
@@ -115,12 +116,7 @@ export default function OnboardingPage() {
         {/* Header with Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <span className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white text-xs">
-                ⚡
-              </span>
-              Qfast Setup
-            </span>
+            <BrandMark href="/for-business" size="sm" label="Qfast" />
             <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
               Step {step} of 3
             </span>
@@ -132,8 +128,8 @@ export default function OnboardingPage() {
             {step === 3 && 'Customize your service setup'}
           </h1>
           <p className="text-slate-500 text-xs mt-1">
-            {step === 1 && 'Qfast configures specific queue and ordering workflows tailored to your industry.'}
-            {step === 2 && 'This information will be displayed on your public queue links and customer receipts.'}
+            {step === 1 && 'Choose the industry. Qfast opens a live queue, and restaurants also get table ordering.'}
+            {step === 2 && 'This appears on your public queue page and entrance QR.'}
             {step === 3 && 'Tailor queue rules, estimated turnovers, and operating hours for your team.'}
           </p>
 

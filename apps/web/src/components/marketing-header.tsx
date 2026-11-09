@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { ArrowRight, Zap } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { BrandMark } from './brand-mark';
 
 const links = [
-  { label: 'Product', href: '/features' },
+  { label: 'Find a queue', href: '/' },
+  { label: 'For business', href: '/for-business' },
   { label: 'Industries', href: '/industries' },
-  { label: 'How it works', href: '/#how-it-works' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'About', href: '/about' },
 ];
@@ -13,12 +14,7 @@ export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Qfast home">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-200">
-            <Zap className="h-5 w-5" fill="currentColor" />
-          </span>
-          <span className="text-xl font-black tracking-tight text-slate-950">Qfast</span>
-        </Link>
+        <BrandMark href="/" label="Qfast home" />
 
         <nav aria-label="Main navigation" className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex">
           {links.map((link) => (

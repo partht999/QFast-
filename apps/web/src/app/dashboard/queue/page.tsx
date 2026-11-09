@@ -857,7 +857,7 @@ export default function DashboardQueuePage() {
                       )}
                       {token.arrivedAt && (
                         <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800 border border-green-200">
-                          📍 Arrived at restaurant
+                          Arrived
                         </span>
                       )}
                       {token.orders && token.orders.length > 0 && (

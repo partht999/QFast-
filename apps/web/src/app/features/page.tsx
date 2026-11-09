@@ -23,7 +23,7 @@ export default function FeaturesPage() {
     {
       icon: CalendarDays,
       title: 'Multi-service & Staff Workflows',
-      desc: 'Organise multiple counters, service types, and staff members in one unified dashboard. Easily switch between queue and order modes.',
+      desc: 'Run several counters, doctors, or service desks from one board. Restaurants and cafes can also open table ordering and the kitchen display.',
     },
     {
       icon: ShieldCheck,
@@ -49,7 +49,7 @@ export default function FeaturesPage() {
             Everything you need for seamless customer flow
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            From QR check-ins and live waitlists to kitchen tickets and guest communication—all integrated in one responsive SaaS platform.
+            Live queues, QR check-in, and a staff board for clinics, salons, labs, service centres, and restaurants.
           </p>
         </div>
       </section>

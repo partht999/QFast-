@@ -27,6 +27,7 @@ import {
 import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { BUSINESS_TYPES } from '@/lib/business-types';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 
@@ -238,9 +239,9 @@ export default function DashboardPage() {
         {businesses.length === 0 ? (
           /* Empty State - No Business */
           <EmptyState
-            emoji="🍽️"
-            title="Welcome to Qfast!"
-            description="Get started by completing your business profile. You will receive an auto-generated queue, customizable digital menu, and table QR codes in seconds."
+            emoji="⚡"
+            title="Welcome to Qfast"
+            description="Create your business profile to open a live queue. Clinics, salons, labs, service centres, and restaurants each get a public join page and a staff board."
             tip="Setup takes under 2 minutes and unlocks real-time queue management."
             actionLabel="Start Quick Setup Wizard"
             actionHref="/dashboard/onboarding"
@@ -308,7 +309,7 @@ export default function DashboardPage() {
               <div className="relative z-10 max-w-xl">
                 <div className="flex items-center gap-2.5 mb-2">
                   <span className="text-[11px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                    {foodBusiness ? 'Active Restaurant' : 'Active Organization'}
+                    {`Active ${BUSINESS_TYPES.find((type) => type.value === selectedBusiness?.type)?.label || 'business'}`}
                   </span>
                   <span className="text-xs text-neutral-400">
                     Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Essential'}</strong>
@@ -318,7 +319,9 @@ export default function DashboardPage() {
                   {selectedBusiness?.name}
                 </h2>
                 <p className="text-xs text-neutral-300 mt-2 leading-relaxed">
-                  Your smart entrance queue QR code is active. Place this standee at your door or host desk so guests can scan to join the live waitlist, check queue position, and pre-order their dishes.
+                  {foodBusiness
+                    ? 'Place this at your entrance so guests can join the live queue, follow their place in line, and pre-order before they are seated.'
+                    : 'Place this at your entrance so people can join the live queue and follow their place in line.'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-4 text-xs font-mono text-neutral-400">
                   <span>Slug:</span>
@@ -393,9 +396,11 @@ export default function DashboardPage() {
                 <div>
                   <div className="text-2xl font-black text-gray-900 sm:text-3xl flex items-baseline gap-1.5">
                     <span>{stats?.waitingQueueCount ?? 0}</span>
-                    <span className="text-xs font-bold text-gray-400">parties</span>
+                    <span className="text-xs font-bold text-gray-400">{foodBusiness ? 'parties' : 'waiting'}</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Currently in line awaiting table</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {foodBusiness ? 'Currently in line for a table' : 'Currently waiting to be called'}
+                  </p>
                 </div>
                 <Link
                   href="/dashboard/queue"
