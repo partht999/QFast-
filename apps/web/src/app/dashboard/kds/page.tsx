@@ -15,6 +15,13 @@ import {
   ArrowLeft,
   AlertTriangle,
   RefreshCw,
+  Maximize2,
+  Minimize2,
+  History,
+  Undo2,
+  CheckSquare,
+  Square,
+  Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 
@@ -24,10 +31,47 @@ export default function KDSPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'DINE_IN' | 'QUEUE_PREORDER' | 'TAKEAWAY'>('ALL');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [checkedItemIds, setCheckedItemIds] = useState<Set<string>>(new Set());
+  const [recentlyClearedOrders, setRecentlyClearedOrders] = useState<any[]>([]);
+  const [showRecallModal, setShowRecallModal] = useState(false);
   const prevOrderCountRef = useRef(0);
   const router = useRouter();
 
   const apiUrl = getApiUrl();
+
+  const toggleFullscreen = () => {
+    if (typeof document === 'undefined') return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleItemCheck = (itemId: string) => {
+    setCheckedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
 
   const playChime = () => {
     if (!soundEnabled || typeof window === 'undefined') return;
@@ -98,6 +142,12 @@ export default function KDSPage() {
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const token = localStorage.getItem('accessToken');
     try {
+      if (newStatus === 'COMPLETED') {
+        const completedOrder = orders.find((o) => o.id === orderId);
+        if (completedOrder) {
+          setRecentlyClearedOrders((prev) => [completedOrder, ...prev.filter((o) => o.id !== orderId)].slice(0, 8));
+        }
+      }
       await fetch(`${apiUrl}/api/v1/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
@@ -110,6 +160,11 @@ export default function KDSPage() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleRecallOrder = async (orderId: string) => {
+    await handleUpdateStatus(orderId, 'READY');
+    setRecentlyClearedOrders((prev) => prev.filter((o) => o.id !== orderId));
   };
 
   if (loading) {
@@ -201,7 +256,29 @@ export default function KDSPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Recall Recently Cleared Tickets */}
+          {recentlyClearedOrders.length > 0 && (
+            <button
+              onClick={() => setShowRecallModal(true)}
+              className="p-2 bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-600/40 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+              title="Recall recently completed tickets"
+            >
+              <History className="w-4 h-4 text-amber-400" />
+              <span className="text-[11px] hidden md:inline">Recall ({recentlyClearedOrders.length})</span>
+            </button>
+          )}
+
+          {/* Fullscreen Toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Kitchen Mode'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <span className="text-[11px] hidden lg:inline">{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
+          </button>
+
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`p-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border ${
@@ -302,22 +379,39 @@ export default function KDSPage() {
                     )}
 
                     {/* Order Items */}
-                    <div className="space-y-2 py-2.5 border-t border-neutral-800 border-b mb-3">
-                      {order.items?.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-start text-xs">
-                          <div>
-                            <span className="font-black text-amber-400 text-sm mr-2.5">
-                              {item.quantity}×
-                            </span>
-                            <span className="font-bold text-neutral-100">{item.menuItem?.name}</span>
-                            {item.specialNote && (
-                              <p className="text-[11px] text-neutral-400 italic ml-6 mt-0.5">
-                                • {item.specialNote}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 py-2.5 border-t border-neutral-800 border-b mb-3">
+                      {order.items?.map((item: any) => {
+                        const isChecked = checkedItemIds.has(item.id);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => toggleItemCheck(item.id)}
+                            className="w-full flex justify-between items-start text-xs group text-left hover:bg-neutral-800/40 p-1 rounded-lg transition-colors"
+                          >
+                            <div className="flex items-start gap-2">
+                              {isChecked ? (
+                                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                              ) : (
+                                <Square className="w-4 h-4 text-neutral-500 group-hover:text-neutral-400 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <span className={`font-black text-sm mr-2 ${isChecked ? 'line-through text-neutral-500' : 'text-amber-400'}`}>
+                                  {item.quantity}×
+                                </span>
+                                <span className={`font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
+                                  {item.menuItem?.name}
+                                </span>
+                                {item.specialNote && (
+                                  <p className="text-[11px] text-neutral-400 italic mt-0.5">
+                                    • {item.specialNote}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     <button
@@ -355,7 +449,8 @@ export default function KDSPage() {
             ) : (
               preparingOrders.map((order) => {
                 const elapsed = getMinutesElapsed(order.createdAt);
-                const isDelayed = elapsed > 20;
+                const targetPrep = Math.max(15, ...(order.items?.map((i: any) => i.menuItem?.prepTimeMinutes || 15) || [15]));
+                const isDelayed = elapsed > targetPrep;
                 return (
                   <div
                     key={order.id}
@@ -376,11 +471,13 @@ export default function KDSPage() {
                         className={`text-xs font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
                           isDelayed
                             ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse'
+                            : elapsed > targetPrep * 0.7
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                             : 'bg-orange-500/20 text-orange-400'
                         }`}
                       >
                         <Clock className="w-3 h-3" />
-                        <span>{elapsed}m elapsed</span>
+                        <span>{elapsed}m / {targetPrep}m</span>
                       </span>
                     </div>
 
@@ -390,17 +487,34 @@ export default function KDSPage() {
                       </div>
                     )}
 
-                    <div className="space-y-2 py-2.5 border-t border-neutral-800 border-b mb-3">
-                      {order.items?.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-start text-xs">
-                          <div>
-                            <span className="font-black text-orange-400 text-sm mr-2.5">
-                              {item.quantity}×
-                            </span>
-                            <span className="font-bold text-neutral-100">{item.menuItem?.name}</span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 py-2.5 border-t border-neutral-800 border-b mb-3">
+                      {order.items?.map((item: any) => {
+                        const isChecked = checkedItemIds.has(item.id);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => toggleItemCheck(item.id)}
+                            className="w-full flex justify-between items-start text-xs group text-left hover:bg-neutral-800/40 p-1 rounded-lg transition-colors"
+                          >
+                            <div className="flex items-start gap-2">
+                              {isChecked ? (
+                                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                              ) : (
+                                <Square className="w-4 h-4 text-neutral-500 group-hover:text-neutral-400 shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <span className={`font-black text-sm mr-2 ${isChecked ? 'line-through text-neutral-500' : 'text-orange-400'}`}>
+                                  {item.quantity}×
+                                </span>
+                                <span className={`font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
+                                  {item.menuItem?.name}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     <button
@@ -474,6 +588,58 @@ export default function KDSPage() {
           </div>
         </div>
       </main>
+
+      {/* Ticket Recall Modal for Mistakenly Cleared Orders */}
+      {showRecallModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <History className="w-5 h-5 text-amber-400" />
+                <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                  Recently Cleared Tickets
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowRecallModal(false)}
+                className="text-neutral-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-400">
+              Accidentally tapped "Clear Ticket"? Restore any of the last completed orders back to the active KDS line:
+            </p>
+
+            <div className="space-y-2.5 max-h-80 overflow-y-auto">
+              {recentlyClearedOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="font-bold text-xs text-neutral-100">
+                      {order.table?.name ? `Table ${order.table.name}` : `Order #${order.id.slice(-4).toUpperCase()}`}
+                    </div>
+                    <div className="text-[11px] text-neutral-400">
+                      {order.items?.map((i: any) => `${i.quantity}× ${i.menuItem?.name}`).join(', ')}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleRecallOrder(order.id)}
+                    className="shrink-0 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                    <span>Recall</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

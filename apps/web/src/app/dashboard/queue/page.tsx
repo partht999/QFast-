@@ -24,7 +24,14 @@ import {
   Copy,
   MapPin,
   Save,
+  Search,
+  Volume2,
+  VolumeX,
+  Filter,
 } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
@@ -33,6 +40,10 @@ export default function DashboardQueuePage() {
   const [tables, setTables] = useState<any[]>([]);
   const [selectedTokenForSeat, setSelectedTokenForSeat] = useState<any | null>(null);
   const [targetTableId, setTargetTableId] = useState<string>('');
+  const [tokenToCancel, setTokenToCancel] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'WAITING' | 'CALLED' | 'PREORDER' | 'REMOTE'>('ALL');
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -48,6 +59,7 @@ export default function DashboardQueuePage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const router = useRouter();
+  const toast = useToast();
 
   const apiUrl = getApiUrl();
 
@@ -122,9 +134,12 @@ export default function DashboardQueuePage() {
         throw new Error(body.message || 'Could not check in guest');
       }
       setActionError('');
+      toast.success('Guest arrival confirmed!', 'Customer is now on site and ready to be seated.');
       await fetchData();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Could not check in guest');
+      const msg = err instanceof Error ? err.message : 'Could not check in guest';
+      setActionError(msg);
+      toast.error('Check-in failed', msg);
     }
   };
 
@@ -206,9 +221,21 @@ export default function DashboardQueuePage() {
       setActionError('');
       setSelectedTokenForSeat(null);
       setTargetTableId('');
+      setTokenToCancel(null);
+
+      const actionLabels = {
+        call: 'Customer called forward',
+        seat: 'Customer seated at dining table',
+        complete: 'Service visit marked completed',
+        skip: 'Customer skipped to later position',
+        cancel: 'Queue entry cancelled',
+      };
+      toast.success(actionLabels[action] || 'Queue updated successfully');
       await fetchData();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Could not update queue entry');
+      const msg = err instanceof Error ? err.message : 'Could not update queue entry';
+      setActionError(msg);
+      toast.error('Action failed', msg);
     }
   };
 
@@ -272,6 +299,26 @@ export default function DashboardQueuePage() {
   const foodBusiness = isFoodBusiness(business?.type);
   const servedTokens = tokens.filter((t) => t.status === (foodBusiness ? 'SEATED' : 'COMPLETED'));
   const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
+
+  const calledCount = waitingTokens.filter((t) => t.status === 'CALLED').length;
+  const preorderCount = waitingTokens.filter((t) => t.orders && t.orders.length > 0).length;
+  const remoteCount = waitingTokens.filter((t) => t.source === 'REMOTE').length;
+
+  const filteredTokens = waitingTokens.filter((token) => {
+    if (activeFilter === 'CALLED' && token.status !== 'CALLED') return false;
+    if (activeFilter === 'WAITING' && token.status !== 'WAITING') return false;
+    if (activeFilter === 'REMOTE' && token.source !== 'REMOTE') return false;
+    if (activeFilter === 'PREORDER' && (!token.orders || token.orders.length === 0)) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = token.customerName?.toLowerCase().includes(q);
+      const matchPhone = token.customerPhone?.includes(q);
+      const matchToken = String(token.tokenNumber).includes(q);
+      if (!matchName && !matchPhone && !matchToken) return false;
+    }
+    return true;
+  });
 
   return (
     <section className="space-y-6">
@@ -440,31 +487,105 @@ export default function DashboardQueuePage() {
         </div>
       </div>
 
-      {/* Live Waiting List */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-base text-gray-900">
-            Active Queue ({waitingTokens.length})
-          </h3>
-          <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
-            <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '3s' }} />
-            Auto-refreshing
-          </span>
+      {/* Live Waiting List Card */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
+          <div>
+            <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
+              <span>Active Queue ({waitingTokens.length})</span>
+              {filteredTokens.length !== waitingTokens.length && (
+                <span className="text-xs font-semibold text-gray-400 font-normal">
+                  (Showing {filteredTokens.length})
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-gray-500">Live FIFO waitlist with remote tracking &amp; pre-order status</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200/60">
+              <RefreshCw className="w-3 h-3 animate-spin text-orange-500" style={{ animationDuration: '3s' }} />
+              Auto-sync 3s
+            </span>
+          </div>
+        </div>
+
+        {/* Search Bar & Filter Tabs */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, phone, or token #..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all placeholder:text-gray-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+            {[
+              { id: 'ALL', label: `All (${waitingTokens.length})` },
+              { id: 'WAITING', label: 'Waiting' },
+              { id: 'CALLED', label: `Called (${calledCount})` },
+              { id: 'PREORDER', label: `Pre-ordered (${preorderCount})` },
+              { id: 'REMOTE', label: `Remote (${remoteCount})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveFilter(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  activeFilter === tab.id
+                    ? 'bg-orange-500 text-white shadow-xs'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200/70'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {waitingTokens.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <PartyPopper className="w-7 h-7 text-gray-400" />
-            </div>
-            <p className="font-semibold text-gray-700">No customers currently waiting</p>
-            <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
-              New walk-ins and remote customers will appear here.
-            </p>
+          <EmptyState
+            emoji="🎉"
+            title="No customers currently waiting"
+            description="Your dining queue is completely clear. New walk-ins and remote guest entries will appear here in real time."
+            tip="Guests can scan your Entrance QR code at the door to get their digital queue token."
+            actionLabel="Add Walk-in Party"
+            onAction={() => setShowAddModal(true)}
+            className="py-12"
+          />
+        ) : filteredTokens.length === 0 ? (
+          <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+            <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-xs font-bold text-gray-700">No parties match your search or filter</p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setActiveFilter('ALL');
+              }}
+              className="mt-2 text-xs font-bold text-orange-600 hover:underline"
+            >
+              Reset filters
+            </button>
           </div>
         ) : (
           <div className="space-y-3">
-            {waitingTokens.map((token, idx) => (
+            {filteredTokens.map((token, idx) => (
               <article
                 key={token.id}
                 className="rounded-xl border border-gray-100 hover:border-gray-200 bg-gray-50/50 hover:bg-gray-50 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all"
@@ -478,35 +599,44 @@ export default function DashboardQueuePage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-semibold text-sm text-gray-900">{token.customerName}</h4>
-                      {foodBusiness && <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 font-medium px-2 py-0.5 rounded-full">
-                        <Users className="w-3 h-3" />
-                        {token.partySize}
-                      </span>}
+                      {foodBusiness && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 font-medium px-2 py-0.5 rounded-full">
+                          <Users className="w-3 h-3" />
+                          {token.partySize} guests
+                        </span>
+                      )}
                       {token.status === 'CALLED' && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full animate-pulse">
+                        <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full animate-pulse border border-amber-300">
                           <Bell className="w-3 h-3" />
                           CALLED
                         </span>
                       )}
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                        token.source === 'REMOTE'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {token.source === 'REMOTE' ? 'Remote' : 'Walk-in'}
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                          token.source === 'REMOTE'
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {token.source === 'REMOTE' ? '📱 Remote' : '🚶 Walk-in'}
                       </span>
                       {token.source === 'REMOTE' && token.onTheWayAt && !token.arrivedAt && (
-                        <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-800">
-                          On the way
+                        <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-800 border border-cyan-200">
+                          🚗 On the way
                         </span>
                       )}
                       {token.arrivedAt && (
-                        <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800">
-                          Arrived
+                        <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800 border border-green-200">
+                          📍 Arrived at restaurant
+                        </span>
+                      )}
+                      {token.orders && token.orders.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 text-[10px]">
+                          🍳 Pre-order Active ({token.orders.length})
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
                       <span className="inline-flex items-center gap-1">
                         <Phone className="w-3 h-3" />
                         {token.customerPhone}
@@ -518,15 +648,10 @@ export default function DashboardQueuePage() {
                           Arrive by {new Date(token.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
-                      {token.orders && token.orders.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 text-[10px]">
-                          🍳 Pre-order Placed ({token.orders.length})
-                        </span>
-                      )}
                       {token.notes && (
-                        <span className="inline-flex items-center gap-1 text-gray-500">
+                        <span className="inline-flex items-center gap-1 text-gray-500 italic">
                           <StickyNote className="w-3 h-3" />
-                          {token.notes}
+                          "{token.notes}"
                         </span>
                       )}
                     </div>
@@ -538,7 +663,8 @@ export default function DashboardQueuePage() {
                   <button
                     onClick={() => handleUpdateStatus(token.id, 'call')}
                     disabled={idx !== 0 || token.status !== 'WAITING'}
-                    className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
+                    title={idx !== 0 ? 'FIFO rule: Call earliest waiting party first' : 'Call guest forward'}
+                    className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
                   >
                     <Bell className="w-3.5 h-3.5" />
                     Call
@@ -576,7 +702,7 @@ export default function DashboardQueuePage() {
                     Skip
                   </button>
                   <button
-                    onClick={() => handleUpdateStatus(token.id, 'cancel')}
+                    onClick={() => setTokenToCancel(token)}
                     className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 hover:bg-red-50 text-xs px-2.5 py-2 rounded-lg transition-all"
                   >
                     <XCircle className="w-3.5 h-3.5" />
@@ -587,6 +713,7 @@ export default function DashboardQueuePage() {
             ))}
           </div>
         )}
+      </div>
       </div>
 
       {/* Add Walk-in Modal */}
@@ -762,6 +889,28 @@ export default function DashboardQueuePage() {
           </div>
         </div>
       )}
+
+      {/* Branded Confirm Modal for Token Cancellation */}
+      <ConfirmModal
+        isOpen={!!tokenToCancel}
+        onClose={() => setTokenToCancel(null)}
+        onConfirm={async () => {
+          if (tokenToCancel) {
+            const id = tokenToCancel.id;
+            setTokenToCancel(null);
+            await handleUpdateStatus(id, 'cancel');
+          }
+        }}
+        title="Cancel Queue Token?"
+        description={
+          tokenToCancel
+            ? `Are you sure you want to cancel Token #${tokenToCancel.tokenNumber} for ${tokenToCancel.customerName}? They will be removed from the active queue.`
+            : 'Are you sure you want to cancel this queue token?'
+        }
+        confirmLabel="Yes, Cancel Token"
+        cancelLabel="Keep in Queue"
+        variant="danger"
+      />
     </section>
   );
 }
