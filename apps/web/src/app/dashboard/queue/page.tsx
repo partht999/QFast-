@@ -714,7 +714,6 @@ export default function DashboardQueuePage() {
           </div>
         )}
       </div>
-      </div>
 
       {/* Add Walk-in Modal */}
       {showAddModal && (
