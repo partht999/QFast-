@@ -99,8 +99,8 @@ async function main() {
   const pro = await savePlan(
     PlanTier.ADVANCED,
     {
-      name: 'Pro',
-      description: 'The full workspace. The first month is free, then ₹3,999/month.',
+      name: 'Advanced',
+      description: 'The full workspace. Free to use right now.',
       priceMonthly: 3999,
       priceYearly: 39990,
     },

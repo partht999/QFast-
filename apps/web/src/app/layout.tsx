@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: '%s | Qfast',
   },
   description:
-    'Give customers a place in line and give your team one board to call the next person. Free to start. Pro is free for the first month.',
+    'Give customers a place in line and give your team one board to call the next person. The Advanced plan is free to use right now.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,44 +1,70 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
+
   constructor(private config: ConfigService) {}
 
   async sendRegistrationOtp(email: string, code: string) {
-    const host = this.config.get<string>('SMTP_HOST');
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
+    const host = this.config.get<string>('SMTP_HOST')?.trim();
+    const user = this.config.get<string>('SMTP_USER')?.trim();
+    const pass = this.config.get<string>('SMTP_PASS')?.replace(/\s+/g, '');
+    const missing = [!host && 'SMTP_HOST', !user && 'SMTP_USER', !pass && 'SMTP_PASS'].filter(Boolean);
     if (!host || !user || !pass) {
+      this.logger.error(`SMTP config missing: ${missing.join(', ')}`);
       throw new ServiceUnavailableException(
         'Email delivery is not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, and MAIL_FROM.',
       );
     }
 
     const port = Number(this.config.get<string>('SMTP_PORT') || 587);
-    const from = this.config.get<string>('MAIL_FROM') || `Qfast <${user}>`;
+    const from = this.config.get<string>('MAIL_FROM')?.trim() || `Qfast <${user}>`;
+    this.logger.log(
+      `OTP send start host=${host} port=${port} secure=${port === 465} user=${user} passLength=${pass.length} from=${from} to=${email}`,
+    );
+
     const transporter = nodemailer.createTransport({
       host,
       port,
       secure: port === 465,
       auth: { user, pass },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
 
-    await transporter.sendMail({
-      from,
-      to: email,
-      subject: `${code} is your Qfast verification code`,
-      text: [
-        'Verify your business email',
-        '',
-        `Use this code to finish creating your Qfast workspace: ${code}`,
-        '',
-        'The code expires in 10 minutes.',
-        'If you did not ask for this email, you can ignore it.',
-      ].join('\n'),
-      html: this.registrationHtml(email, code),
-    });
+    try {
+      const info = await transporter.sendMail({
+        from,
+        to: email,
+        subject: `${code} is your Qfast verification code`,
+        text: [
+          'Verify your business email',
+          '',
+          `Use this code to finish creating your Qfast workspace: ${code}`,
+          '',
+          'The code expires in 10 minutes.',
+          'If you did not ask for this email, you can ignore it.',
+        ].join('\n'),
+        html: this.registrationHtml(email, code),
+      });
+      this.logger.log(`OTP send accepted messageId=${info.messageId} response=${info.response}`);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException & {
+        response?: string;
+        responseCode?: number;
+        command?: string;
+      };
+      this.logger.error(
+        `OTP send failed host=${host} port=${port} code=${err.code ?? 'unknown'} command=${err.command ?? ''} responseCode=${err.responseCode ?? ''} response=${err.response ?? ''} message=${err.message}`,
+      );
+      throw new ServiceUnavailableException(
+        `Verification email failed (${err.code || err.responseCode || 'smtp'}). The API log has the SMTP detail.`,
+      );
+    }
   }
 
   private registrationHtml(email: string, code: string) {

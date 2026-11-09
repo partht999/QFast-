@@ -12,7 +12,7 @@ export class BusinessController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a business on Free, Plus, or a one-month Pro trial' })
+  @ApiOperation({ summary: 'Create a business on the Advanced plan' })
   async create(@Body() dto: CreateBusinessDto, @Req() req: any) {
     return this.businessService.create(req.user.sub, dto);
   }

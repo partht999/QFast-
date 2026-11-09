@@ -17,23 +17,23 @@ export default function FeaturesPage() {
     },
     {
       icon: Bell,
-      title: 'Real-time SMS & Web Alerts',
-      desc: 'Notify customers automatically when their turn or table is ready. Minimise walkaways and empty no-shows effortlessly.',
+      title: 'Live status in the browser',
+      desc: 'While the join page stays open, the customer sees their place, the wait, and when they are called.',
     },
     {
       icon: CalendarDays,
-      title: 'Multi-service & Staff Workflows',
-      desc: 'Run several counters, doctors, or service desks from one board. Restaurants and cafes can also open table ordering and the kitchen display.',
+      title: 'Several counters, one board',
+      desc: 'Run separate queues for counters, doctors, or service desks. Restaurants and cafes can also open table ordering and the kitchen display.',
     },
     {
       icon: ShieldCheck,
-      title: 'Enterprise-grade Privacy & Security',
-      desc: 'Data encrypted in transit and at rest. Strict role-based permissions ensure that staff only see what they need to serve guests.',
+      title: 'A private staff board',
+      desc: 'The queue board sits behind the owner login. Customers only see their own token.',
     },
     {
       icon: Users,
-      title: 'Multi-tenant Business Operations',
-      desc: 'Manage single-location spots or multi-branch chains with isolated workspaces, custom branding, and instant role assignments.',
+      title: 'One workspace per business',
+      desc: 'Each organisation gets its own queues, QR codes, and customer join page.',
     },
   ];
 
@@ -77,10 +77,10 @@ export default function FeaturesPage() {
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Link
-              href="/auth/register?plan=pro"
+              href="/auth/register"
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-orange-200 hover:bg-orange-600"
             >
-              Try Pro free for a month <ArrowRight className="h-4 w-4" />
+              Get started <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>

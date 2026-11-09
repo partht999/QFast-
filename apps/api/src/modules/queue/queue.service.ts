@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
-import { BusinessType, PlanTier, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
+import { BusinessType, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 
 @Injectable()
 export class QueueService {
@@ -432,20 +432,13 @@ export class QueueService {
     userRole?: string,
   ) {
     await this.assertBusinessAccess(businessId, userId, userRole);
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { businessId },
-      include: { plan: true },
-    });
-    const tier = subscription?.plan?.tier;
-    const limit = tier === PlanTier.ADVANCED ? 20 : tier === PlanTier.ESSENTIAL ? 8 : 1;
+    const limit = 20;
     const existing = await this.prisma.queue.count({
       where: { businessId, isArchived: false },
     });
     if (existing >= limit) {
       throw new BadRequestException(
-        limit === 1
-          ? 'The Free plan includes one queue. Choose Plus to add more counters.'
-          : `This plan includes ${limit} queues.`,
+        'This workspace includes 20 queues. Archive one before adding another.',
       );
     }
     return this.prisma.queue.create({

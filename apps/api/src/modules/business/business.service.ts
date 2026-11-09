@@ -11,22 +11,15 @@ export class BusinessService {
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
 
-    const requestedPlan = dto.plan || 'free';
-    const tier = requestedPlan === 'pro'
-      ? PlanTier.ADVANCED
-      : requestedPlan === 'plus'
-        ? PlanTier.ESSENTIAL
-        : PlanTier.FREE;
-    const selectedPlan = await this.prisma.plan.findUnique({ where: { tier } });
+    const selectedPlan = await this.prisma.plan.findUnique({ where: { tier: PlanTier.ADVANCED } });
     if (!selectedPlan) {
-      throw new BadRequestException('Plans are not ready yet. Run the database seed and try again.');
+      throw new BadRequestException('The Advanced plan is not ready yet. Run the database seed and try again.');
     }
 
-    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const proTrial = requestedPlan === 'pro';
+    const periodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const foodBusiness = !dto.type || dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE;
-    const queueLimit = tier === PlanTier.ADVANCED ? 20 : tier === PlanTier.ESSENTIAL ? 8 : 1;
-    const tableLimit = tier === PlanTier.ADVANCED ? 40 : tier === PlanTier.ESSENTIAL ? 20 : 4;
+    const queueLimit = 20;
+    const tableLimit = 40;
     const requestedCount = dto.counterCount || (foodBusiness ? 4 : 1);
     const setupCount = Math.min(requestedCount, foodBusiness ? tableLimit : queueLimit);
     const averageWaitMinutes = dto.averageWaitMinutes || 10;
@@ -71,10 +64,10 @@ export class BusinessService {
         subscriptions: {
           create: {
             planId: selectedPlan.id,
-            status: proTrial ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE,
+            status: SubscriptionStatus.ACTIVE,
             currentPeriodStart: new Date(),
             currentPeriodEnd: periodEnd,
-            trialEndsAt: proTrial ? periodEnd : null,
+            trialEndsAt: null,
           },
         },
         queues: {
@@ -158,27 +151,22 @@ export class BusinessService {
   }
 
   private async settleExpiredProTrial(businessId: string) {
-    const subscription = await this.prisma.subscription.findUnique({ where: { businessId } });
-    if (
-      !subscription ||
-      subscription.status !== SubscriptionStatus.TRIALING ||
-      !subscription.trialEndsAt ||
-      subscription.trialEndsAt > new Date()
-    ) {
+    const advanced = await this.prisma.plan.findUnique({ where: { tier: PlanTier.ADVANCED } });
+    if (!advanced) return;
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { businessId },
+      include: { plan: true },
+    });
+    if (!subscription || (subscription.planId === advanced.id && subscription.status === SubscriptionStatus.ACTIVE)) {
       return;
     }
-
-    const freePlan = await this.prisma.plan.findUnique({ where: { tier: PlanTier.FREE } });
-    if (!freePlan) return;
-
     await this.prisma.subscription.update({
       where: { id: subscription.id },
       data: {
-        planId: freePlan.id,
+        planId: advanced.id,
         status: SubscriptionStatus.ACTIVE,
         trialEndsAt: null,
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       },
     });
   }

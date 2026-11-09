@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { MarketingFooter } from '@/components/marketing-footer';
 import { MarketingHeader } from '@/components/marketing-header';
-import { PricingPlans } from '@/components/pricing-plans';
 
 const problems = [
   {
@@ -86,19 +85,19 @@ export default function HomePage() {
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
-                href="/auth/register?plan=pro"
+                href="/auth/register"
                 className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-600"
               >
-                Try Pro free for a month <ArrowRight className="h-4 w-4" />
+                Open your queue <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/auth/register?plan=free"
+                href="/#advanced"
                 className="inline-flex items-center rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white/15"
               >
-                Start on the free plan
+                Advanced plan
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-400">No card for the free plan. Pro is ₹3,999/month after the first month.</p>
+            <p className="mt-4 text-xs text-slate-400">Every workspace is on the Advanced plan. It is free to use right now.</p>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl">
@@ -205,18 +204,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="pricing" className="border-t border-slate-200 bg-slate-50 px-5 py-20 sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-widest text-orange-600">Pricing</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Start free. Move up when the line gets longer.</h2>
-            <p className="mt-4 text-slate-600">
-              Pro includes every feature and is free for the first month. After that, the workspace returns to the Free plan unless you stay on Pro at ₹3,999/month.
-            </p>
-          </div>
-          <div className="mt-10">
-            <PricingPlans />
-          </div>
+      <section id="advanced" className="border-t border-slate-200 bg-slate-50 px-5 py-20 sm:px-8">
+        <div className="mx-auto max-w-3xl">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-600">Advanced plan</p>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">The full workspace is open, and it is free to use right now.</h2>
+          <p className="mt-4 text-slate-600 leading-7">
+            Every new business is placed on the Advanced plan. That includes multiple counters, the live queue, table ordering and the kitchen for restaurants, loyalty, and reviews. There is no charge while this early access lasts.
+          </p>
+          <Link href="/auth/register" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
+            Get started <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
@@ -226,8 +223,8 @@ export default function HomePage() {
             <h2 className="text-3xl font-black">Open your queue today.</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">Create the workspace, print the entrance QR, and call the next person from one board.</p>
           </div>
-          <Link href="/auth/register?plan=pro" className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
-            Try Pro free for a month <ArrowRight className="h-4 w-4" />
+          <Link href="/auth/register" className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
+            Get started <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>

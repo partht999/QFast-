@@ -114,8 +114,8 @@ export default function LoginPage() {
 
           <div className="mt-8 border-t border-slate-100 pt-6 text-center text-xs text-slate-500">
             Don&apos;t have an account yet?{' '}
-            <Link href="/auth/register?plan=free" className="font-bold text-orange-600 hover:underline">
-              Create a free workspace
+            <Link href="/auth/register" className="font-bold text-orange-600 hover:underline">
+              Create a workspace
             </Link>
           </div>
         </div>

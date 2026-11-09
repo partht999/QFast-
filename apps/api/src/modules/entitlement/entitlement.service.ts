@@ -1,5 +1,4 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PlanTier, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementSet } from '@qfast/shared';
 
@@ -15,8 +14,6 @@ export class EntitlementService {
     if (cached && Date.now() - cached.cachedAt < this.TTL_MS) {
       return cached.data;
     }
-
-    await this.settleExpiredProTrial(businessId);
 
     const subscription = await this.prisma.subscription.findUnique({
       where: { businessId },
@@ -65,32 +62,5 @@ export class EntitlementService {
 
   invalidateCache(businessId: string) {
     this.cache.delete(businessId);
-  }
-
-  private async settleExpiredProTrial(businessId: string) {
-    const subscription = await this.prisma.subscription.findUnique({ where: { businessId } });
-    if (
-      !subscription ||
-      subscription.status !== SubscriptionStatus.TRIALING ||
-      !subscription.trialEndsAt ||
-      subscription.trialEndsAt > new Date()
-    ) {
-      return;
-    }
-
-    const freePlan = await this.prisma.plan.findUnique({ where: { tier: PlanTier.FREE } });
-    if (!freePlan) return;
-
-    await this.prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        planId: freePlan.id,
-        status: SubscriptionStatus.ACTIVE,
-        trialEndsAt: null,
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-    });
-    this.invalidateCache(businessId);
   }
 }

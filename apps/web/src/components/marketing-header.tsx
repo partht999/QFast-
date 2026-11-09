@@ -5,7 +5,7 @@ import { BrandMark } from './brand-mark';
 const links = [
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Industries', href: '/industries' },
-  { label: 'Pricing', href: '/pricing' },
+  { label: 'Advanced plan', href: '/#advanced' },
   { label: 'About', href: '/about' },
 ];
 
@@ -28,10 +28,10 @@ export function MarketingHeader() {
             Log in
           </Link>
           <Link
-            href="/auth/register?plan=pro"
+            href="/auth/register"
             className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3.5 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-200 transition hover:bg-orange-600 sm:px-4 sm:text-sm"
           >
-            Try Pro free <ArrowRight className="h-4 w-4" />
+            Get started <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>

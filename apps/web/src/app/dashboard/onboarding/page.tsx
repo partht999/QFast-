@@ -6,7 +6,6 @@ import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
 import { getBusinessPublicPath } from '@/lib/business-links';
-import { isPlanId, PLANS, PlanId } from '@/lib/plans';
 import { readApiError } from '@/lib/read-api-error';
 import {
   Store,
@@ -50,14 +49,13 @@ export default function OnboardingPage() {
     appointmentMode: false,
     operatingHours: '09:00 AM - 10:00 PM',
   });
-  const [plan, setPlan] = useState<PlanId>('free');
   const [origin, setOrigin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
   const selectedType = BUSINESS_TYPES.find((type) => type.value === businessType);
   const foodBusiness = businessType === 'RESTAURANT' || businessType === 'CAFE';
-  const setupLimit = plan === 'pro' ? (foodBusiness ? 40 : 20) : plan === 'plus' ? (foodBusiness ? 20 : 8) : foodBusiness ? 4 : 1;
+  const setupLimit = foodBusiness ? 40 : 20;
 
   useEffect(() => {
     const savedType = localStorage.getItem('qfast_business_type');
@@ -68,8 +66,6 @@ export default function OnboardingPage() {
     if (userEmail) {
       setForm((f) => ({ ...f, email: userEmail }));
     }
-    const savedPlan = localStorage.getItem('qfast_plan');
-    if (isPlanId(savedPlan)) setPlan(savedPlan);
     setOrigin(window.location.origin);
   }, []);
 
@@ -113,7 +109,6 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           ...form,
           type: businessType,
-          plan,
           counterCount: Math.min(Math.max(industryConfig.tablesCount || 1, 1), setupLimit),
           averageWaitMinutes: Math.min(Math.max(industryConfig.serviceDurationMin || 10, 1), 180),
         }),
@@ -321,13 +316,12 @@ export default function OnboardingPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="rounded-2xl bg-orange-50/60 border border-orange-200/80 p-4">
               <p className="text-xs font-bold text-orange-900 uppercase tracking-wide">
-                {selectedType?.label || 'Business'} · {PLANS.find((item) => item.id === plan)?.name} plan
+                {selectedType?.label || 'Business'} · Advanced plan
               </p>
               <p className="text-xs text-orange-700/80 mt-0.5">
                 {foodBusiness
                   ? `This opens one walk-in queue and ${Math.min(industryConfig.tablesCount || 1, setupLimit)} table QR codes.`
                   : `This opens ${Math.min(industryConfig.tablesCount || 1, setupLimit)} queue${Math.min(industryConfig.tablesCount || 1, setupLimit) === 1 ? '' : 's'} with a ${industryConfig.serviceDurationMin || 10} minute average wait.`}
-                {plan === 'free' ? ' Plus and Pro add more counters.' : ''}
               </p>
             </div>
 

@@ -8,12 +8,10 @@ import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
-import { isPlanId, PLANS, PlanId } from '@/lib/plans';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', confirm: '' });
   const [businessType, setBusinessType] = useState<BusinessTypeValue>('RESTAURANT');
-  const [plan, setPlan] = useState<PlanId>('free');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,8 +27,6 @@ export default function RegisterPage() {
     if (AVAILABLE_BUSINESS_TYPES.includes(requestedType as BusinessTypeValue)) {
       setBusinessType(requestedType as BusinessTypeValue);
     }
-    const requestedPlan = params.get('plan');
-    if (isPlanId(requestedPlan)) setPlan(requestedPlan);
   }, []);
 
   const sendOtp = async () => {
@@ -100,7 +96,7 @@ export default function RegisterPage() {
       localStorage.setItem('refreshToken', data.refreshToken);
       localStorage.setItem('userEmail', form.email);
       localStorage.setItem('qfast_business_type', businessType);
-      localStorage.setItem('qfast_plan', plan);
+      localStorage.setItem('qfast_plan', 'pro');
       router.push('/dashboard/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -113,38 +109,15 @@ export default function RegisterPage() {
     <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <BrandMark href="/" tone="light" size="lg" label="Qfast home" />
-        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">
-          {plan === 'pro' ? 'Try Pro free for a month' : plan === 'plus' ? 'Start on Plus' : 'Create your free workspace'}
-        </h1>
+        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Create your workspace</h1>
         <p className="mt-2 text-sm text-slate-400">
-          {plan === 'pro'
-            ? 'Pro is free for 30 days, then ₹3,999/month. If you do not stay on Pro, the workspace returns to Free.'
-            : 'Set up your business and open a live queue. No card is required for the Free plan.'}
+          The Advanced plan is free to use right now. Verify your email, then open a live queue.
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <fieldset>
-              <legend className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Plan</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {PLANS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPlan(item.id)}
-                    className={`rounded-xl border px-2 py-3 text-left transition ${
-                      plan === item.id ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <span className="block text-sm font-black text-slate-900">{item.name}</span>
-                    <span className="mt-1 block text-[11px] font-semibold text-slate-500">{item.price}{item.id === 'free' ? '' : item.period}</span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
             <div>
               <label htmlFor="business-type" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Select your industry
