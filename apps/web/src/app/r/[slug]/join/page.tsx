@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
-import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function JoinQueuePage() {
@@ -54,6 +54,7 @@ export default function JoinQueuePage() {
   const apiUrl = getApiUrl();
   const publicPath = getBusinessPublicPath(slug, queueStatus?.businessType);
   const foodBusiness = isFoodBusiness(queueStatus?.businessType);
+  const clinicalBusiness = isClinicalBusiness(queueStatus?.businessType);
 
   const fetchStatus = async () => {
     try {
@@ -112,7 +113,7 @@ export default function JoinQueuePage() {
         const res = await fetch(`${apiUrl}/api/v1/queue/public/token/${savedTokenId}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status === 'WAITING' || data.status === 'CALLED') {
+          if (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED' || data.status === 'COMPLETED') {
             setActiveToken(data);
             if (data.status === 'CALLED' && typeof window !== 'undefined' && 'vibrate' in navigator) {
               navigator.vibrate([300, 100, 300]);
@@ -286,13 +287,15 @@ export default function JoinQueuePage() {
           </span>
         </div>
         <nav className="flex items-center gap-2">
-          <Link
-            href={`${publicPath}/loyalty`}
-            className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
-          >
-            <Gift className="w-3.5 h-3.5" />
-            <span>Rewards</span>
-          </Link>
+          {foodBusiness && (
+            <Link
+              href={`${publicPath}/loyalty`}
+              className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
+            >
+              <Gift className="w-3.5 h-3.5" />
+              <span>Stamps</span>
+            </Link>
+          )}
           {foodBusiness && (
             <Link
               href={`/r/${slug}/table/1`}
@@ -330,13 +333,17 @@ export default function JoinQueuePage() {
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full animate-ping" />
                   <Bell className="w-10 h-10 text-amber-600 mx-auto mb-2" />
                   <p className="font-black text-base uppercase tracking-wide">
-                    {foodBusiness ? 'Your Table is Ready!' : 'It’s Your Turn!'}
+                    {foodBusiness ? 'Your table is ready' : clinicalBusiness ? 'The doctor is ready' : 'It’s your turn'}
                   </p>
                   <p className="text-xs mt-1 font-medium text-amber-800">
-                    Please proceed to the service desk.
+                    {foodBusiness
+                      ? 'Please see the host to be seated.'
+                      : clinicalBusiness
+                        ? 'Please go in for your visit.'
+                        : 'Please come to the counter.'}
                   </p>
                 </div>
-              ) : (
+              ) : activeToken.status !== 'COMPLETED' && activeToken.status !== 'SEATED' ? (
                 <div className="bg-orange-50 border border-orange-200 text-orange-800 rounded-full py-2 px-4 inline-flex items-center gap-2 text-xs font-extrabold">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
@@ -344,7 +351,7 @@ export default function JoinQueuePage() {
                   </span>
                   <span>Live in Waitlist</span>
                 </div>
-              )}
+              ) : null}
 
               {activeToken.status === 'CALLED' && activeToken.source === 'REMOTE' && !activeToken.arrivedAt && (
                 <div className="relative z-10 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
@@ -425,13 +432,13 @@ export default function JoinQueuePage() {
                 <div className="text-7xl font-black text-orange-600 tracking-tighter animate-number-pop leading-none">
                   #{activeToken.tokenNumber}
                 </div>
-                {activeToken.doctorName && (
+                {clinicalBusiness && activeToken.doctorName && (
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100/70 text-orange-900 text-xs font-bold mt-2">
                     <Stethoscope className="w-3.5 h-3.5 text-orange-600" />
                     <span>{activeToken.doctorName}</span>
                   </div>
                 )}
-                {activeToken.serviceName && !activeToken.doctorName && (
+                {!foodBusiness && !clinicalBusiness && activeToken.serviceName && (
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100/70 text-orange-900 text-xs font-bold mt-2">
                     <Scissors className="w-3.5 h-3.5 text-orange-600" />
                     <span>{activeToken.serviceName}</span>
@@ -448,6 +455,22 @@ export default function JoinQueuePage() {
                 )}
               </div>
 
+              {(activeToken.status === 'COMPLETED' || activeToken.status === 'SEATED') && (
+                <VisitFinished
+                  foodBusiness={foodBusiness}
+                  clinicalBusiness={clinicalBusiness}
+                  reviewUrl={
+                    activeToken.business?.googleReviewUrl
+                    || (activeToken.business?.googlePlaceId
+                      ? `https://search.google.com/local/writereview?placeid=${activeToken.business.googlePlaceId}`
+                      : '')
+                  }
+                  stampsHref={`${publicPath}/loyalty?phone=${encodeURIComponent(activeToken.customerPhone || '')}`}
+                />
+              )}
+
+              {activeToken.status !== 'COMPLETED' && activeToken.status !== 'SEATED' && (
+              <>
               {/* Wait Progress Bar */}
               <div className="relative z-10 space-y-2">
                 <div className="flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
@@ -509,6 +532,8 @@ export default function JoinQueuePage() {
                   Leave queue / Cancel token
                 </button>
               </div>
+              </>
+              )}
             </div>
           </div>
         ) : (
@@ -568,10 +593,10 @@ export default function JoinQueuePage() {
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
-                  {queues.length > 1 && (
+                  {!foodBusiness && queues.length > 1 && (
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                        Select Doctor or Service Queue *
+                        {clinicalBusiness ? 'Choose a consultation' : 'Choose a queue'}
                       </label>
                       <div className="space-y-2">
                         {queues.map((q) => (
@@ -593,7 +618,7 @@ export default function JoinQueuePage() {
                               />
                               <div>
                                 <p className="text-xs font-bold text-neutral-900">
-                                  {q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}
+                                  {clinicalBusiness && q.doctorName ? q.doctorName : q.name}
                                 </p>
                                 {q.department && (
                                   <p className="text-[10px] text-neutral-500">{q.department}</p>
@@ -731,6 +756,48 @@ export default function JoinQueuePage() {
         cancelLabel="Stay in Queue"
         variant="danger"
       />
+    </div>
+  );
+}
+
+function VisitFinished({
+  foodBusiness,
+  clinicalBusiness,
+  reviewUrl,
+  stampsHref,
+}: {
+  foodBusiness: boolean;
+  clinicalBusiness: boolean;
+  reviewUrl: string;
+  stampsHref: string;
+}) {
+  return (
+    <div className="relative z-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left">
+      <div className="flex items-center gap-2 text-emerald-800">
+        <CheckCircle2 className="h-5 w-5" />
+        <p className="font-black">{foodBusiness ? 'You are seated' : 'Visit complete'}</p>
+      </div>
+      {foodBusiness ? (
+        <div className="mt-3">
+          <p className="text-sm text-emerald-900">Ask the team to add a stamp, or open your card.</p>
+          <Link href={stampsHref} className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
+            View stamp card
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <p className="text-sm text-emerald-900">
+            {clinicalBusiness ? 'If the visit went well, a Google review helps the clinic.' : 'If the visit went well, a Google review helps the business.'}
+          </p>
+          {reviewUrl ? (
+            <a href={reviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
+              Leave a Google review
+            </a>
+          ) : (
+            <p className="mt-2 text-xs text-emerald-800">The team has not added a Google review link yet.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

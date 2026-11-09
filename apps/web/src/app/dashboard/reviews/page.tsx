@@ -18,6 +18,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 
@@ -166,7 +167,16 @@ export default function ReviewsManagementPage() {
           <span className="text-gray-300">/</span>
           <div className="flex items-center gap-2">
             <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
-            <h1 className="text-base font-extrabold text-gray-900">Google Reviews &amp; Feedback Funnel</h1>
+            <h1 className="text-base font-extrabold text-gray-900">
+              {isFoodBusiness(business?.type) ? 'Reviews' : 'Google review'}
+            </h1>
+            {!isFoodBusiness(business?.type) && (
+              <p className="mt-1 text-xs text-gray-500">
+                {isClinicalBusiness(business?.type)
+                  ? 'When a visit is marked complete, the patient is asked to leave a Google review. Paste the Place ID below.'
+                  : 'When a visit is marked complete, the customer is asked to leave a Google review. Paste the Place ID below.'}
+              </p>
+            )}
             <span className="text-xs bg-amber-50 text-amber-800 font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
               ★ {feedbackData.averageRating.toFixed(1)} Average
             </span>

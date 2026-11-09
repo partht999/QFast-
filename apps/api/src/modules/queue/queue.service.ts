@@ -265,7 +265,14 @@ export class QueueService {
         queue: {
           include: {
             business: {
-              select: { id: true, name: true, slug: true },
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                type: true,
+                googlePlaceId: true,
+                googleReviewUrl: true,
+              },
             },
           },
         },
@@ -369,6 +376,11 @@ export class QueueService {
 
   async getBusinessTokens(businessId: string, userId: string, userRole?: string, queueId?: string) {
     await this.assertBusinessAccess(businessId, userId, userRole);
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { timezone: true },
+    });
+    const todayStart = startOfDayInTimeZone(business?.timezone || 'Asia/Kolkata');
     const queues = await this.prisma.queue.findMany({
       where: { businessId, isArchived: false },
       orderBy: { createdAt: 'asc' },
@@ -381,9 +393,6 @@ export class QueueService {
       : queues[0];
 
     await this.expireOverdueRemoteTokens(selectedQueue.id);
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
 
     const tokens = await this.prisma.queueToken.findMany({
       where: {
@@ -791,4 +800,31 @@ export class QueueService {
     });
     if (!staff) throw new ForbiddenException('You do not have access to this business queue');
   }
+}
+
+function startOfDayInTimeZone(timeZone: string, date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  const offset = asUtc - date.getTime();
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) - offset);
 }

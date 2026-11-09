@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { queueDisplayDetail, queueDisplayName, queueLanguage } from '@/lib/queue-language';
 import {
   Users,
   Phone,
@@ -14,10 +15,7 @@ import {
   XCircle,
   UserPlus,
   Clock,
-  ArrowRightLeft,
   SkipForward,
-  ExternalLink,
-  PartyPopper,
   RefreshCw,
   Armchair,
   X,
@@ -26,9 +24,7 @@ import {
   MapPin,
   Save,
   Search,
-  Volume2,
-  VolumeX,
-  Filter,
+  Plus,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -149,7 +145,10 @@ export default function DashboardQueuePage() {
         throw new Error(body.message || 'Could not check in guest');
       }
       setActionError('');
-      toast.success('Guest arrival confirmed!', 'Customer is now on site and ready to be seated.');
+      toast.success(
+        'They are here',
+        isFoodBusiness(business?.type) ? 'You can seat this party now.' : 'You can finish this visit now.',
+      );
       await fetchData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not check in guest';
@@ -259,15 +258,16 @@ export default function DashboardQueuePage() {
       setTargetTableId('');
       setTokenToCancel(null);
 
+      const copy = queueLanguage(business?.type);
       const actionLabels = {
-        call: 'Customer called forward',
-        seat: 'Customer seated at dining table',
-        complete: 'Service visit marked completed',
-        skip: 'Customer moved to skipped list',
-        cancel: 'Queue entry cancelled',
-        restore: 'Customer restored to active queue',
+        call: 'Called',
+        seat: 'Seated at a table',
+        complete: 'Visit finished',
+        skip: 'Skipped',
+        cancel: 'Removed from the line',
+        restore: 'Put back in line',
       };
-      toast.success(actionLabels[action] || 'Queue updated successfully');
+      toast.success(actionLabels[action] || 'Updated', copy.pageHint);
       await fetchData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not update queue entry';
@@ -337,7 +337,12 @@ export default function DashboardQueuePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify(newQueueForm),
+        body: JSON.stringify({
+          name: newQueueForm.name,
+          averageWaitMinutes: newQueueForm.averageWaitMinutes,
+          ...(queueLanguage(business.type).showStaff ? { doctorName: newQueueForm.doctorName } : {}),
+          ...(queueLanguage(business.type).showDepartment ? { department: newQueueForm.department } : {}),
+        }),
       });
       if (!response.ok) {
         const body = await response.json();
@@ -345,7 +350,7 @@ export default function DashboardQueuePage() {
       }
 
       const created = await response.json();
-      toast.success('Queue Created', `Queue "${created.name}" is now live!`);
+      toast.success('Line added', `"${created.name}" is ready.`);
       setShowCreateQueueModal(false);
       setNewQueueForm({ name: '', department: '', doctorName: '', serviceName: '', averageWaitMinutes: 10 });
       setSelectedQueueId(created.id);
@@ -370,6 +375,8 @@ export default function DashboardQueuePage() {
   const waitingTokens = tokens.filter((t) => t.status === 'WAITING' || t.status === 'CALLED');
   const skippedTokens = tokens.filter((t) => t.status === 'SKIPPED' || t.status === 'CANCELLED');
   const foodBusiness = isFoodBusiness(business?.type);
+  const copy = queueLanguage(business?.type);
+  const earliestWaitingId = waitingTokens.find((token) => token.status === 'WAITING')?.id;
   const servedTokens = tokens.filter((t) => t.status === (foodBusiness ? 'SEATED' : 'COMPLETED'));
   const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
 
@@ -400,76 +407,71 @@ export default function DashboardQueuePage() {
   return (
     <section className="space-y-6">
       {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Queue Operations</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Monitor and manage your live queue in real time
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{copy.pageTitle}</h1>
+          <p className="mt-1 text-sm text-gray-500">{copy.pageHint}</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.98]"
         >
-          <UserPlus className="w-4 h-4" />
-          Add Walk-in Customer
+          <UserPlus className="h-4 w-4" />
+          {copy.addButton}
         </button>
       </div>
 
-      {/* Multi-Queue Department / Doctor Tabs */}
-      {queues.length > 0 && (
-        <div className="flex items-center justify-between gap-3 overflow-x-auto no-scrollbar pb-1">
-          <div className="flex items-center gap-2">
-            {queues.map((q) => {
-              const isSelected = selectedQueueId === q.id || (!selectedQueueId && queue?.id === q.id);
-              return (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedQueueId(q.id);
-                  }}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                    isSelected
-                      ? 'bg-neutral-900 text-white shadow-sm'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <span>{q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}</span>
-                  {q.department && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      isSelected ? 'bg-neutral-700 text-white' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {q.department}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {copy.steps.map((step, index) => (
+          <li key={step} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700">
+              {index + 1}
+            </span>
+            <span className="text-sm font-medium text-gray-800">{step}</span>
+          </li>
+        ))}
+      </ol>
 
-          <button
-            type="button"
-            onClick={() => setShowCreateQueueModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 whitespace-nowrap flex-shrink-0"
-          >
-            <span>+ Add Counter / Doctor Queue</span>
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {queues.map((q) => {
+          const isSelected = selectedQueueId === q.id || (!selectedQueueId && queue?.id === q.id);
+          const detail = queueDisplayDetail(q, business?.type);
+          if (queues.length < 2) return null;
+          return (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => setSelectedQueueId(q.id)}
+              className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-left text-xs font-bold transition ${
+                isSelected ? 'bg-neutral-900 text-white shadow-sm' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="block">{queueDisplayName(q, business?.type)}</span>
+              {detail && <span className={`mt-0.5 block font-medium ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>{detail}</span>}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setShowCreateQueueModal(true)}
+          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-dashed border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-600 hover:border-orange-300 hover:text-orange-700"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {copy.addLine}
+        </button>
+      </div>
 
       {/* Status Bar */}
       <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">{business?.name} — Live Queue</h2>
-          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-            <ExternalLink className="w-3 h-3" />
-            Remote queue link:{' '}
+          <h2 className="text-lg font-bold text-gray-900">{business?.name}</h2>
+          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
+            {copy.guestLink}:{' '}
             <a
               href={getBusinessPublicPath(business?.slug, business?.type)}
               target="_blank"
               rel="noreferrer"
-              className="text-orange-600 hover:text-orange-700 hover:underline font-mono transition-colors"
+              className="font-mono text-orange-600 transition-colors hover:text-orange-700 hover:underline"
             >
               {getBusinessPublicPath(business?.slug, business?.type)}
             </a>
@@ -479,7 +481,7 @@ export default function DashboardQueuePage() {
               className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 font-semibold text-orange-700 hover:bg-orange-100"
             >
               <Copy className="h-3 w-3" />
-              {linkCopied ? 'Copied' : 'Copy remote link'}
+              {linkCopied ? 'Copied' : 'Copy link'}
             </button>
           </p>
         </div>
@@ -493,8 +495,8 @@ export default function DashboardQueuePage() {
           }`}
         >
           <span className={`w-2.5 h-2.5 rounded-full ${queue?.isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          {queue?.isOpen ? 'Queue is Open' : 'Queue is Closed'}
-          <span className="text-xs opacity-60 ml-1">(Click to toggle)</span>
+          {queue?.isOpen ? copy.open : copy.closed}
+          <span className="ml-1 text-xs opacity-60">(tap to change)</span>
         </button>
         <button
           type="button"
@@ -507,7 +509,7 @@ export default function DashboardQueuePage() {
           }`}
         >
           <span className={`h-2.5 w-2.5 rounded-full ${queue?.remoteJoinEnabled ? 'bg-blue-500' : 'bg-gray-400'}`} />
-          Remote joining {queue?.remoteJoinEnabled ? 'On' : 'Off'}
+          {queue?.remoteJoinEnabled ? copy.phoneOn : copy.phoneOff}
         </button>
       </div>
       {actionError && (
@@ -522,7 +524,7 @@ export default function DashboardQueuePage() {
       >
         <div className="flex-1">
           <label htmlFor="average-wait" className="mb-1 block text-xs font-semibold text-gray-600">
-            Estimated minutes per party
+            {copy.waitSetting}
           </label>
           <input
             id="average-wait"
@@ -540,10 +542,11 @@ export default function DashboardQueuePage() {
             }}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
           />
+          <p className="mt-1 text-[11px] text-gray-400">{copy.waitHint}</p>
         </div>
         <div className="flex-1">
           <label htmlFor="arrival-grace" className="mb-1 block text-xs font-semibold text-gray-600">
-            Arrival grace period after call (minutes)
+            {copy.graceSetting}
           </label>
           <input
             id="arrival-grace"
@@ -561,6 +564,7 @@ export default function DashboardQueuePage() {
             }}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
           />
+          <p className="mt-1 text-[11px] text-gray-400">{copy.graceHint}</p>
         </div>
         <button
           type="submit"
@@ -579,9 +583,9 @@ export default function DashboardQueuePage() {
             <Users className="w-5 h-5 text-orange-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">Customers Waiting</span>
+            <span className="text-xs font-medium text-gray-500">{copy.waitingStat}</span>
             <div className="text-2xl font-bold text-gray-900 mt-0.5">{waitingTokens.length}</div>
-            <span className="text-xs text-gray-400">{foodBusiness ? 'parties in queue' : 'entries in queue'}</span>
+            <span className="text-xs text-gray-400">{copy.waitingHint}</span>
           </div>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
@@ -589,9 +593,9 @@ export default function DashboardQueuePage() {
             <Check className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">{foodBusiness ? 'Seated Today' : 'Served Today'}</span>
+            <span className="text-xs font-medium text-gray-500">{copy.doneStat}</span>
             <div className="text-2xl font-bold text-gray-900 mt-0.5">{servedTokens.length}</div>
-            <span className="text-xs text-gray-400">{foodBusiness ? 'successfully seated' : 'visits completed'}</span>
+            <span className="text-xs text-gray-400">{copy.doneHint}</span>
           </div>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex items-start gap-4">
@@ -599,9 +603,9 @@ export default function DashboardQueuePage() {
             <Clock className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <span className="text-xs font-medium text-gray-500">Estimated Queue Wait</span>
+            <span className="text-xs font-medium text-gray-500">About how long</span>
             <div className="text-2xl font-bold text-gray-900 mt-0.5">~{estimatedQueueWait} min</div>
-            <span className="text-xs text-gray-400">approx. {queue?.averageWaitMinutes || 8} min per {foodBusiness ? 'party' : 'customer'}</span>
+            <span className="text-xs text-gray-400">about {queue?.averageWaitMinutes || 8} min for each {copy.peopleNoun === 'parties' ? 'party' : 'person'}</span>
           </div>
         </div>
       </div>
@@ -618,11 +622,11 @@ export default function DashboardQueuePage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
-                  {currentServingToken ? 'Now Called / Serving' : 'Counter Ready'}
+                  {currentServingToken ? copy.nowLabel : copy.readyLabel}
                 </span>
                 {currentServingToken?.source === 'REMOTE' && (
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                    Remote Guest
+                    {copy.remote}
                   </span>
                 )}
               </div>
@@ -630,16 +634,20 @@ export default function DashboardQueuePage() {
                 {currentServingToken
                   ? currentServingToken.customerName
                   : nextInLineToken
-                  ? `Next in line: #${nextInLineToken.tokenNumber} ${nextInLineToken.customerName}`
-                  : 'No customers currently waiting'}
+                  ? `${copy.nextPrefix}: #${nextInLineToken.tokenNumber} ${nextInLineToken.customerName}`
+                  : copy.emptyNow}
               </h3>
               <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-2">
                 {currentServingToken ? (
                   <>
                     <span>Phone: {currentServingToken.customerPhone}</span>
-                    <span>•</span>
-                    <span>Party: {currentServingToken.partySize}</span>
-                    {currentServingToken.doctorName && (
+                    {foodBusiness && (
+                      <>
+                        <span>•</span>
+                        <span>Party: {currentServingToken.partySize}</span>
+                      </>
+                    )}
+                    {copy.showStaff && currentServingToken.doctorName && (
                       <>
                         <span>•</span>
                         <span className="font-semibold text-neutral-700">{currentServingToken.doctorName}</span>
@@ -647,7 +655,7 @@ export default function DashboardQueuePage() {
                     )}
                   </>
                 ) : (
-                  <span>Ready to call the next customer in FIFO order</span>
+                  <span>{copy.readyDetail}</span>
                 )}
               </p>
             </div>
@@ -663,7 +671,7 @@ export default function DashboardQueuePage() {
                   className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-98"
                 >
                   <Bell className="w-4 h-4" />
-                  <span>Buzz Recall</span>
+                  <span>{copy.recall}</span>
                 </button>
 
                 {foodBusiness ? (
@@ -673,7 +681,7 @@ export default function DashboardQueuePage() {
                     className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
                   >
                     <Armchair className="w-4 h-4" />
-                    <span>Seat at Table</span>
+                    <span>{copy.finish}</span>
                   </button>
                 ) : (
                   <button
@@ -682,7 +690,7 @@ export default function DashboardQueuePage() {
                     className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Complete Visit</span>
+                    <span>{copy.finish}</span>
                   </button>
                 )}
 
@@ -702,7 +710,7 @@ export default function DashboardQueuePage() {
                 className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-md flex items-center gap-2 transition active:scale-98"
               >
                 <Bell className="w-4 h-4" />
-                <span>Call Next Customer (#{nextInLineToken.tokenNumber})</span>
+                <span>{copy.callNext(nextInLineToken.tokenNumber)}</span>
               </button>
             ) : null}
           </div>
@@ -714,14 +722,14 @@ export default function DashboardQueuePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
           <div>
             <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
-              <span>Active Queue ({waitingTokens.length})</span>
+              <span>{copy.listTitle} ({waitingTokens.length})</span>
               {filteredTokens.length !== waitingTokens.length && (
                 <span className="text-xs font-semibold text-gray-400 font-normal">
                   (Showing {filteredTokens.length})
                 </span>
               )}
             </h3>
-            <p className="text-xs text-gray-500">Live FIFO waitlist with remote tracking &amp; pre-order status</p>
+            <p className="text-xs text-gray-500">{copy.listHint}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -741,7 +749,7 @@ export default function DashboardQueuePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, phone, or token #..."
+              placeholder="Search name, phone, or number"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all placeholder:text-gray-400"
             />
             {searchQuery && (
@@ -761,8 +769,8 @@ export default function DashboardQueuePage() {
               { id: 'ALL', label: `All (${waitingTokens.length})` },
               { id: 'WAITING', label: 'Waiting' },
               { id: 'CALLED', label: `Called (${calledCount})` },
-              { id: 'PREORDER', label: `Pre-ordered (${preorderCount})` },
-              { id: 'REMOTE', label: `Remote (${remoteCount})` },
+              ...(foodBusiness ? [{ id: 'PREORDER', label: `${copy.ordered} (${preorderCount})` }] : []),
+              { id: 'REMOTE', label: `${copy.remote} (${remoteCount})` },
               { id: 'SKIPPED', label: `Skipped (${skippedTokens.length})` },
             ].map((tab) => (
               <button
@@ -785,16 +793,16 @@ export default function DashboardQueuePage() {
           activeFilter === 'SKIPPED' ? (
             <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
               <Check className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-xs font-bold text-gray-700">No skipped or cancelled parties</p>
-              <p className="text-xs text-gray-400 mt-0.5">Guests who are skipped or cancelled will appear here if you need to restore or call them.</p>
+              <p className="text-xs font-bold text-gray-700">{copy.skippedEmpty}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{copy.skippedHint}</p>
             </div>
           ) : (
             <EmptyState
               emoji="🎉"
-              title="No customers currently waiting"
-              description="Your dining queue is completely clear. New walk-ins and remote guest entries will appear here in real time."
-              tip="Guests can scan your Entrance QR code at the door to get their digital queue token."
-              actionLabel="Add Walk-in Party"
+              title={copy.emptyTitle}
+              description={copy.emptyBody}
+              tip="The entrance QR is the easiest way for someone to take a number."
+              actionLabel={copy.addButton}
               onAction={() => setShowAddModal(true)}
               className="py-12"
             />
@@ -802,7 +810,7 @@ export default function DashboardQueuePage() {
         ) : filteredTokens.length === 0 ? (
           <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
             <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-gray-700">No parties match your search or filter</p>
+            <p className="text-xs font-bold text-gray-700">Nothing matches that search</p>
             <button
               type="button"
               onClick={() => {
@@ -849,21 +857,21 @@ export default function DashboardQueuePage() {
                             : 'bg-gray-100 text-gray-700'
                         }`}
                       >
-                        {token.source === 'REMOTE' ? '📱 Remote' : '🚶 Walk-in'}
+                        {token.source === 'REMOTE' ? copy.remote : copy.walkIn}
                       </span>
                       {token.source === 'REMOTE' && token.onTheWayAt && !token.arrivedAt && (
                         <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-800 border border-cyan-200">
-                          🚗 On the way
+                          {copy.onTheWay}
                         </span>
                       )}
                       {token.arrivedAt && (
                         <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-800 border border-green-200">
-                          Arrived
+                          {copy.arrived}
                         </span>
                       )}
-                      {token.orders && token.orders.length > 0 && (
+                      {foodBusiness && token.orders && token.orders.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 text-[10px]">
-                          🍳 Pre-order Active ({token.orders.length})
+                          {copy.ordered} ({token.orders.length})
                         </span>
                       )}
                     </div>
@@ -900,7 +908,7 @@ export default function DashboardQueuePage() {
                         title="Restore customer back to waiting line"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
-                        Restore to Waiting
+                        Put back in line
                       </button>
                       <button
                         onClick={() => handleUpdateStatus(token.id, 'call')}
@@ -908,7 +916,7 @@ export default function DashboardQueuePage() {
                         title="Call guest forward now"
                       >
                         <Bell className="w-3.5 h-3.5" />
-                        Call Forward
+                        Call now
                       </button>
                     </>
                   ) : (
@@ -921,13 +929,13 @@ export default function DashboardQueuePage() {
                           className="inline-flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs px-3.5 py-2 rounded-lg border border-amber-300 transition-all active:scale-[0.97]"
                         >
                           <Bell className="w-3.5 h-3.5 animate-bounce text-amber-600" />
-                          Recall (Buzz)
+                          {copy.recall}
                         </button>
                       ) : (
                         <button
                           onClick={() => handleUpdateStatus(token.id, 'call')}
-                          disabled={idx !== 0}
-                          title={idx !== 0 ? 'FIFO rule: Call earliest waiting party first' : 'Call guest forward'}
+                          disabled={token.id !== earliestWaitingId}
+                          title={token.id !== earliestWaitingId ? 'Call the person at the front of the line first' : 'Call this person'}
                           className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
                         >
                           <Bell className="w-3.5 h-3.5" />
@@ -941,7 +949,7 @@ export default function DashboardQueuePage() {
                           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
                         >
                           <MapPin className="h-3.5 w-3.5" />
-                          Mark arrived
+                          They're here
                         </button>
                       )}
 
@@ -958,7 +966,7 @@ export default function DashboardQueuePage() {
                           className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
                         >
                           {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
-                          {foodBusiness ? 'Seat Customer' : 'Complete Service'}
+                          {copy.finish}
                         </button>
                       )}
 
@@ -998,8 +1006,8 @@ export default function DashboardQueuePage() {
                   <UserPlus className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-gray-900">Add Walk-in Customer</h3>
-                  <p className="text-xs text-gray-400">Generate a queue token manually</p>
+                  <h3 className="font-bold text-base text-gray-900">{copy.addTitle}</h3>
+                  <p className="text-xs text-gray-400">{copy.addHint}</p>
                 </div>
               </div>
               <button
@@ -1012,19 +1020,19 @@ export default function DashboardQueuePage() {
 
             <form onSubmit={handleAddWalkin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Customer Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{copy.nameLabel}</label>
                 <input
                   type="text"
                   required
                   value={addForm.customerName}
                   onChange={(e) => setAddForm({ ...addForm, customerName: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow"
-                  placeholder="e.g. Vikram Singhania"
+                  placeholder={copy.namePlaceholder}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
                 <input
                   type="tel"
                   required
@@ -1036,7 +1044,7 @@ export default function DashboardQueuePage() {
               </div>
 
               {foodBusiness && <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Party Size</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">How many people</label>
                 <input
                   type="number"
                   min="1"
@@ -1050,15 +1058,15 @@ export default function DashboardQueuePage() {
 
               {queues.length > 1 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign to Queue / Counter</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{copy.assignLabel}</label>
                   <select
                     value={addForm.queueId || queue?.id || ''}
                     onChange={(e) => setAddForm({ ...addForm, queueId: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow bg-white"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition-shadow focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
                   >
                     {queues.map((q) => (
                       <option key={q.id} value={q.id}>
-                        {q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}
+                        {queueDisplayName(q, business?.type)}
                       </option>
                     ))}
                   </select>
@@ -1072,7 +1080,7 @@ export default function DashboardQueuePage() {
                   value={addForm.notes}
                   onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow"
-                  placeholder={foodBusiness ? 'e.g. Needs a high chair' : 'e.g. Arrived with a previous token'}
+                  placeholder={copy.notesPlaceholder}
                 />
               </div>
 
@@ -1084,12 +1092,12 @@ export default function DashboardQueuePage() {
                 {addingToken ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Generating Token…
+                    Adding…
                   </>
                 ) : (
                   <>
                     <Hash className="w-4 h-4" />
-                    Generate Queue Token
+                    {copy.generate}
                   </>
                 )}
               </button>
@@ -1107,8 +1115,8 @@ export default function DashboardQueuePage() {
                   <Clock className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-gray-900">Add New Queue / Counter</h3>
-                  <p className="text-xs text-gray-400">Configure an OPD, doctor desk, or service counter</p>
+                  <h3 className="font-bold text-base text-gray-900">{copy.addLineTitle}</h3>
+                  <p className="text-xs text-gray-400">{copy.addLineHint}</p>
                 </div>
               </div>
               <button
@@ -1121,41 +1129,45 @@ export default function DashboardQueuePage() {
 
             <form onSubmit={handleCreateQueue} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Queue Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{copy.lineName}</label>
                 <input
                   type="text"
                   required
                   value={newQueueForm.name}
                   onChange={(e) => setNewQueueForm({ ...newQueueForm, name: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
-                  placeholder="e.g. General OPD or Counter 2"
+                  placeholder={copy.lineNamePlaceholder}
                 />
               </div>
 
+              {copy.showStaff && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Doctor / Staff Name (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{copy.staffLabel}</label>
                 <input
                   type="text"
                   value={newQueueForm.doctorName}
                   onChange={(e) => setNewQueueForm({ ...newQueueForm, doctorName: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
-                  placeholder="e.g. Dr. Rajesh Rao"
+                  placeholder={copy.staffPlaceholder}
                 />
               </div>
+              )}
 
+              {copy.showDepartment && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department / Service (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{copy.departmentLabel}</label>
                 <input
                   type="text"
                   value={newQueueForm.department}
                   onChange={(e) => setNewQueueForm({ ...newQueueForm, department: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
-                  placeholder="e.g. Pediatrics or Hair Styling"
+                  placeholder={copy.departmentPlaceholder}
                 />
               </div>
+              )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Average Wait per Customer (minutes)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{copy.waitPerLabel}</label>
                 <input
                   type="number"
                   min="1"
@@ -1172,7 +1184,7 @@ export default function DashboardQueuePage() {
                 disabled={creatingQueue}
                 className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition shadow-md text-sm mt-2"
               >
-                {creatingQueue ? 'Creating Queue…' : 'Create Queue'}
+                {creatingQueue ? 'Adding…' : copy.addLine}
               </button>
             </form>
           </div>
@@ -1207,14 +1219,14 @@ export default function DashboardQueuePage() {
 
             {selectedTokenForSeat.orders && selectedTokenForSeat.orders.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                <span className="font-bold block mb-0.5">🍳 Active Pre-order Detected</span>
-                Assigning a table will automatically transfer their pre-order to that table on KDS and update the guest's tracker screen!
+                <span className="mb-0.5 block font-bold">They already ordered</span>
+                Seating them moves that order to the table in the kitchen.
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                Select Available Dining Table
+                Choose a table
               </label>
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
                 {tables.map((t) => (
@@ -1244,8 +1256,8 @@ export default function DashboardQueuePage() {
                 <Armchair className="w-4 h-4" />
                 <span>
                   {targetTableId
-                    ? `Seat at ${tables.find((t) => t.id === targetTableId)?.name || 'Selected Table'}`
-                    : 'Confirm Seating'}
+                    ? `Seat at ${tables.find((t) => t.id === targetTableId)?.name || 'this table'}`
+                    : 'Seat them'}
                 </span>
               </button>
 
@@ -1254,7 +1266,7 @@ export default function DashboardQueuePage() {
                 onClick={() => handleUpdateStatus(selectedTokenForSeat.id, 'seat')}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition-colors"
               >
-                Seat without specific table
+                Seat without choosing a table
               </button>
             </div>
           </div>
@@ -1272,14 +1284,14 @@ export default function DashboardQueuePage() {
             await handleUpdateStatus(id, 'cancel');
           }
         }}
-        title="Cancel Queue Token?"
+        title="Remove this number?"
         description={
           tokenToCancel
-            ? `Are you sure you want to cancel Token #${tokenToCancel.tokenNumber} for ${tokenToCancel.customerName}? They will be removed from the active queue.`
-            : 'Are you sure you want to cancel this queue token?'
+            ? `Remove #${tokenToCancel.tokenNumber} for ${tokenToCancel.customerName} from the line?`
+            : 'Remove this number from the line?'
         }
-        confirmLabel="Yes, Cancel Token"
-        cancelLabel="Keep in Queue"
+        confirmLabel="Remove"
+        cancelLabel="Keep them"
         variant="danger"
       />
     </section>

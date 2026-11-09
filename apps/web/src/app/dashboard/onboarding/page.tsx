@@ -109,7 +109,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           ...form,
           type: businessType,
-          counterCount: Math.min(Math.max(industryConfig.tablesCount || 1, 1), setupLimit),
+          counterCount: foodBusiness ? Math.min(Math.max(industryConfig.tablesCount || 1, 1), setupLimit) : 1,
           averageWaitMinutes: Math.min(Math.max(industryConfig.serviceDurationMin || 10, 1), 180),
         }),
       });
@@ -321,16 +321,15 @@ export default function OnboardingPage() {
               <p className="text-xs text-orange-700/80 mt-0.5">
                 {foodBusiness
                   ? `This opens one walk-in queue and ${Math.min(industryConfig.tablesCount || 1, setupLimit)} table QR codes.`
-                  : `This opens ${Math.min(industryConfig.tablesCount || 1, setupLimit)} queue${Math.min(industryConfig.tablesCount || 1, setupLimit) === 1 ? '' : 's'} with a ${industryConfig.serviceDurationMin || 10} minute average wait.`}
+                  : `This opens one live queue. Average wait is ${industryConfig.serviceDurationMin || 10} minutes.`}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid gap-3 ${foodBusiness ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {foodBusiness && (
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  {businessType === 'RESTAURANT' || businessType === 'CAFE'
-                    ? 'Total Tables'
-                    : 'Service Counters / Doctors'}
+                  Total Tables
                 </label>
                 <input
                   type="number"
@@ -343,6 +342,7 @@ export default function OnboardingPage() {
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">

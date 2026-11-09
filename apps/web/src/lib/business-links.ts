@@ -12,3 +12,7 @@ export function getBusinessPublicPath(slug: string, type?: string | null) {
 export function isFoodBusiness(type?: BusinessTypeValue | string | null) {
   return type === 'RESTAURANT' || type === 'CAFE';
 }
+
+export function isClinicalBusiness(type?: BusinessTypeValue | string | null) {
+  return type === 'CLINIC' || type === 'HOSPITAL' || type === 'DIAGNOSTIC_CENTRE';
+}

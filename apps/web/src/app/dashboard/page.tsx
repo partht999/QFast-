@@ -299,13 +299,15 @@ export default function DashboardPage() {
                 <Star className="w-3.5 h-3.5 text-yellow-500" />
                 <span>Google Reviews</span>
               </Link>
-              <Link
-                href="/dashboard/loyalty"
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-              >
-                <Gift className="w-3.5 h-3.5 text-pink-500" />
-                <span>Stamp card</span>
-              </Link>
+              {foodBusiness && (
+                <Link
+                  href="/dashboard/loyalty"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
+                >
+                  <Gift className="w-3.5 h-3.5 text-pink-500" />
+                  <span>Stamp card</span>
+                </Link>
+              )}
             </div>
 
             {/* Business Status & QR Standee Hero Card */}

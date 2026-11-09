@@ -32,12 +32,7 @@ export class BusinessService {
           : dto.type === BusinessType.DIAGNOSTIC_CENTRE
             ? 'Collection desk'
             : 'Service counter';
-    const queues = foodBusiness
-      ? [{ name: queueBase, averageWaitMinutes }]
-      : Array.from({ length: setupCount }, (_, index) => ({
-          name: setupCount === 1 ? queueBase : `${queueBase} ${index + 1}`,
-          averageWaitMinutes,
-        }));
+    const queues = [{ name: queueBase, averageWaitMinutes }];
 
     const business = await this.prisma.business.create({
       data: {

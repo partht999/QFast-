@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LoyaltyProgramType } from '@prisma/client';
+import { BusinessType, LoyaltyProgramType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateLoyaltyRewardDto } from './dto/create-loyalty-reward.dto';
 import { UpdateLoyaltyProgramDto } from './dto/update-loyalty-program.dto';
@@ -20,8 +20,8 @@ export class LoyaltyService {
       where: { slug },
       include: { loyaltyProgram: true },
     });
-    if (!business) throw new NotFoundException('Restaurant not found');
-    if (!business.loyaltyProgram) {
+    if (!business) throw new NotFoundException('Business not found');
+    if (!isRestaurant(business.type) || !business.loyaltyProgram) {
       return {
         hasProgram: false,
         businessName: business.name,
@@ -74,6 +74,7 @@ export class LoyaltyService {
       select: {
         id: true,
         name: true,
+        type: true,
         loyaltyProgram: {
           select: {
             type: true,
@@ -94,10 +95,14 @@ export class LoyaltyService {
         },
       },
     });
-    if (!business) throw new NotFoundException('Restaurant not found');
+    if (!business) throw new NotFoundException('Business not found');
+    if (!isRestaurant(business.type)) {
+      return { businessName: business.name, hasProgram: false, enabled: false, rewards: [] };
+    }
 
     return {
       businessName: business.name,
+      enabled: true,
       hasProgram: Boolean(business.loyaltyProgram),
       programType: business.loyaltyProgram?.type,
       pointsPerRupee: business.loyaltyProgram?.pointsPerRupee,
@@ -108,7 +113,7 @@ export class LoyaltyService {
   }
 
   async getProgram(businessId: string, userId: string, userRole?: string) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     let program = await this.prisma.loyaltyProgram.findUnique({
       where: { businessId },
       include: { rewards: { orderBy: { createdAt: 'desc' } }, tiers: true },
@@ -142,7 +147,7 @@ export class LoyaltyService {
     userRole: string | undefined,
     data: UpdateLoyaltyProgramDto,
   ) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const stampsForReward = data.stampsForReward ?? 8;
     const rewardName = data.rewardName?.trim() || 'Free visit';
     const useStamps = !data.type || data.type === LoyaltyProgramType.VISIT_STAMPS || data.stampsForReward != null;
@@ -191,7 +196,7 @@ export class LoyaltyService {
   }
 
   async addStamp(businessId: string, userId: string, userRole: string | undefined, phone: string, name?: string) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const account = await this.awardVisit({
       businessId,
       phone,
@@ -203,7 +208,7 @@ export class LoyaltyService {
   }
 
   async redeemStamp(businessId: string, userId: string, userRole: string | undefined, phone: string) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const program = await this.prisma.loyaltyProgram.findUnique({
       where: { businessId },
       include: { rewards: { where: { isActive: true }, orderBy: { createdAt: 'asc' }, take: 1 } },
@@ -248,6 +253,11 @@ export class LoyaltyService {
   }) {
     const phone = normalizePhone(input.phone);
     if (!phone) return null;
+    const business = await this.prisma.business.findUnique({
+      where: { id: input.businessId },
+      select: { type: true },
+    });
+    if (!business || !isRestaurant(business.type)) return null;
     const program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId: input.businessId } });
     if (!program || program.type !== LoyaltyProgramType.VISIT_STAMPS) return null;
 
@@ -294,7 +304,7 @@ export class LoyaltyService {
     userRole: string | undefined,
     data: CreateLoyaltyRewardDto,
   ) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId } });
     if (!program) throw new NotFoundException('Loyalty program not found');
 
@@ -316,7 +326,7 @@ export class LoyaltyService {
     userRole: string | undefined,
     data: UpdateLoyaltyRewardDto,
   ) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const result = await this.prisma.loyaltyReward.updateMany({
       where: { id: rewardId, program: { businessId } },
       data: { isActive: data.isActive },
@@ -331,12 +341,23 @@ export class LoyaltyService {
     userId: string,
     userRole?: string,
   ) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole);
     const result = await this.prisma.loyaltyReward.deleteMany({
       where: { id: rewardId, program: { businessId } },
     });
     if (!result.count) throw new NotFoundException('Loyalty reward not found');
     return { deleted: true };
+  }
+
+  private async assertRestaurantAccess(businessId: string, userId: string, userRole?: string) {
+    await this.assertBusinessAccess(businessId, userId, userRole);
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { type: true },
+    });
+    if (!business || !isRestaurant(business.type)) {
+      throw new BadRequestException('Stamp cards are only for restaurants and cafes.');
+    }
   }
 
   private async assertBusinessAccess(
@@ -355,4 +376,8 @@ export class LoyaltyService {
 
 function normalizePhone(phone?: string | null) {
   return (phone || '').replace(/[^\d+]/g, '');
+}
+
+function isRestaurant(type?: BusinessType | null) {
+  return type === BusinessType.RESTAURANT || type === BusinessType.CAFE;
 }

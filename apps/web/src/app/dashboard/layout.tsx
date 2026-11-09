@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const visibleNavigation = !businessType
     ? navigation.filter((item) => ['/dashboard', '/dashboard/queue'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/loyalty'].includes(item.href))
+      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews'].includes(item.href))
       : navigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);

@@ -209,7 +209,7 @@ export default function HomePage() {
           <p className="text-xs font-black uppercase tracking-widest text-orange-600">Advanced plan</p>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">The full workspace is open, and it is free to use right now.</h2>
           <p className="mt-4 text-slate-600 leading-7">
-            Every new business is placed on the Advanced plan. That includes multiple counters, the live queue, table ordering and the kitchen for restaurants, loyalty, and reviews. There is no charge while this early access lasts.
+            Every new business is placed on the Advanced plan, and it is free to use right now. Restaurants get one walk-in queue, tables, and a stamp card. Clinics and hospitals get one queue, and a completed visit asks for a Google review.
           </p>
           <Link href="/auth/register" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
             Get started <ArrowRight className="h-4 w-4" />

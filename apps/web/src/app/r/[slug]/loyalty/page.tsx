@@ -27,6 +27,7 @@ export default function CustomerLoyaltyPage() {
   const [goal, setGoal] = useState(8);
   const [rewardName, setRewardName] = useState('Free visit');
   const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function CustomerLoyaltyPage() {
       .then((data) => {
         if (!data) return;
         setBusinessName(data.businessName || '');
+        setAvailable(data.enabled !== false);
         setGoal(data.stampsForReward || 8);
         setRewardName(data.rewardName || 'Free visit');
       })
@@ -77,6 +79,12 @@ export default function CustomerLoyaltyPage() {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Link>
+        {!available ? (
+          <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-black">No stamp card here</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Stamp cards are for restaurants. After a clinic or service visit, you are asked for a Google review instead.</p>
+          </section>
+        ) : (
         <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-orange-700">{card?.businessName || businessName || 'Stamp card'}</p>
           <h1 className="mt-1 text-3xl font-black">Collect {target} stamps</h1>
@@ -113,6 +121,7 @@ export default function CustomerLoyaltyPage() {
           </form>
           {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
         </section>
+        )}
       </div>
     </main>
   );

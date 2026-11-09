@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gift } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { isFoodBusiness } from '@/lib/business-links';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 
@@ -14,6 +15,7 @@ export default function LoyaltyManagementPage() {
   const [phone, setPhone] = useState('');
   const [guest, setGuest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [restaurantOnly, setRestaurantOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [working, setWorking] = useState(false);
   const router = useRouter();
@@ -38,6 +40,10 @@ export default function LoyaltyManagementPage() {
         const current = Array.isArray(businesses) ? businesses[0] : null;
         if (!current) return;
         setBusiness(current);
+        if (!isFoodBusiness(current.type)) {
+          setRestaurantOnly(true);
+          return;
+        }
         const programResponse = await fetch(`${apiUrl}/api/v1/loyalty/program/${current.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -117,6 +123,14 @@ export default function LoyaltyManagementPage() {
 
   if (loading) {
     return <p className="p-6 text-sm text-slate-500">Loading stamp card…</p>;
+  }
+
+  if (restaurantOnly) {
+    return (
+      <p className="p-6 text-sm text-slate-600">
+        Stamp cards are only for restaurants and cafes. Clinics and hospitals ask for a Google review when the visit is complete.
+      </p>
+    );
   }
 
   const goal = guest?.stampsForReward || stampsForReward;
