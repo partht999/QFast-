@@ -3,8 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { BrandMark } from './brand-mark';
 
 const links = [
-  { label: 'Find a queue', href: '/' },
-  { label: 'For business', href: '/for-business' },
+  { label: 'How it works', href: '/#how-it-works' },
   { label: 'Industries', href: '/industries' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'About', href: '/about' },
@@ -29,10 +28,10 @@ export function MarketingHeader() {
             Log in
           </Link>
           <Link
-            href="/auth/register"
+            href="/auth/register?plan=pro"
             className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3.5 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-200 transition hover:bg-orange-600 sm:px-4 sm:text-sm"
           >
-            Get started free <ArrowRight className="h-4 w-4" />
+            Try Pro free <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>

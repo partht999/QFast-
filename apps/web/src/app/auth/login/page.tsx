@@ -113,15 +113,9 @@ export default function LoginPage() {
 
           <div className="mt-8 border-t border-slate-100 pt-6 text-center text-xs text-slate-500">
             Don&apos;t have an account yet?{' '}
-            <Link href="/auth/register" className="font-bold text-orange-600 hover:underline">
-              Start 14-day free trial
+            <Link href="/auth/register?plan=free" className="font-bold text-orange-600 hover:underline">
+              Create a free workspace
             </Link>
-            <p className="mt-3">
-              Looking for a place in line?{' '}
-              <Link href="/" className="font-bold text-slate-700 hover:text-orange-600">
-                Find a queue
-              </Link>
-            </p>
           </div>
         </div>
       </div>

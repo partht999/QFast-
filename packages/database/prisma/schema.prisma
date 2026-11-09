@@ -45,6 +45,7 @@ enum SubscriptionStatus {
 }
 
 enum PlanTier {
+  FREE
   ESSENTIAL
   ADVANCED
 }

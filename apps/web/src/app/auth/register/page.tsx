@@ -7,20 +7,25 @@ import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
+import { isPlanId, PLANS, PlanId } from '@/lib/plans';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', confirm: '' });
   const [businessType, setBusinessType] = useState<BusinessTypeValue>('RESTAURANT');
+  const [plan, setPlan] = useState<PlanId>('free');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const requestedType = new URLSearchParams(window.location.search).get('type');
+    const params = new URLSearchParams(window.location.search);
+    const requestedType = params.get('type');
     if (AVAILABLE_BUSINESS_TYPES.includes(requestedType as BusinessTypeValue)) {
       setBusinessType(requestedType as BusinessTypeValue);
     }
+    const requestedPlan = params.get('plan');
+    if (isPlanId(requestedPlan)) setPlan(requestedPlan);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,6 +65,7 @@ export default function RegisterPage() {
       localStorage.setItem('refreshToken', data.refreshToken);
       localStorage.setItem('userEmail', form.email);
       localStorage.setItem('qfast_business_type', businessType);
+      localStorage.setItem('qfast_plan', plan);
       router.push('/dashboard/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -71,16 +77,39 @@ export default function RegisterPage() {
   return (
     <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <BrandMark href="/for-business" tone="light" size="lg" label="Qfast for business" />
-        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Start your 14-day free trial</h1>
+        <BrandMark href="/" tone="light" size="lg" label="Qfast home" />
+        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">
+          {plan === 'pro' ? 'Try Pro free for a month' : plan === 'plus' ? 'Start on Plus' : 'Create your free workspace'}
+        </h1>
         <p className="mt-2 text-sm text-slate-400">
-          No credit card required. Configure your business and launch your first live queue in 2 minutes.
+          {plan === 'pro'
+            ? 'Pro is free for 30 days, then ₹3,999/month. If you do not stay on Pro, the workspace returns to Free.'
+            : 'Set up your business and open a live queue. No card is required for the Free plan.'}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <fieldset>
+              <legend className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Plan</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {PLANS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPlan(item.id)}
+                    className={`rounded-xl border px-2 py-3 text-left transition ${
+                      plan === item.id ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="block text-sm font-black text-slate-900">{item.name}</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-500">{item.price}{item.id === 'free' ? '' : item.period}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
             <div>
               <label htmlFor="business-type" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Select your industry
@@ -182,12 +211,6 @@ export default function RegisterPage() {
             <Link href="/auth/login" className="font-bold text-orange-600 hover:underline">
               Sign in
             </Link>
-            <p className="mt-3">
-              Looking for a place in line?{' '}
-              <Link href="/" className="font-bold text-slate-700 hover:text-orange-600">
-                Find a queue
-              </Link>
-            </p>
           </div>
         </div>
       </div>

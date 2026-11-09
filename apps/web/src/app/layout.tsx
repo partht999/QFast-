@@ -17,11 +17,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'Qfast — Live queues for every service business',
+    default: 'Qfast — A clear queue for every service business',
     template: '%s | Qfast',
   },
   description:
-    'Find a live queue or run one. Clinics, salons, diagnostic labs, service centres, and restaurants share one waitlist, QR check-in, and staff board.',
+    'Give customers a place in line and give your team one board to call the next person. Free to start. Pro is free for the first month.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

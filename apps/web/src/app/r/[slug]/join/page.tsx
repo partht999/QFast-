@@ -714,9 +714,7 @@ export default function JoinQueuePage() {
       <footer className="py-5 text-center text-[11px] text-neutral-400 font-medium">
         <span className="inline-flex items-center gap-1.5">
           <Sparkles className="w-3 h-3 text-orange-400" />
-          <Link href="/" className="font-bold text-neutral-500 hover:text-orange-600">Find another queue</Link>
-          <span aria-hidden="true">·</span>
-          No app install required
+          Powered by Qfast · No app install required
         </span>
       </footer>
 

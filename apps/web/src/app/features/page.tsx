@@ -77,10 +77,10 @@ export default function FeaturesPage() {
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Link
-              href="/auth/register"
+              href="/auth/register?plan=pro"
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-orange-200 hover:bg-orange-600"
             >
-              Start 14-day free trial <ArrowRight className="h-4 w-4" />
+              Try Pro free for a month <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
