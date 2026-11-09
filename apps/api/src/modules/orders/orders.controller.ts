@@ -42,6 +42,14 @@ export class OrdersController {
     return this.ordersService.getActiveOrders(businessId);
   }
 
+  @Get('recent-completed/:businessId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get recently completed orders for KDS ticket recall' })
+  async getRecentCompletedOrders(@Param('businessId') businessId: string) {
+    return this.ordersService.getRecentCompletedOrders(businessId);
+  }
+
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

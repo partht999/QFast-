@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -27,6 +28,12 @@ export class QueueController {
   @ApiOperation({ summary: 'Get current queue status by restaurant slug' })
   async getStatus(@Param('slug') slug: string) {
     return this.queueService.getStatusBySlug(slug);
+  }
+
+  @Get('public/:slug/queues')
+  @ApiOperation({ summary: 'Get all active queues for doctor/service selection' })
+  async getPublicQueues(@Param('slug') slug: string) {
+    return this.queueService.getPublicQueues(slug);
   }
 
   @Post('public/:slug/join')
@@ -63,8 +70,77 @@ export class QueueController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all queue tokens for business management' })
-  async getBusinessTokens(@Param('businessId') businessId: string, @Req() req: any) {
-    return this.queueService.getBusinessTokens(businessId, req.user.sub, req.user.role);
+  async getBusinessTokens(
+    @Param('businessId') businessId: string,
+    @Query('queueId') queueId: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.queueService.getBusinessTokens(businessId, req.user.sub, req.user.role, queueId);
+  }
+
+  @Get('manage/:businessId/queues')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all queues configured for this provider' })
+  async getBusinessQueues(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.queueService.getQueuesForBusiness(businessId, req.user.sub, req.user.role);
+  }
+
+  @Post('manage/:businessId/queues')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new queue (e.g. Doctor, Department, Counter)' })
+  async createQueue(
+    @Param('businessId') businessId: string,
+    @Body()
+    dto: {
+      name: string;
+      department?: string;
+      doctorName?: string;
+      serviceName?: string;
+      averageWaitMinutes?: number;
+      arrivalGraceMinutes?: number;
+    },
+    @Req() req: any,
+  ) {
+    return this.queueService.createQueue(businessId, dto, req.user.sub, req.user.role);
+  }
+
+  @Patch('manage/queue/:queueId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update queue configuration' })
+  async updateQueue(
+    @Param('queueId') queueId: string,
+    @Body()
+    dto: {
+      name?: string;
+      department?: string;
+      doctorName?: string;
+      serviceName?: string;
+      averageWaitMinutes?: number;
+      arrivalGraceMinutes?: number;
+      remoteJoinEnabled?: boolean;
+    },
+    @Req() req: any,
+  ) {
+    return this.queueService.updateQueue(queueId, dto, req.user.sub, req.user.role);
+  }
+
+  @Patch('manage/queue/:queueId/pause')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle queue paused state' })
+  async toggleQueuePaused(@Param('queueId') queueId: string, @Req() req: any) {
+    return this.queueService.toggleQueuePaused(queueId, req.user.sub, req.user.role);
+  }
+
+  @Patch('manage/queue/:queueId/archive')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle queue archived state' })
+  async toggleQueueArchived(@Param('queueId') queueId: string, @Req() req: any) {
+    return this.queueService.toggleQueueArchived(queueId, req.user.sub, req.user.role);
   }
 
   @Post('manage/:businessId/walk-in')
@@ -85,6 +161,14 @@ export class QueueController {
   @ApiOperation({ summary: 'Call the guest forward' })
   async callToken(@Param('tokenId') tokenId: string, @Req() req: any) {
     return this.queueService.updateTokenStatus(tokenId, QueueTokenStatus.CALLED, req.user.sub, req.user.role);
+  }
+
+  @Patch('manage/token/:tokenId/restore')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Restore a skipped or cancelled token back to waiting queue' })
+  async restoreToken(@Param('tokenId') tokenId: string, @Req() req: any) {
+    return this.queueService.updateTokenStatus(tokenId, QueueTokenStatus.WAITING, req.user.sub, req.user.role);
   }
 
   @Patch('manage/token/:tokenId/arrive')

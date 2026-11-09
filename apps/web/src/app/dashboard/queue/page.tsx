@@ -36,21 +36,33 @@ import { EmptyState } from '@/components/ui/empty-state';
 export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [queues, setQueues] = useState<any[]>([]);
+  const [selectedQueueId, setSelectedQueueId] = useState<string>('');
   const [queue, setQueue] = useState<any>(null);
   const [tables, setTables] = useState<any[]>([]);
   const [selectedTokenForSeat, setSelectedTokenForSeat] = useState<any | null>(null);
   const [targetTableId, setTargetTableId] = useState<string>('');
   const [tokenToCancel, setTokenToCancel] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'WAITING' | 'CALLED' | 'PREORDER' | 'REMOTE'>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'WAITING' | 'CALLED' | 'PREORDER' | 'REMOTE' | 'SKIPPED'>('ALL');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCreateQueueModal, setShowCreateQueueModal] = useState(false);
+  const [newQueueForm, setNewQueueForm] = useState({
+    name: '',
+    department: '',
+    doctorName: '',
+    serviceName: '',
+    averageWaitMinutes: 10,
+  });
+  const [creatingQueue, setCreatingQueue] = useState(false);
   const [addForm, setAddForm] = useState({
     customerName: '',
     customerPhone: '',
     partySize: 2,
     notes: '',
+    queueId: '',
   });
   const [addingToken, setAddingToken] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -83,8 +95,9 @@ export default function DashboardQueuePage() {
         const curBiz = bizList[0];
         setBusiness(curBiz);
 
+        const qParam = selectedQueueId ? `?queueId=${selectedQueueId}` : '';
         const [qRes, tablesRes] = await Promise.all([
-          fetch(`${apiUrl}/api/v1/queue/manage/${curBiz.id}`, {
+          fetch(`${apiUrl}/api/v1/queue/manage/${curBiz.id}${qParam}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
           fetch(`${apiUrl}/api/v1/tables/${curBiz.id}`, {
@@ -94,6 +107,7 @@ export default function DashboardQueuePage() {
 
         if (qRes.ok) {
           const qData = await qRes.json();
+          setQueues(qData.queues || []);
           setQueue(qData.queue);
           if (qData.queue && !settingsDirty) {
             setSettingsForm({
@@ -199,13 +213,34 @@ export default function DashboardQueuePage() {
     }
   };
 
+  const playChime = () => {
+    if (!soundEnabled || typeof window === 'undefined') return;
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  };
+
   const handleUpdateStatus = async (
     tokenId: string,
-    action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel',
+    action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel' | 'restore',
     tableId?: string,
   ) => {
     const token = localStorage.getItem('accessToken');
     try {
+      if (action === 'call') {
+        playChime();
+      }
       const response = await fetch(`${apiUrl}/api/v1/queue/manage/token/${tokenId}/${action}`, {
         method: 'PATCH',
         headers: {
@@ -227,8 +262,9 @@ export default function DashboardQueuePage() {
         call: 'Customer called forward',
         seat: 'Customer seated at dining table',
         complete: 'Service visit marked completed',
-        skip: 'Customer skipped to later position',
+        skip: 'Customer moved to skipped list',
         cancel: 'Queue entry cancelled',
+        restore: 'Customer restored to active queue',
       };
       toast.success(actionLabels[action] || 'Queue updated successfully');
       await fetchData();
@@ -277,13 +313,48 @@ export default function DashboardQueuePage() {
       }
 
       setShowAddModal(false);
-      setAddForm({ customerName: '', customerPhone: '', partySize: 2, notes: '' });
+      setAddForm({ customerName: '', customerPhone: '', partySize: 2, notes: '', queueId: '' });
       setActionError('');
       fetchData();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not add walk-in guest');
     } finally {
       setAddingToken(false);
+    }
+  };
+
+  const handleCreateQueue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!business || !newQueueForm.name.trim()) return;
+    setCreatingQueue(true);
+
+    try {
+      const authToken = localStorage.getItem('accessToken');
+      const response = await fetch(`${apiUrl}/api/v1/queue/manage/${business.id}/queues`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(newQueueForm),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.message || 'Could not create queue');
+      }
+
+      const created = await response.json();
+      toast.success('Queue Created', `Queue "${created.name}" is now live!`);
+      setShowCreateQueueModal(false);
+      setNewQueueForm({ name: '', department: '', doctorName: '', serviceName: '', averageWaitMinutes: 10 });
+      setSelectedQueueId(created.id);
+      fetchData();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not create queue';
+      setActionError(msg);
+      toast.error('Failed to create queue', msg);
+    } finally {
+      setCreatingQueue(false);
     }
   };
 
@@ -296,15 +367,20 @@ export default function DashboardQueuePage() {
   }
 
   const waitingTokens = tokens.filter((t) => t.status === 'WAITING' || t.status === 'CALLED');
+  const skippedTokens = tokens.filter((t) => t.status === 'SKIPPED' || t.status === 'CANCELLED');
   const foodBusiness = isFoodBusiness(business?.type);
   const servedTokens = tokens.filter((t) => t.status === (foodBusiness ? 'SEATED' : 'COMPLETED'));
   const estimatedQueueWait = waitingTokens.length * (queue?.averageWaitMinutes || 8);
+
+  const currentServingToken = waitingTokens.find((t) => t.status === 'CALLED') || null;
+  const nextInLineToken = waitingTokens.find((t) => t.status === 'WAITING') || null;
 
   const calledCount = waitingTokens.filter((t) => t.status === 'CALLED').length;
   const preorderCount = waitingTokens.filter((t) => t.orders && t.orders.length > 0).length;
   const remoteCount = waitingTokens.filter((t) => t.source === 'REMOTE').length;
 
-  const filteredTokens = waitingTokens.filter((token) => {
+  const baseTokens = activeFilter === 'SKIPPED' ? skippedTokens : waitingTokens;
+  const filteredTokens = baseTokens.filter((token) => {
     if (activeFilter === 'CALLED' && token.status !== 'CALLED') return false;
     if (activeFilter === 'WAITING' && token.status !== 'WAITING') return false;
     if (activeFilter === 'REMOTE' && token.source !== 'REMOTE') return false;
@@ -338,6 +414,48 @@ export default function DashboardQueuePage() {
           Add Walk-in Customer
         </button>
       </div>
+
+      {/* Multi-Queue Department / Doctor Tabs */}
+      {queues.length > 0 && (
+        <div className="flex items-center justify-between gap-3 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex items-center gap-2">
+            {queues.map((q) => {
+              const isSelected = selectedQueueId === q.id || (!selectedQueueId && queue?.id === q.id);
+              return (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedQueueId(q.id);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-neutral-900 text-white shadow-sm'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}</span>
+                  {q.department && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      isSelected ? 'bg-neutral-700 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {q.department}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCreateQueueModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 whitespace-nowrap flex-shrink-0"
+          >
+            <span>+ Add Counter / Doctor Queue</span>
+          </button>
+        </div>
+      )}
 
       {/* Status Bar */}
       <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -487,6 +605,109 @@ export default function DashboardQueuePage() {
         </div>
       </div>
 
+      {/* ── Dominant Counter Operations Panel (Now Serving & Call Next) ── */}
+      <div className="rounded-3xl border-2 border-orange-400/90 bg-gradient-to-br from-orange-50/70 via-white to-amber-50/60 p-6 shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md ${
+              currentServingToken ? 'bg-orange-500 animate-pulse' : 'bg-neutral-800'
+            }`}>
+              {currentServingToken ? `#${currentServingToken.tokenNumber}` : '—'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
+                  {currentServingToken ? 'Now Called / Serving' : 'Counter Ready'}
+                </span>
+                {currentServingToken?.source === 'REMOTE' && (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    Remote Guest
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xl font-black text-neutral-900 mt-1">
+                {currentServingToken
+                  ? currentServingToken.customerName
+                  : nextInLineToken
+                  ? `Next in line: #${nextInLineToken.tokenNumber} ${nextInLineToken.customerName}`
+                  : 'No customers currently waiting'}
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-2">
+                {currentServingToken ? (
+                  <>
+                    <span>Phone: {currentServingToken.customerPhone}</span>
+                    <span>•</span>
+                    <span>Party: {currentServingToken.partySize}</span>
+                    {currentServingToken.doctorName && (
+                      <>
+                        <span>•</span>
+                        <span className="font-semibold text-neutral-700">{currentServingToken.doctorName}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <span>Ready to call the next customer in FIFO order</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Counter Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {currentServingToken ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus(currentServingToken.id, 'call')}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-98"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>Buzz Recall</span>
+                </button>
+
+                {foodBusiness ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTokenForSeat(currentServingToken)}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
+                  >
+                    <Armchair className="w-4 h-4" />
+                    <span>Seat at Table</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus(currentServingToken.id, 'complete')}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition active:scale-98"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Complete Visit</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus(currentServingToken.id, 'skip')}
+                  className="px-3.5 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs transition"
+                >
+                  <SkipForward className="w-3.5 h-3.5" />
+                  <span>Skip</span>
+                </button>
+              </>
+            ) : nextInLineToken ? (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(nextInLineToken.id, 'call')}
+                className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-md flex items-center gap-2 transition active:scale-98"
+              >
+                <Bell className="w-4 h-4" />
+                <span>Call Next Customer (#{nextInLineToken.tokenNumber})</span>
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       {/* Live Waiting List Card */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
@@ -541,6 +762,7 @@ export default function DashboardQueuePage() {
               { id: 'CALLED', label: `Called (${calledCount})` },
               { id: 'PREORDER', label: `Pre-ordered (${preorderCount})` },
               { id: 'REMOTE', label: `Remote (${remoteCount})` },
+              { id: 'SKIPPED', label: `Skipped (${skippedTokens.length})` },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -558,16 +780,24 @@ export default function DashboardQueuePage() {
           </div>
         </div>
 
-        {waitingTokens.length === 0 ? (
-          <EmptyState
-            emoji="🎉"
-            title="No customers currently waiting"
-            description="Your dining queue is completely clear. New walk-ins and remote guest entries will appear here in real time."
-            tip="Guests can scan your Entrance QR code at the door to get their digital queue token."
-            actionLabel="Add Walk-in Party"
-            onAction={() => setShowAddModal(true)}
-            className="py-12"
-          />
+        {baseTokens.length === 0 ? (
+          activeFilter === 'SKIPPED' ? (
+            <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+              <Check className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-xs font-bold text-gray-700">No skipped or cancelled parties</p>
+              <p className="text-xs text-gray-400 mt-0.5">Guests who are skipped or cancelled will appear here if you need to restore or call them.</p>
+            </div>
+          ) : (
+            <EmptyState
+              emoji="🎉"
+              title="No customers currently waiting"
+              description="Your dining queue is completely clear. New walk-ins and remote guest entries will appear here in real time."
+              tip="Guests can scan your Entrance QR code at the door to get their digital queue token."
+              actionLabel="Add Walk-in Party"
+              onAction={() => setShowAddModal(true)}
+              className="py-12"
+            />
+          )
         ) : filteredTokens.length === 0 ? (
           <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
             <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -660,54 +890,96 @@ export default function DashboardQueuePage() {
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
-                  <button
-                    onClick={() => handleUpdateStatus(token.id, 'call')}
-                    disabled={idx !== 0 || token.status !== 'WAITING'}
-                    title={idx !== 0 ? 'FIFO rule: Call earliest waiting party first' : 'Call guest forward'}
-                    className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
-                  >
-                    <Bell className="w-3.5 h-3.5" />
-                    Call
-                  </button>
-                  {token.source === 'REMOTE' && token.status === 'CALLED' && !token.arrivedAt && (
-                    <button
-                      onClick={() => handleArrive(token.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
-                    >
-                      <MapPin className="h-3.5 w-3.5" />
-                      Mark arrived
-                    </button>
+                  {/* Skipped or Cancelled token restoration */}
+                  {token.status === 'SKIPPED' || token.status === 'CANCELLED' ? (
+                    <>
+                      <button
+                        onClick={() => handleUpdateStatus(token.id, 'restore')}
+                        className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3.5 py-2 rounded-lg border border-blue-200 transition-all active:scale-[0.97]"
+                        title="Restore customer back to waiting line"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Restore to Waiting
+                      </button>
+                      <button
+                        onClick={() => handleUpdateStatus(token.id, 'call')}
+                        className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all shadow-xs active:scale-[0.97]"
+                        title="Call guest forward now"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        Call Forward
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* WAITING or CALLED tokens */}
+                      {token.status === 'CALLED' ? (
+                        <button
+                          onClick={() => handleUpdateStatus(token.id, 'call')}
+                          title="Buzz / Alert customer again"
+                          className="inline-flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs px-3.5 py-2 rounded-lg border border-amber-300 transition-all active:scale-[0.97]"
+                        >
+                          <Bell className="w-3.5 h-3.5 animate-bounce text-amber-600" />
+                          Recall (Buzz)
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleUpdateStatus(token.id, 'call')}
+                          disabled={idx !== 0}
+                          title={idx !== 0 ? 'FIFO rule: Call earliest waiting party first' : 'Call guest forward'}
+                          className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-700 font-semibold text-xs px-3.5 py-2 rounded-lg border border-amber-200 transition-all active:scale-[0.97]"
+                        >
+                          <Bell className="w-3.5 h-3.5" />
+                          Call
+                        </button>
+                      )}
+
+                      {token.source === 'REMOTE' && token.status === 'CALLED' && !token.arrivedAt && (
+                        <button
+                          onClick={() => handleArrive(token.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
+                        >
+                          <MapPin className="h-3.5 w-3.5" />
+                          Mark arrived
+                        </button>
+                      )}
+
+                      {token.status === 'CALLED' && (
+                        <button
+                          onClick={() => {
+                            if (foodBusiness && tables.length > 0) {
+                              setSelectedTokenForSeat(token);
+                              setTargetTableId(tables[0]?.id || '');
+                            } else {
+                              handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete');
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
+                        >
+                          {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
+                          {foodBusiness ? 'Seat Customer' : 'Complete Service'}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleUpdateStatus(token.id, 'skip')}
+                        className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs px-2.5 py-2 rounded-lg transition-all"
+                        title="Temporarily skip guest"
+                      >
+                        <SkipForward className="w-3.5 h-3.5" />
+                        Skip
+                      </button>
+
+                      <button
+                        onClick={() => setTokenToCancel(token)}
+                        className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 hover:bg-red-50 text-xs px-2.5 py-2 rounded-lg transition-all"
+                        title="Cancel token"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Cancel
+                      </button>
+                    </>
                   )}
-                  {token.status === 'CALLED' && (
-                    <button
-                      onClick={() => {
-                        if (foodBusiness && tables.length > 0) {
-                          setSelectedTokenForSeat(token);
-                          setTargetTableId(tables[0]?.id || '');
-                        } else {
-                          handleUpdateStatus(token.id, foodBusiness ? 'seat' : 'complete');
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition-all shadow-sm active:scale-[0.97]"
-                    >
-                      {foodBusiness && <Armchair className="w-3.5 h-3.5" />}
-                      {foodBusiness ? 'Seat Customer' : 'Complete Service'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleUpdateStatus(token.id, 'skip')}
-                    className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs px-2.5 py-2 rounded-lg transition-all"
-                  >
-                    <SkipForward className="w-3.5 h-3.5" />
-                    Skip
-                  </button>
-                  <button
-                    onClick={() => setTokenToCancel(token)}
-                    className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 hover:bg-red-50 text-xs px-2.5 py-2 rounded-lg transition-all"
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                    Cancel
-                  </button>
                 </div>
               </article>
             ))}
@@ -775,6 +1047,23 @@ export default function DashboardQueuePage() {
                 />
               </div>}
 
+              {queues.length > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign to Queue / Counter</label>
+                  <select
+                    value={addForm.queueId || queue?.id || ''}
+                    onChange={(e) => setAddForm({ ...addForm, queueId: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none transition-shadow bg-white"
+                  >
+                    {queues.map((q) => (
+                      <option key={q.id} value={q.id}>
+                        {q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes (Optional)</label>
                 <input
@@ -807,6 +1096,88 @@ export default function DashboardQueuePage() {
           </div>
         </div>
       )}
+      {/* Create New Queue / Counter Modal */}
+      {showCreateQueueModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900">Add New Queue / Counter</h3>
+                  <p className="text-xs text-gray-400">Configure an OPD, doctor desk, or service counter</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateQueueModal(false)}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateQueue} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Queue Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newQueueForm.name}
+                  onChange={(e) => setNewQueueForm({ ...newQueueForm, name: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
+                  placeholder="e.g. General OPD or Counter 2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Doctor / Staff Name (Optional)</label>
+                <input
+                  type="text"
+                  value={newQueueForm.doctorName}
+                  onChange={(e) => setNewQueueForm({ ...newQueueForm, doctorName: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
+                  placeholder="e.g. Dr. Rajesh Rao"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department / Service (Optional)</label>
+                <input
+                  type="text"
+                  value={newQueueForm.department}
+                  onChange={(e) => setNewQueueForm({ ...newQueueForm, department: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
+                  placeholder="e.g. Pediatrics or Hair Styling"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Average Wait per Customer (minutes)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  required
+                  value={newQueueForm.averageWaitMinutes}
+                  onChange={(e) => setNewQueueForm({ ...newQueueForm, averageWaitMinutes: Number(e.target.value) })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={creatingQueue}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition shadow-md text-sm mt-2"
+              >
+                {creatingQueue ? 'Creating Queue…' : 'Create Queue'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Table Assignment Modal for Seating */}
       {selectedTokenForSeat && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">

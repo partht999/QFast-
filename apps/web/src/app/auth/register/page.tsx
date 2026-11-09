@@ -45,8 +45,15 @@ export default function RegisterPage() {
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
 
+      if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error('This email is already registered. Please sign in instead.');
+        }
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Registration failed. Please try again.');
+      }
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Registration failed');
 
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);

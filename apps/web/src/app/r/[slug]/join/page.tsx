@@ -18,15 +18,22 @@ import {
   UtensilsCrossed,
   UserRound,
   Gift,
+  ArrowRight,
+  Stethoscope,
+  Scissors,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function JoinQueuePage() {
   const params = useParams();
   const slug = params?.slug as string;
 
   const [queueStatus, setQueueStatus] = useState<any>(null);
+  const [queues, setQueues] = useState<any[]>([]);
+  const [selectedQueueId, setSelectedQueueId] = useState<string>('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [form, setForm] = useState({
     customerName: '',
     customerPhone: '',
@@ -49,10 +56,21 @@ export default function JoinQueuePage() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/queue/public/${slug}/status`);
+      const [res, qRes] = await Promise.all([
+        fetch(`${apiUrl}/api/v1/queue/public/${slug}/status`),
+        fetch(`${apiUrl}/api/v1/queue/public/${slug}/queues`),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setQueueStatus(data);
+      }
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        setQueues(qData || []);
+        if (qData.length > 0 && !selectedQueueId) {
+          const firstOpen = qData.find((q: any) => q.isOpen && !q.isPaused) || qData[0];
+          setSelectedQueueId(firstOpen?.id || '');
+        }
       }
     } catch (err) {
       console.error(err);
@@ -176,7 +194,11 @@ export default function JoinQueuePage() {
       const res = await fetch(`${apiUrl}/api/v1/queue/public/${slug}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, source: joinSource }),
+        body: JSON.stringify({
+          ...form,
+          queueId: selectedQueueId || undefined,
+          source: joinSource,
+        }),
       });
 
       const data = await res.json();
@@ -194,14 +216,13 @@ export default function JoinQueuePage() {
 
   const handleCancelToken = async () => {
     if (!activeToken) return;
-    if (!confirm('Are you sure you want to leave the queue?')) return;
-
     try {
       await fetch(`${apiUrl}/api/v1/queue/public/token/${activeToken.id}/cancel`, {
         method: 'POST',
       });
       localStorage.removeItem(`qfast_token_${slug}`);
       setActiveToken(null);
+      setShowCancelModal(false);
       fetchStatus();
     } catch (err) {
       console.error(err);
@@ -365,6 +386,40 @@ export default function JoinQueuePage() {
                 </div>
               )}
 
+              {/* 4-Step Progress Stepper */}
+              <div className="relative z-10 pt-1 pb-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  {[
+                    { step: 1, label: 'Waiting', active: true, done: activeToken.position <= 2 || activeToken.status === 'CALLED' || activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED' },
+                    { step: 2, label: 'Almost Ready', active: activeToken.position <= 2 || activeToken.status === 'CALLED' || activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED', done: activeToken.status === 'CALLED' || activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED' },
+                    { step: 3, label: foodBusiness ? 'Seated' : 'Serving', active: activeToken.status === 'CALLED' || activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED', done: activeToken.status === 'COMPLETED' },
+                    { step: 4, label: 'Done', active: activeToken.status === 'COMPLETED', done: activeToken.status === 'COMPLETED' },
+                  ].map((s, idx) => (
+                    <div key={s.step} className="flex-1 flex flex-col items-center relative">
+                      {idx > 0 && (
+                        <div className={`absolute top-3 right-1/2 w-full h-1 -z-0 ${
+                          s.active ? 'bg-orange-500' : 'bg-neutral-200'
+                        }`} />
+                      )}
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black z-10 ${
+                        s.done
+                          ? 'bg-emerald-600 text-white'
+                          : s.active
+                          ? 'bg-orange-500 text-white ring-4 ring-orange-100'
+                          : 'bg-neutral-200 text-neutral-500'
+                      }`}>
+                        {s.done ? '✓' : s.step}
+                      </div>
+                      <span className={`text-[10px] mt-1.5 font-bold ${
+                        s.active ? 'text-neutral-900' : 'text-neutral-400'
+                      }`}>
+                        {s.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="relative z-10">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1.5">
                   Your Token Number
@@ -372,7 +427,19 @@ export default function JoinQueuePage() {
                 <div className="text-7xl font-black text-orange-600 tracking-tighter animate-number-pop leading-none">
                   #{activeToken.tokenNumber}
                 </div>
-                <p className="text-sm font-bold text-neutral-800 mt-3">{activeToken.customerName}</p>
+                {activeToken.doctorName && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100/70 text-orange-900 text-xs font-bold mt-2">
+                    <Stethoscope className="w-3.5 h-3.5 text-orange-600" />
+                    <span>{activeToken.doctorName}</span>
+                  </div>
+                )}
+                {activeToken.serviceName && !activeToken.doctorName && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100/70 text-orange-900 text-xs font-bold mt-2">
+                    <Scissors className="w-3.5 h-3.5 text-orange-600" />
+                    <span>{activeToken.serviceName}</span>
+                  </div>
+                )}
+                <p className="text-sm font-bold text-neutral-800 mt-2">{activeToken.customerName}</p>
                 <div className="flex items-center justify-center gap-1 mt-1 text-neutral-400">
                   {Array.from({ length: activeToken.partySize }).map((_, i) => (
                     <UserRound key={i} className="w-3.5 h-3.5" />
@@ -436,7 +503,7 @@ export default function JoinQueuePage() {
                   </div>
                 )}
                 <button
-                  onClick={handleCancelToken}
+                  onClick={() => setShowCancelModal(true)}
                   className="text-xs text-neutral-400 hover:text-red-500 py-2 transition-all duration-200 font-medium hover:bg-red-50 rounded-xl"
                 >
                   Leave queue / Cancel token
@@ -501,6 +568,47 @@ export default function JoinQueuePage() {
                 </div>
               ) : (
                 <form onSubmit={handleJoin} className="space-y-4">
+                  {queues.length > 1 && (
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
+                        Select Doctor or Service Queue *
+                      </label>
+                      <div className="space-y-2">
+                        {queues.map((q) => (
+                          <label
+                            key={q.id}
+                            className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
+                              selectedQueueId === q.id
+                                ? 'border-orange-500 bg-orange-50/60 shadow-xs'
+                                : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="radio"
+                                name="queueSelection"
+                                checked={selectedQueueId === q.id}
+                                onChange={() => setSelectedQueueId(q.id)}
+                                className="text-orange-500 focus:ring-orange-500"
+                              />
+                              <div>
+                                <p className="text-xs font-bold text-neutral-900">
+                                  {q.doctorName ? `${q.doctorName} (${q.name})` : q.serviceName || q.name}
+                                </p>
+                                {q.department && (
+                                  <p className="text-[10px] text-neutral-500">{q.department}</p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[11px] font-bold text-neutral-600">
+                              ~{q.estimatedWaitMin || 5}m wait
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       Your Name *
@@ -611,6 +719,18 @@ export default function JoinQueuePage() {
           Qfast customer queue • No app install required
         </span>
       </footer>
+
+      {/* Cancel Queue Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancelToken}
+        title="Leave the Queue?"
+        description="Are you sure you want to cancel your queue token? You will lose your current spot in line."
+        confirmLabel="Yes, Leave Queue"
+        cancelLabel="Stay in Queue"
+        variant="danger"
+      />
     </div>
   );
 }

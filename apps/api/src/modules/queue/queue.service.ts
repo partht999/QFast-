@@ -23,19 +23,20 @@ export class QueueService {
       where: { slug },
       include: {
         queues: {
-          take: 1,
+          where: { isArchived: false },
         },
       },
     });
 
     if (!business) throw new NotFoundException('Business not found');
-    const queue = business.queues[0];
+    const queue = business.queues.find((q) => q.isOpen && !q.isPaused) || business.queues[0];
     if (queue) await this.expireOverdueRemoteTokens(queue.id);
     if (!queue) {
       return {
         businessName: business.name,
         businessType: business.type,
         isOpen: false,
+        isPaused: false,
         remoteJoinEnabled: false,
         waitingCount: 0,
         estimatedWaitMin: 0,
@@ -50,17 +51,54 @@ export class QueueService {
       },
     });
 
+    const avgWait = await this.getAverageWaitMinutes(queue.id);
+
     return {
       businessId: business.id,
       businessName: business.name,
       businessType: business.type,
       queueId: queue.id,
       isOpen: queue.isOpen,
+      isPaused: queue.isPaused,
       remoteJoinEnabled: queue.remoteJoinEnabled,
       waitingCount,
-      averageWaitMinutes: queue.averageWaitMinutes,
-      estimatedWaitMin: waitingCount * queue.averageWaitMinutes,
+      averageWaitMinutes: avgWait,
+      estimatedWaitMin: waitingCount * avgWait,
     };
+  }
+
+  async getPublicQueues(slug: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { slug },
+      include: {
+        queues: {
+          where: { isArchived: false },
+          include: {
+            tokens: {
+              where: {
+                status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+              },
+              select: { id: true, status: true },
+            },
+          },
+        },
+      },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    return business.queues.map((q) => ({
+      id: q.id,
+      name: q.name,
+      department: q.department,
+      doctorName: q.doctorName,
+      serviceName: q.serviceName,
+      isOpen: q.isOpen,
+      isPaused: q.isPaused,
+      remoteJoinEnabled: q.remoteJoinEnabled,
+      waitingCount: q.tokens.length,
+      averageWaitMinutes: q.averageWaitMinutes,
+      estimatedWaitMin: q.tokens.length * q.averageWaitMinutes,
+    }));
   }
 
   async joinQueue(slug: string, dto: JoinQueueDto) {
@@ -68,23 +106,36 @@ export class QueueService {
       where: { slug },
       include: {
         queues: {
-          take: 1,
+          where: { isArchived: false },
         },
       },
     });
 
     if (!business) throw new NotFoundException('Business not found');
-    const queue = business.queues[0];
-    if (!queue || !queue.isOpen) {
-      throw new BadRequestException('Queue is currently closed');
+
+    let queue = null;
+    if (dto.queueId) {
+      queue = business.queues.find((q) => q.id === dto.queueId);
+      if (!queue) throw new NotFoundException('Selected queue not found');
+    } else {
+      queue = business.queues.find((q) => q.isOpen && !q.isPaused) || business.queues[0];
     }
+
+    if (!queue || !queue.isOpen) {
+      throw new BadRequestException('This queue is currently closed');
+    }
+    if (queue.isPaused) {
+      throw new BadRequestException('This queue is temporarily paused');
+    }
+
     const source = dto.source ?? QueueEntrySource.REMOTE;
     const partySize =
       business.type === BusinessType.RESTAURANT || business.type === BusinessType.CAFE
-        ? dto.partySize
+        ? dto.partySize || 1
         : 1;
+
     if (source === QueueEntrySource.REMOTE && !queue.remoteJoinEnabled) {
-      throw new BadRequestException('Remote queue joining is currently disabled');
+      throw new BadRequestException('Remote queue joining is currently disabled for this queue');
     }
 
     await this.expireOverdueRemoteTokens(queue.id);
@@ -138,43 +189,52 @@ export class QueueService {
       },
     });
 
-    // Calculate token number
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const latestToken = await this.prisma.queueToken.findFirst({
-      where: {
-        queueId: queue.id,
-        createdAt: { gte: todayStart },
-      },
-      orderBy: { tokenNumber: 'desc' },
-    });
-
-    const nextTokenNumber = (latestToken?.tokenNumber || 0) + 1;
-
-    // Calculate current waiting count for wait time
+    const avgWait = await this.getAverageWaitMinutes(queue.id);
     const waitingBefore = await this.prisma.queueToken.count({
       where: {
         queueId: queue.id,
         status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
       },
     });
+    const estimatedWaitMin = waitingBefore * avgWait;
 
-    const estimatedWaitMin = waitingBefore * queue.averageWaitMinutes;
+    // Atomic Daily Token Generation
+    const todayDateStr = new Date().toISOString().slice(0, 10);
+    const targetQueueId = queue.id;
 
-    const token = await this.prisma.queueToken.create({
-      data: {
-        queueId: queue.id,
-        customerId: customer.id,
-        customerName: dto.customerName,
-        customerPhone,
-        partySize,
-        notes: dto.notes,
-        tokenNumber: nextTokenNumber,
-        status: QueueTokenStatus.WAITING,
-        source,
-        estimatedWaitMin,
-      },
+    const token = await this.prisma.$transaction(async (tx) => {
+      const qRec = await tx.queue.findUnique({
+        where: { id: targetQueueId },
+      });
+      if (!qRec) throw new NotFoundException('Queue not found');
+
+      const isNewDay = qRec.lastSequenceDate !== todayDateStr;
+      const nextSequence = isNewDay ? 1 : (qRec.dailySequence || 0) + 1;
+
+      await tx.queue.update({
+        where: { id: targetQueueId },
+        data: {
+          dailySequence: nextSequence,
+          lastSequenceDate: todayDateStr,
+        },
+      });
+
+      return tx.queueToken.create({
+        data: {
+          queueId: targetQueueId,
+          customerId: customer.id,
+          customerName: dto.customerName,
+          customerPhone,
+          partySize,
+          notes: dto.notes,
+          tokenNumber: nextSequence,
+          doctorName: dto.doctorName || qRec.doctorName,
+          serviceName: dto.serviceName || qRec.serviceName,
+          status: QueueTokenStatus.WAITING,
+          source,
+          estimatedWaitMin,
+        },
+      });
     });
 
     // Emit live update to dashboard
@@ -189,6 +249,9 @@ export class QueueService {
       estimatedWaitMin,
       businessName: business.name,
       businessSlug: business.slug,
+      queueName: queue.name,
+      doctorName: token.doctorName,
+      serviceName: token.serviceName,
     };
   }
 
@@ -302,21 +365,27 @@ export class QueueService {
     return token;
   }
 
-  async getBusinessTokens(businessId: string, userId: string, userRole?: string) {
+  async getBusinessTokens(businessId: string, userId: string, userRole?: string, queueId?: string) {
     await this.assertBusinessAccess(businessId, userId, userRole);
-    const queue = await this.prisma.queue.findFirst({
-      where: { businessId },
+    const queues = await this.prisma.queue.findMany({
+      where: { businessId, isArchived: false },
+      orderBy: { createdAt: 'asc' },
     });
 
-    if (!queue) return { queue: null, tokens: [] };
-    await this.expireOverdueRemoteTokens(queue.id);
+    if (queues.length === 0) return { queues: [], queue: null, tokens: [] };
+
+    const selectedQueue = queueId
+      ? queues.find((q) => q.id === queueId) || queues[0]
+      : queues[0];
+
+    await this.expireOverdueRemoteTokens(selectedQueue.id);
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
     const tokens = await this.prisma.queueToken.findMany({
       where: {
-        queueId: queue.id,
+        queueId: selectedQueue.id,
         createdAt: { gte: todayStart },
       },
       include: {
@@ -327,7 +396,106 @@ export class QueueService {
       orderBy: { createdAt: 'asc' },
     });
 
-    return { queue, tokens };
+    return { queues, queue: selectedQueue, tokens };
+  }
+
+  async getQueuesForBusiness(businessId: string, userId: string, userRole?: string) {
+    await this.assertBusinessAccess(businessId, userId, userRole);
+    return this.prisma.queue.findMany({
+      where: { businessId, isArchived: false },
+      include: {
+        _count: {
+          select: {
+            tokens: {
+              where: {
+                status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createQueue(
+    businessId: string,
+    dto: {
+      name: string;
+      department?: string;
+      doctorName?: string;
+      serviceName?: string;
+      averageWaitMinutes?: number;
+      arrivalGraceMinutes?: number;
+    },
+    userId: string,
+    userRole?: string,
+  ) {
+    await this.assertBusinessAccess(businessId, userId, userRole);
+    return this.prisma.queue.create({
+      data: {
+        businessId,
+        name: dto.name,
+        department: dto.department,
+        doctorName: dto.doctorName,
+        serviceName: dto.serviceName,
+        averageWaitMinutes: dto.averageWaitMinutes ?? 8,
+        arrivalGraceMinutes: dto.arrivalGraceMinutes ?? 10,
+      },
+    });
+  }
+
+  async updateQueue(
+    queueId: string,
+    dto: {
+      name?: string;
+      department?: string;
+      doctorName?: string;
+      serviceName?: string;
+      averageWaitMinutes?: number;
+      arrivalGraceMinutes?: number;
+      remoteJoinEnabled?: boolean;
+    },
+    userId: string,
+    userRole?: string,
+  ) {
+    const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
+    if (!queue) throw new NotFoundException('Queue not found');
+    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+
+    return this.prisma.queue.update({
+      where: { id: queueId },
+      data: dto,
+    });
+  }
+
+  async toggleQueuePaused(queueId: string, userId: string, userRole?: string) {
+    const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
+    if (!queue) throw new NotFoundException('Queue not found');
+    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+
+    const updated = await this.prisma.queue.update({
+      where: { id: queueId },
+      data: { isPaused: !queue.isPaused },
+    });
+
+    this.events.emitQueueUpdate(updated.businessId, updated.id, {
+      type: 'QUEUE_PAUSED_TOGGLED',
+      isPaused: updated.isPaused,
+    });
+
+    return updated;
+  }
+
+  async toggleQueueArchived(queueId: string, userId: string, userRole?: string) {
+    const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
+    if (!queue) throw new NotFoundException('Queue not found');
+    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+
+    return this.prisma.queue.update({
+      where: { id: queueId },
+      data: { isArchived: !queue.isArchived },
+    });
   }
 
   async updateTokenStatus(
@@ -345,46 +513,92 @@ export class QueueService {
     await this.assertBusinessAccess(currentToken.queue.businessId, userId, userRole);
 
     if (status === QueueTokenStatus.CALLED) {
-      if (currentToken.status !== QueueTokenStatus.WAITING) {
-        throw new ConflictException('Only a waiting entry can be called');
+      // Allow calling from WAITING, re-calling from CALLED, or recalling from SKIPPED
+      if (
+        currentToken.status !== QueueTokenStatus.WAITING &&
+        currentToken.status !== QueueTokenStatus.CALLED &&
+        currentToken.status !== QueueTokenStatus.SKIPPED
+      ) {
+        throw new ConflictException(`Only waiting or skipped entries can be called`);
       }
-      const earlierEntry = await this.prisma.queueToken.findFirst({
-        where: {
-          queueId: currentToken.queueId,
-          status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
-          createdAt: { lt: currentToken.createdAt },
-        },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
-      });
-      if (earlierEntry) {
-        throw new ConflictException('Call the earliest waiting customer first');
-      }
-    }
 
-    if (
-      (status === QueueTokenStatus.SEATED || status === QueueTokenStatus.COMPLETED) &&
-      currentToken.status !== QueueTokenStatus.CALLED
-    ) {
-      throw new ConflictException('Call the customer before completing service');
+      // FIFO check applies only when calling for the first time from WAITING
+      if (currentToken.status === QueueTokenStatus.WAITING) {
+        const earlierEntry = await this.prisma.queueToken.findFirst({
+          where: {
+            queueId: currentToken.queueId,
+            status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+            createdAt: { lt: currentToken.createdAt },
+          },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
+        });
+        if (earlierEntry) {
+          throw new ConflictException('Call the earliest waiting customer first');
+        }
+      }
+    } else if (status === QueueTokenStatus.WAITING) {
+      if (
+        currentToken.status !== QueueTokenStatus.SKIPPED &&
+        currentToken.status !== QueueTokenStatus.CANCELLED
+      ) {
+        throw new ConflictException('Only skipped or cancelled entries can be restored to waiting');
+      }
+    } else if (status === QueueTokenStatus.SEATED) {
+      if (
+        currentToken.status !== QueueTokenStatus.CALLED &&
+        currentToken.status !== QueueTokenStatus.WAITING
+      ) {
+        throw new ConflictException('Guest must be called before seating');
+      }
+    } else if (status === QueueTokenStatus.COMPLETED) {
+      if (
+        currentToken.status !== QueueTokenStatus.CALLED &&
+        currentToken.status !== QueueTokenStatus.SEATED
+      ) {
+        throw new ConflictException('Guest must be called or seated before completing service');
+      }
+    } else if (status === QueueTokenStatus.SKIPPED || status === QueueTokenStatus.CANCELLED) {
+      if (
+        currentToken.status === QueueTokenStatus.COMPLETED ||
+        currentToken.status === QueueTokenStatus.CANCELLED
+      ) {
+        throw new ConflictException(`Cannot change an already ${currentToken.status.toLowerCase()} entry`);
+      }
     }
 
     const data: {
       status: QueueTokenStatus;
-      calledAt?: Date;
+      calledAt?: Date | null;
       arrivalDeadlineAt?: Date | null;
-      seatedAt?: Date;
-      cancelledAt?: Date;
+      seatedAt?: Date | null;
+      servedAt?: Date | null;
+      completedAt?: Date | null;
+      cancelledAt?: Date | null;
     } = { status };
-    if (status === QueueTokenStatus.CALLED) {
+
+    if (status === QueueTokenStatus.WAITING) {
+      data.calledAt = null;
+      data.arrivalDeadlineAt = null;
+      data.seatedAt = null;
+      data.servedAt = null;
+      data.completedAt = null;
+      data.cancelledAt = null;
+    } else if (status === QueueTokenStatus.CALLED) {
       data.calledAt = new Date();
       data.arrivalDeadlineAt =
         currentToken.source === QueueEntrySource.REMOTE
           ? new Date(Date.now() + currentToken.queue.arrivalGraceMinutes * 60_000)
           : null;
+    } else if (status === QueueTokenStatus.SEATED) {
+      data.seatedAt = new Date();
+      data.servedAt = new Date();
+    } else if (status === QueueTokenStatus.COMPLETED) {
+      data.completedAt = new Date();
+      if (!currentToken.servedAt) data.servedAt = new Date();
+    } else if (status === QueueTokenStatus.CANCELLED) {
+      data.cancelledAt = new Date();
     }
-    if (status === QueueTokenStatus.SEATED) data.seatedAt = new Date();
-    if (status === QueueTokenStatus.CANCELLED) data.cancelledAt = new Date();
 
     const token = await this.prisma.queueToken.update({
       where: { id: tokenId },
@@ -498,12 +712,39 @@ export class QueueService {
     return phone.trim().replace(/[^\d+]/g, '');
   }
 
-  private async getAverageWaitMinutes(queueId: string) {
+  private async getAverageWaitMinutes(queueId: string): Promise<number> {
     const queue = await this.prisma.queue.findUnique({
       where: { id: queueId },
       select: { averageWaitMinutes: true },
     });
-    return queue?.averageWaitMinutes ?? 8;
+    if (!queue) return 8;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const completedToday = await this.prisma.queueToken.findMany({
+      where: {
+        queueId,
+        status: QueueTokenStatus.COMPLETED,
+        completedAt: { gte: todayStart },
+        calledAt: { not: null },
+      },
+      select: { calledAt: true, completedAt: true },
+      take: 10,
+    });
+
+    if (completedToday.length >= 3) {
+      const validTokens = completedToday.filter((t) => t.calledAt && t.completedAt);
+      if (validTokens.length >= 3) {
+        const totalMinutes = validTokens.reduce((acc, t) => {
+          const diffMin = Math.round((t.completedAt!.getTime() - t.calledAt!.getTime()) / 60000);
+          return acc + Math.max(1, Math.min(60, diffMin));
+        }, 0);
+        return Math.max(2, Math.round(totalMinutes / validTokens.length));
+      }
+    }
+
+    return queue.averageWaitMinutes ?? 8;
   }
 
   private async expireOverdueRemoteTokens(queueId?: string, tokenId?: string) {

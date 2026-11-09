@@ -27,4 +27,19 @@ export class JoinQueueDto {
   @IsEnum(QueueEntrySource)
   @IsOptional()
   source?: QueueEntrySource;
+
+  @ApiProperty({ example: 'queue_123', required: false })
+  @IsString()
+  @IsOptional()
+  queueId?: string;
+
+  @ApiProperty({ example: 'Dr. Sarah Smith', required: false })
+  @IsString()
+  @IsOptional()
+  doctorName?: string;
+
+  @ApiProperty({ example: 'General Consultation', required: false })
+  @IsString()
+  @IsOptional()
+  serviceName?: string;
 }

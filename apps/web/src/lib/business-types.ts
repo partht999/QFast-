@@ -12,4 +12,14 @@ export const BUSINESS_TYPES = [
 
 export type BusinessTypeValue = (typeof BUSINESS_TYPES)[number]['value'];
 
-export const AVAILABLE_BUSINESS_TYPES: BusinessTypeValue[] = ['RESTAURANT', 'CAFE'];
+export const AVAILABLE_BUSINESS_TYPES: BusinessTypeValue[] = [
+  'RESTAURANT',
+  'CAFE',
+  'CLINIC',
+  'HOSPITAL',
+  'SALON',
+  'DIAGNOSTIC_CENTRE',
+  'SERVICE_CENTRE',
+  'RETAIL',
+  'OTHER',
+];

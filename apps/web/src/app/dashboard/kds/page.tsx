@@ -113,9 +113,15 @@ export default function KDSPage() {
         const curBiz = bizList[0];
         setBusiness(curBiz);
 
-        const orderRes = await fetch(`${apiUrl}/api/v1/orders/active/${curBiz.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const [orderRes, recentRes] = await Promise.all([
+          fetch(`${apiUrl}/api/v1/orders/active/${curBiz.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${apiUrl}/api/v1/orders/recent-completed/${curBiz.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
         if (orderRes.ok) {
           const activeOrders = await orderRes.json();
           // Detect new incoming order and sound chime
@@ -124,6 +130,11 @@ export default function KDSPage() {
           }
           prevOrderCountRef.current = activeOrders.length;
           setOrders(activeOrders);
+        }
+
+        if (recentRes.ok) {
+          const recentData = await recentRes.json();
+          setRecentlyClearedOrders(recentData || []);
         }
       }
     } catch (err) {
@@ -142,12 +153,6 @@ export default function KDSPage() {
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const token = localStorage.getItem('accessToken');
     try {
-      if (newStatus === 'COMPLETED') {
-        const completedOrder = orders.find((o) => o.id === orderId);
-        if (completedOrder) {
-          setRecentlyClearedOrders((prev) => [completedOrder, ...prev.filter((o) => o.id !== orderId)].slice(0, 8));
-        }
-      }
       await fetch(`${apiUrl}/api/v1/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
@@ -162,8 +167,8 @@ export default function KDSPage() {
     }
   };
 
-  const handleRecallOrder = async (orderId: string) => {
-    await handleUpdateStatus(orderId, 'READY');
+  const handleRecallOrder = async (orderId: string, targetStatus: string = 'READY') => {
+    await handleUpdateStatus(orderId, targetStatus);
     setRecentlyClearedOrders((prev) => prev.filter((o) => o.id !== orderId));
   };
 
@@ -258,16 +263,20 @@ export default function KDSPage() {
         {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Recall Recently Cleared Tickets */}
-          {recentlyClearedOrders.length > 0 && (
-            <button
-              onClick={() => setShowRecallModal(true)}
-              className="p-2 bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-600/40 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-              title="Recall recently completed tickets"
-            >
-              <History className="w-4 h-4 text-amber-400" />
-              <span className="text-[11px] hidden md:inline">Recall ({recentlyClearedOrders.length})</span>
-            </button>
-          )}
+          <button
+            onClick={() => setShowRecallModal(true)}
+            className={`p-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border ${
+              recentlyClearedOrders.length > 0
+                ? 'bg-neutral-800 hover:bg-neutral-700 text-amber-300 border-amber-600/40'
+                : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
+            }`}
+            title="Recall completed tickets"
+          >
+            <History className="w-4 h-4 text-amber-400" />
+            <span className="text-[11px] hidden md:inline">
+              Recall {recentlyClearedOrders.length > 0 ? `(${recentlyClearedOrders.length})` : ''}
+            </span>
+          </button>
 
           {/* Fullscreen Toggle */}
           <button
@@ -613,29 +622,45 @@ export default function KDSPage() {
             </p>
 
             <div className="space-y-2.5 max-h-80 overflow-y-auto">
-              {recentlyClearedOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="font-bold text-xs text-neutral-100">
-                      {order.table?.name ? `Table ${order.table.name}` : `Order #${order.id.slice(-4).toUpperCase()}`}
+              {recentlyClearedOrders.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500 text-xs">
+                  No completed orders found today.
+                </div>
+              ) : (
+                recentlyClearedOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="font-bold text-xs text-neutral-100">
+                        {order.table?.name ? `Table ${order.table.name}` : `Order #${order.id.slice(-4).toUpperCase()}`}
+                      </div>
+                      <div className="text-[11px] text-neutral-400">
+                        {order.items?.map((i: any) => `${i.quantity}× ${i.menuItem?.name}`).join(', ')}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-neutral-400">
-                      {order.items?.map((i: any) => `${i.quantity}× ${i.menuItem?.name}`).join(', ')}
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleRecallOrder(order.id, 'READY')}
+                        className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                        title="Restore to Ready to Serve"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        <span>To Ready</span>
+                      </button>
+                      <button
+                        onClick={() => handleRecallOrder(order.id, 'PREPARING')}
+                        className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all"
+                        title="Restore to Cooking"
+                      >
+                        To Stove
+                      </button>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => handleRecallOrder(order.id)}
-                    className="shrink-0 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                  >
-                    <Undo2 className="w-3.5 h-3.5" />
-                    <span>Recall</span>
-                  </button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

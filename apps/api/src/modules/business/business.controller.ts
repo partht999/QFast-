@@ -25,6 +25,15 @@ export class BusinessController {
     return this.businessService.findByOwner(req.user.sub);
   }
 
+  @Get('explore')
+  @ApiOperation({ summary: 'Public endpoint to discover businesses with live queue status' })
+  async explore(
+    @Req() req: any,
+  ) {
+    const { category, search, location } = req.query;
+    return this.businessService.explore(category, search, location);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

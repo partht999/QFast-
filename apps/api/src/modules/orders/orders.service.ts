@@ -216,6 +216,29 @@ export class OrdersService {
     });
   }
 
+  async getRecentCompletedOrders(businessId: string) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    return this.prisma.order.findMany({
+      where: {
+        businessId,
+        status: OrderStatus.COMPLETED,
+        updatedAt: { gte: todayStart },
+      },
+      include: {
+        table: true,
+        queueToken: true,
+        items: {
+          include: { menuItem: true },
+        },
+        payments: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    });
+  }
+
   async updateOrderStatus(orderId: string, status: OrderStatus) {
     let order: Prisma.OrderGetPayload<{
       include: { table: true; items: { include: { menuItem: true } } };
