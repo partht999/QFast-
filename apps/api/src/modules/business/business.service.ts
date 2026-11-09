@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException, ConflictException, B
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { BusinessType, PlanTier, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
+import { googleReviewLink, placeIdFromInput } from '../reviews/google-place';
 
 @Injectable()
 export class BusinessService {
@@ -444,9 +445,8 @@ export class BusinessService {
     });
     if (!business) throw new ForbiddenException('You do not have access to this workspace');
 
-    const googleReviewUrl = dto.googlePlaceId
-      ? `https://search.google.com/local/writereview?placeid=${dto.googlePlaceId.trim()}`
-      : undefined;
+    const placeId = dto.googlePlaceId === undefined ? undefined : await placeIdFromInput(dto.googlePlaceId);
+    const googleReviewUrl = placeId ? googleReviewLink(placeId) : placeId === null ? null : undefined;
 
     const updated = await this.prisma.business.update({
       where: { id: businessId },
@@ -454,9 +454,7 @@ export class BusinessService {
         ...(dto.name ? { name: dto.name.trim() } : {}),
         ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
         ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
-        ...(dto.googlePlaceId !== undefined
-          ? { googlePlaceId: dto.googlePlaceId.trim(), googleReviewUrl }
-          : {}),
+        ...(placeId !== undefined ? { googlePlaceId: placeId, googleReviewUrl } : {}),
       },
     });
 

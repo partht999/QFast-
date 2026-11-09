@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFeedbackDto, UpdateGoogleSettingsDto } from './dto/create-feedback.dto';
 import { FeedbackStatus } from '@prisma/client';
+import { googleReviewLink, placeIdFromInput } from './google-place';
 
 @Injectable()
 export class ReviewsService {
@@ -73,15 +74,13 @@ export class ReviewsService {
   }
 
   async updateGoogleSettings(businessId: string, dto: UpdateGoogleSettingsDto) {
-    let googleReviewUrl = dto.googleReviewUrl;
-    if (dto.googlePlaceId && !googleReviewUrl) {
-      googleReviewUrl = `https://search.google.com/local/writereview?placeid=${dto.googlePlaceId}`;
-    }
+    const googlePlaceId = await placeIdFromInput(dto.googlePlaceId);
+    const googleReviewUrl = dto.googleReviewUrl || (googlePlaceId ? googleReviewLink(googlePlaceId) : null);
 
     return this.prisma.business.update({
       where: { id: businessId },
       data: {
-        googlePlaceId: dto.googlePlaceId,
+        googlePlaceId,
         googleReviewUrl,
       },
     });

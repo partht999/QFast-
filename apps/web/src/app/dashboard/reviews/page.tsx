@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
+import { extractGooglePlaceId, googleReviewLink, isShortGoogleMapsLink } from '@/lib/google-place';
+import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -95,11 +97,12 @@ export default function ReviewsManagementPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          googlePlaceId: googlePlaceId.trim() || undefined,
+          googlePlaceId: googlePlaceId.trim(),
         }),
       });
-      if (!res.ok) throw new Error('Could not save Google Place ID');
-      toast.success('Settings Saved', 'Google Maps review funnel configured successfully.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(readApiError(data, 'Could not save the Google listing'));
+      toast.success('Review link saved', 'Happy guests can now open your Google review page.');
       fetchData();
     } catch (err: any) {
       toast.error('Save Failed', err.message);
@@ -249,35 +252,23 @@ export default function ReviewsManagementPage() {
             </div>
           </div>
 
-          {/* Google Place ID Configuration Card */}
           <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-xs md:col-span-2 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
-                  <span>Google Maps Review Destination</span>
-                  {googlePlaceId ? (
-                    <span className="text-[11px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                      Connected ✓
-                    </span>
-                  ) : (
-                    <span className="text-[11px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                      Action Required
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Enter your Google Place ID to send one-tap review prompts to customers who rate you 5 stars.
-                </p>
-              </div>
-              <a
-                href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1 shrink-0"
-              >
-                <span>Find Place ID</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+            <div>
+              <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+                <span>Google review link</span>
+                {extractGooglePlaceId(googlePlaceId) ? (
+                  <span className="text-[11px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                    Place ID found
+                  </span>
+                ) : (
+                  <span className="text-[11px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                    Paste a Maps link
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Open your listing in Google Maps, copy the address-bar link, and paste it here. A Place ID works too.
+              </p>
             </div>
 
             <form onSubmit={handleSaveGoogleSettings} className="space-y-3 pt-1">
@@ -286,8 +277,8 @@ export default function ReviewsManagementPage() {
                   type="text"
                   value={googlePlaceId}
                   onChange={(e) => setGooglePlaceId(e.target.value)}
-                  placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-mono transition-all"
+                  placeholder="https://www.google.com/maps/place/..."
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                 />
                 <button
                   type="submit"
@@ -295,24 +286,29 @@ export default function ReviewsManagementPage() {
                   className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-98 shrink-0"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>{savingSettings ? 'Saving...' : 'Save Place ID'}</span>
+                  <span>{savingSettings ? 'Saving...' : 'Save'}</span>
                 </button>
               </div>
 
-              {googlePlaceId && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-between">
-                  <span className="font-medium">
-                    Google Review URL: <code className="font-mono text-[11px]">https://search.google.com/local/writereview?placeid={googlePlaceId}</code>
-                  </span>
+              {extractGooglePlaceId(googlePlaceId) && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 space-y-1">
+                  <p className="font-medium break-all">Place ID: {extractGooglePlaceId(googlePlaceId)}</p>
                   <a
-                    href={`https://search.google.com/local/writereview?placeid=${googlePlaceId}`}
+                    href={googleReviewLink(extractGooglePlaceId(googlePlaceId) || '')}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-bold text-emerald-700 hover:underline shrink-0 ml-2"
+                    className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline"
                   >
-                    Test Link ↗
+                    Test the review link
+                    <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
+              )}
+              {googlePlaceId.trim() && !extractGooglePlaceId(googlePlaceId) && isShortGoogleMapsLink(googlePlaceId) && (
+                <p className="text-xs text-gray-500">Short link. Save it and we will open it to read the Place ID.</p>
+              )}
+              {googlePlaceId.trim() && !extractGooglePlaceId(googlePlaceId) && !isShortGoogleMapsLink(googlePlaceId) && /google\.|maps/i.test(googlePlaceId) && (
+                <p className="text-xs text-amber-700">This link has no Place ID. Paste the full address-bar link for the listing.</p>
               )}
             </form>
           </div>

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
+import { extractGooglePlaceId } from '@/lib/google-place';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 
@@ -179,8 +180,11 @@ export default function SettingsPage() {
           Guests can join from their phone
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
-          Google Place ID
-          <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Shown after a completed visit" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          Google Maps link
+          <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Paste the listing link from Google Maps" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          {googlePlaceId.trim() && extractGooglePlaceId(googlePlaceId) && (
+            <span className="mt-1 block text-xs font-medium text-emerald-700">Place ID: {extractGooglePlaceId(googlePlaceId)}</span>
+          )}
         </label>
         {food && (
           <div className="grid gap-3 sm:grid-cols-2">
