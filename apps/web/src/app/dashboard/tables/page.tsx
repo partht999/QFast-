@@ -358,13 +358,11 @@ export default function TablesManagementPage() {
 
             {tables.length === 0 ? (
               <EmptyState
-                icon="🪑"
+                icon={Armchair}
                 title="No dining tables added yet"
                 description="Add your restaurant tables (e.g. Table 1, Patio 2, Booth 3). Qfast will automatically generate QR codes for each table for contactless ordering and KDS routing."
-                primaryAction={{
-                  label: 'Add Table 1',
-                  onClick: openAddModal,
-                }}
+                actionLabel="Add Table 1"
+                onAction={openAddModal}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
