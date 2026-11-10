@@ -479,7 +479,8 @@ export class BusinessService {
 
   async createStaff(businessId: string, userId: string, input: { username: string; password: string; role: UserRole }) {
     await this.assertManager(businessId, userId);
-    if (![UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER].includes(input.role)) {
+    const allowed = new Set<UserRole>([UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER]);
+    if (!allowed.has(input.role)) {
       throw new BadRequestException('Choose a staff role');
     }
     const email = input.username.trim().toLowerCase();

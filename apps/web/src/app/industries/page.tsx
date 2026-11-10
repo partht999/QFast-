@@ -18,7 +18,7 @@ const industryIcons: Record<string, typeof Store> = {
 
 const industryUrls: Record<string, string> = {
   RESTAURANT: '/restaurants',
-  CAFE: '/restaurants',
+  CAFE: '/cafes',
   CLINIC: '/clinics',
   HOSPITAL: '/clinics',
   SALON: '/salons',
