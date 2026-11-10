@@ -44,7 +44,7 @@ export default function OnboardingPage() {
   });
   // Industry-specific configuration state
   const [industryConfig, setIndustryConfig] = useState({
-    tablesCount: 12,
+    tablesCount: 8,
     serviceDurationMin: 30,
     appointmentMode: false,
     operatingHours: '09:00 AM - 10:00 PM',
@@ -133,7 +133,7 @@ export default function OnboardingPage() {
           <div className="flex items-center justify-between">
             <BrandMark href="/" size="sm" label="Qfast" />
             <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
-              Step {step} of 3
+              Step {step} of 2
             </span>
           </div>
 
@@ -143,15 +143,15 @@ export default function OnboardingPage() {
             {step === 3 && 'Customize your service setup'}
           </h1>
           <p className="text-slate-500 text-xs mt-1">
-            {step === 1 && 'Choose the industry. Qfast opens a live queue, and restaurants also get table ordering.'}
-            {step === 2 && 'This appears on your public queue page and entrance QR.'}
-            {step === 3 && 'These choices create the queues or tables your team starts with.'}
+            {step === 1 && 'Choose the industry. Restaurants and cafes also get table ordering.'}
+            {step === 2 && 'Name and phone are enough. You get the full product free for 30 days.'}
+            {step === 3 && 'Optional. You can change tables later.'}
           </p>
 
-          <div className="grid grid-cols-3 gap-2 mt-5">
+          <div className="grid grid-cols-2 gap-2 mt-5">
             <div className={`h-1.5 rounded-full transition-all ${step >= 1 ? 'bg-orange-500' : 'bg-slate-200'}`} />
             <div className={`h-1.5 rounded-full transition-all ${step >= 2 ? 'bg-orange-500' : 'bg-slate-200'}`} />
-            <div className={`h-1.5 rounded-full transition-all ${step >= 3 ? 'bg-orange-500' : 'bg-slate-200'}`} />
+            <div className="hidden" />
           </div>
         </div>
 
@@ -301,11 +301,14 @@ export default function OnboardingPage() {
               </button>
               <button
                 type="button"
-                disabled={!form.name.trim() || form.slug.trim().length < 3}
-                onClick={() => setStep(3)}
+                disabled={!form.name.trim() || form.slug.trim().length < 3 || loading}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleSubmit(event as unknown as React.FormEvent);
+                }}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md text-sm flex items-center justify-center gap-2"
               >
-                Service Configuration <ArrowRight className="h-4 w-4" />
+                {loading ? 'Opening your queue…' : 'Open my queue'} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>

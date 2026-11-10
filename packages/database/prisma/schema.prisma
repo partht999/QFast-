@@ -257,6 +257,8 @@ model Business {
   email                String?
   address              String?
   logoUrl              String?
+  instagramHandle      String?
+  gstin                String?
   timezone             String                 @default("Asia/Kolkata")
   currencyCode         String                 @default("INR")
   googlePlaceId        String?
@@ -426,6 +428,7 @@ model MenuItem {
   category        MenuCategory         @relation(fields: [categoryId], references: [id])
   name            String
   description     String?
+  servedAs        String?
   price           Decimal              @db.Decimal(10, 2)
   imageUrl        String?
   isVeg           Boolean              @default(true)

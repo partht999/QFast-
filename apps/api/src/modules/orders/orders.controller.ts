@@ -20,6 +20,28 @@ export class OrdersController {
 
   // ── Public Customer Endpoints ──────────────────────────────────────────────
 
+  @Post('public/partner/:slug')
+  @ApiOperation({ summary: 'Accept a Swiggy or Zomato order into the kitchen' })
+  async partnerOrder(
+    @Param('slug') slug: string,
+    @Body()
+    body: {
+      provider?: 'SWIGGY' | 'ZOMATO';
+      secret?: string;
+      externalId?: string;
+      customerName?: string;
+      items?: Array<{ name: string; quantity: number; price: number }>;
+    },
+  ) {
+    return this.ordersService.ingestPartnerOrder(slug, {
+      provider: body.provider === 'ZOMATO' ? 'ZOMATO' : 'SWIGGY',
+      secret: body.secret || '',
+      externalId: body.externalId || '',
+      customerName: body.customerName,
+      items: body.items || [],
+    });
+  }
+
   @Post('public')
   @ApiOperation({ summary: 'Submit order from Table QR or Takeaway link' })
   async createPublicOrder(@Body() dto: CreateOrderDto) {

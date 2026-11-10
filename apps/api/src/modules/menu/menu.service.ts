@@ -112,6 +112,7 @@ export class MenuService {
         name: dto.name,
         price: dto.price,
         description: dto.description,
+        servedAs: dto.servedAs,
         imageUrl: dto.imageUrl,
         isVeg: dto.isVeg ?? true,
         prepTimeMinutes: dto.prepTimeMinutes || 15,

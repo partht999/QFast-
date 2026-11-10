@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Settings,
   Star,
+  Users,
   Utensils,
   X,
   Zap,
@@ -32,6 +33,7 @@ const navigation = [
   { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
+  { label: 'Staff', href: '/dashboard/staff', icon: Users },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -43,6 +45,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/tables': 'Tables & QR',
   '/dashboard/reviews': 'Google Reviews',
   '/dashboard/loyalty': 'Stamp card',
+  '/dashboard/staff': 'Staff',
   '/dashboard/settings': 'Settings',
   '/dashboard/onboarding': 'Onboarding',
 };
@@ -62,11 +65,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [businessType, setBusinessType] = useState<string | null>(null);
+  const [staffRole, setStaffRole] = useState<string>('OWNER');
+  const [planStatus, setPlanStatus] = useState<string>('');
+  const [trialEndsAt, setTrialEndsAt] = useState<string>('');
+  const roleNavigation = navigation.filter((item) => {
+    if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
+    if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables'].includes(item.href);
+    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/queue', '/dashboard/tables'].includes(item.href);
+    if (!['OWNER', 'MANAGER'].includes(staffRole) && item.href === '/dashboard/staff') return false;
+    return true;
+  });
   const visibleNavigation = !businessType
-    ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings'].includes(item.href))
+    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? navigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings'].includes(item.href))
-      : navigation;
+      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff'].includes(item.href))
+      : roleNavigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);
   const moreIsActive = moreNavigation.some((item) => isActive(pathname, item.href));
@@ -117,8 +130,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       if (!response.ok) return;
       const businesses = await response.json();
-      if (!cancelled && Array.isArray(businesses) && businesses[0]?.type) {
-        setBusinessType(businesses[0].type);
+      if (!cancelled && Array.isArray(businesses) && businesses[0]) {
+        const current = businesses[0];
+        if (current.type) setBusinessType(current.type);
+        if (current.myRole) setStaffRole(current.myRole);
+        const subscription = current.subscriptions?.[0];
+        setPlanStatus(subscription?.status || '');
+        setTrialEndsAt(subscription?.trialEndsAt || '');
       }
     };
     load().catch((error) => console.error(error));
@@ -131,6 +149,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [router]);
 
+  useEffect(() => {
+    if (planStatus === 'LAPSED') return;
+    if (staffRole === 'KITCHEN_STAFF' && pathname !== '/dashboard/kds') {
+      router.replace('/dashboard/kds');
+    }
+  }, [planStatus, staffRole, pathname, router]);
+
   // Close the more drawer when navigating
   useEffect(() => {
     setMoreOpen(false);
@@ -140,6 +165,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.clear();
     router.push('/auth/login');
   };
+
+  if (planStatus === 'LAPSED') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
+        <div className="max-w-md text-center">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-300">Qfast</p>
+          <h1 className="mt-3 text-3xl font-black">Your plan has expired</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            The 30-day premium trial is over. Buy a subscription to keep the queue, table ordering, and the kitchen open.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link href="/contact" className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white">Talk to us</Link>
+            <button type="button" onClick={handleLogout} className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold">Sign out</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (pathname === '/dashboard/kds') {
     return <div className="min-h-screen">{children}</div>;
@@ -253,7 +296,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </h1>
           <div className="flex items-center gap-3">
             <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" title="Live" />
-            <span className="text-xs text-gray-500">Live updates active</span>
+            <span className="text-xs text-gray-500">
+              {planStatus === 'TRIALING' && trialEndsAt
+                ? `Premium trial until ${new Date(trialEndsAt).toLocaleDateString()}`
+                : 'Live updates active'}
+            </span>
           </div>
         </header>
 

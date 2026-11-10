@@ -25,7 +25,8 @@ import {
 import { BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
-import { readGuest, saveGuest } from '@/lib/guest';
+import { isIndianMobile, localMobile } from '@/lib/phone';
+import { ReviewPrompt } from '@/components/review-prompt';
 import { reviewHref } from '@/lib/google-place';
 import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -52,7 +53,7 @@ export default function JoinQueuePage() {
   const [visitChoice, setVisitChoice] = useState<'dine-in' | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [stampBurst, setStampBurst] = useState(false);
-  const [editingGuest, setEditingGuest] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [joinSource, setJoinSource] = useState<'REMOTE' | 'WALK_IN'>('REMOTE');
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const lastNotifiedToken = useRef<string | null>(null);
@@ -114,6 +115,11 @@ export default function JoinQueuePage() {
   };
 
   const checkExistingToken = async () => {
+    if (new URLSearchParams(window.location.search).get('fresh')) {
+      localStorage.removeItem(`qfast_token_${slug}`);
+      setActiveToken(null);
+      return;
+    }
     const savedTokenId = localStorage.getItem(`qfast_token_${slug}`);
     if (savedTokenId) {
       try {
@@ -146,13 +152,6 @@ export default function JoinQueuePage() {
   useEffect(() => {
     const saved = localStorage.getItem(`qfast_takeaway_${slug}`);
     if (saved) setTakeawayId(saved);
-  }, [slug]);
-
-  useEffect(() => {
-    const guest = readGuest(slug);
-    if (guest) {
-      setForm((current) => ({ ...current, customerName: guest.name, customerPhone: guest.phone }));
-    }
   }, [slug]);
 
   useEffect(() => {
@@ -200,6 +199,10 @@ export default function JoinQueuePage() {
                 lastBrowserAlertToken.current = data.id;
               }
               noteVisit(data);
+              if (data.status === 'COMPLETED' && !sessionStorage.getItem(`qfast_review_${data.id}`)) {
+                sessionStorage.setItem(`qfast_review_${data.id}`, '1');
+                setReviewOpen(true);
+              }
               if (data.status === 'NO_SHOW') {
                 localStorage.removeItem(`qfast_token_${slug}`);
                 setActiveToken(null);
@@ -219,6 +222,11 @@ export default function JoinQueuePage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
+    if (!isIndianMobile(form.customerPhone)) {
+      setError('Enter a 10-digit mobile number starting with 6, 7, 8, or 9.');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${apiUrl}/api/v1/queue/public/${slug}/join`, {
@@ -226,6 +234,7 @@ export default function JoinQueuePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          customerPhone: localMobile(form.customerPhone),
           queueId: selectedQueueId || undefined,
           source: joinSource,
         }),
@@ -236,7 +245,6 @@ export default function JoinQueuePage() {
 
       setActiveToken(data);
       localStorage.setItem(`qfast_token_${slug}`, data.id);
-      saveGuest(slug, { name: form.customerName, phone: form.customerPhone });
       setError('');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -272,6 +280,17 @@ export default function JoinQueuePage() {
         )
       )
     : 0;
+
+  if (!loading && queueStatus && queueStatus.visitsOpen === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
+        <div className="max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm">
+          <h1 className="text-xl font-black text-neutral-950">{queueStatus.businessName || 'This queue'}</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">This queue is paused because the business plan has expired. Please speak to the counter.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -347,6 +366,17 @@ export default function JoinQueuePage() {
           <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
             {queueStatus?.businessName || 'Customer Queue'}
           </h1>
+          {queueStatus?.address && <p className="mt-1 text-xs text-neutral-500">{queueStatus.address}</p>}
+          {queueStatus?.instagramHandle && (
+            <a
+              href={`https://instagram.com/${queueStatus.instagramHandle}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex text-xs font-bold text-orange-700"
+            >
+              Follow @{queueStatus.instagramHandle}
+            </a>
+          )}
           <p className="text-xs text-neutral-400 mt-1.5">
             {foodBusiness && !activeToken && !visitChoice
               ? 'Eat here and wait for a table, or take it away.'
@@ -533,14 +563,24 @@ export default function JoinQueuePage() {
                   loyalty={activeToken.loyalty}
                   reviewUrl={reviewHref(activeToken.business?.googleReviewUrl, activeToken.business?.googlePlaceId)}
                   stampsHref={`${publicPath}/loyalty?phone=${encodeURIComponent(activeToken.customerPhone || '')}`}
+                  onStartAgain={() => {
+                    localStorage.removeItem(`qfast_token_${slug}`);
+                    setActiveToken(null);
+                    setReviewOpen(false);
+                  }}
                 />
               )}
 
-              {foodBusiness && (activeToken.status === 'SEATED' || activeToken.status === 'COMPLETED') && (
+                {foodBusiness && activeToken.status === 'SEATED' && (
                 <VisitBill
-                  title={activeToken.status === 'COMPLETED' ? 'Final bill' : 'Running bill'}
-                  businessName={queueStatus?.businessName}
+                  title="Running bill"
+                  businessName={queueStatus?.businessName || activeToken.business?.name}
+                  address={queueStatus?.address || activeToken.business?.address}
+                  phone={queueStatus?.phone || activeToken.business?.phone}
+                  gstin={queueStatus?.gstin || activeToken.business?.gstin}
+                  logoUrl={queueStatus?.logoUrl || activeToken.business?.logoUrl}
                   detail={activeToken.table?.name ? `Table ${activeToken.table.name}` : `Token #${activeToken.tokenNumber}`}
+                  billNo={String(activeToken.tokenNumber)}
                   downloadName={`bill-${activeToken.tokenNumber}`}
                   payments={(activeToken.orders || []).flatMap((order: any) => order.payments || [])}
                   lines={(activeToken.orders || []).flatMap((order: any) =>
@@ -760,16 +800,6 @@ export default function JoinQueuePage() {
                     </div>
                   )}
 
-                  {!editingGuest && form.customerName && form.customerPhone ? (
-                    <div className="rounded-2xl border border-orange-100 bg-orange-50 px-3 py-3 text-left">
-                      <p className="text-sm font-black text-neutral-950">Continuing as {form.customerName}</p>
-                      <p className="text-xs text-neutral-600">{form.customerPhone}</p>
-                      <button type="button" onClick={() => setEditingGuest(true)} className="mt-2 text-xs font-bold text-orange-700">
-                        Use different details
-                      </button>
-                    </div>
-                  ) : (
-                  <>
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       Your Name *
@@ -794,14 +824,14 @@ export default function JoinQueuePage() {
                     <input
                       type="tel"
                       required
+                      inputMode="numeric"
+                      autoComplete="tel"
                       value={form.customerPhone}
                       onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
                       className="w-full border border-neutral-200 rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden transition-all duration-200 bg-neutral-50/50 focus:bg-white"
-                      placeholder="+91 98765 43210"
+                      placeholder="10-digit mobile number"
                     />
                   </div>
-                  </>
-                  )}
 
                   {foodBusiness && <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
@@ -900,6 +930,14 @@ export default function JoinQueuePage() {
           </div>
         </div>
       )}
+      <ReviewPrompt
+        open={reviewOpen}
+        reviewUrl={reviewHref(activeToken?.business?.googleReviewUrl, activeToken?.business?.googlePlaceId)}
+        stamps={activeToken?.loyalty?.stamps}
+        goal={activeToken?.loyalty?.stampsForReward}
+        rewardName={activeToken?.loyalty?.rewardName}
+        onClose={() => setReviewOpen(false)}
+      />
       <ConfirmModal
         isOpen={showCancelModal}
         onClose={() => setShowCancelModal(false)}
@@ -920,44 +958,48 @@ function VisitFinished({
   reviewUrl,
   stampsHref,
   loyalty,
+  onStartAgain,
 }: {
   foodBusiness: boolean;
   clinicalBusiness: boolean;
   reviewUrl: string;
   stampsHref: string;
   loyalty?: { stamps?: number; stampsForReward?: number; rewardName?: string } | null;
+  onStartAgain: () => void;
 }) {
   const stamps = loyalty?.stamps || 0;
   const goal = loyalty?.stampsForReward || 8;
+  const full = stamps >= goal;
   return (
     <div className="relative z-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left">
       <div className="flex items-center gap-2 text-emerald-800">
         <CheckCircle2 className="h-5 w-5" />
-        <p className="font-black">{foodBusiness ? 'Visit complete' : 'Visit complete'}</p>
+        <p className="font-black">Visit complete</p>
       </div>
       {foodBusiness ? (
         <div className="mt-3">
-          <p className="text-sm text-emerald-900">
-            You have {stamps} of {goal} stamps. Collect them and come back for {loyalty?.rewardName || 'a free visit'}.
+          <p className="text-sm font-bold text-emerald-950">
+            {full
+              ? `Your card is full: ${stamps} of ${goal}. Show this phone at the counter and collect ${loyalty?.rewardName || 'your free dish'}.`
+              : `You have ${stamps} of ${goal} stamps toward ${loyalty?.rewardName || 'a reward'}.`}
           </p>
           <Link href={stampsHref} className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
             Open your stamp card
           </Link>
         </div>
       ) : (
-        <div className="mt-3">
-          <p className="text-sm text-emerald-900">
-            {clinicalBusiness ? 'If the visit went well, a Google review helps the clinic.' : 'If the visit went well, a Google review helps the business.'}
-          </p>
-          {reviewUrl ? (
-            <a href={reviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
-              Leave a Google review
-            </a>
-          ) : (
-            <p className="mt-2 text-xs text-emerald-800">The team has not added a Google review link yet.</p>
-          )}
-        </div>
+        <p className="mt-3 text-sm text-emerald-900">
+          {clinicalBusiness ? 'A Google review helps the clinic. The prompt on this page is the same for every visitor.' : 'A Google review helps the business.'}
+        </p>
       )}
+      {reviewUrl && (
+        <a href={reviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-bold text-emerald-950">
+          Rate on Google
+        </a>
+      )}
+      <button type="button" onClick={onStartAgain} className="mt-3 block w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white">
+        Join the queue again
+      </button>
     </div>
   );
 }

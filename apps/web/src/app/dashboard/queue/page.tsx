@@ -1211,6 +1211,10 @@ export default function DashboardQueuePage() {
               </div>
             </div>
 
+            {actionError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{actionError}</p>}
+            {!tables.length && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">No tables yet. You can still call them, then add tables and seat them.</p>
+            )}
             <div className="pt-2 flex flex-col gap-2">
               <button
                 type="button"

@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { BusinessType, PlanTier, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
 import { reviewFieldsFromInput } from '../reviews/google-place';
+import { visitsAreOpen } from './subscription-access';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class BusinessService {
@@ -17,7 +19,7 @@ export class BusinessService {
       throw new BadRequestException('The Advanced plan is not ready yet. Run the database seed and try again.');
     }
 
-    const periodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const foodBusiness = !dto.type || dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE;
     const queueLimit = 20;
     const tableLimit = 40;
@@ -61,10 +63,10 @@ export class BusinessService {
         subscriptions: {
           create: {
             planId: selectedPlan.id,
-            status: SubscriptionStatus.ACTIVE,
+            status: SubscriptionStatus.TRIALING,
             currentPeriodStart: new Date(),
-            currentPeriodEnd: periodEnd,
-            trialEndsAt: null,
+            currentPeriodEnd: trialEndsAt,
+            trialEndsAt,
           },
         },
         queues: {
@@ -131,45 +133,26 @@ export class BusinessService {
 
   async findByOwner(userId: string) {
     const businesses = await this.prisma.business.findMany({
-      where: { staff: { some: { userId } } },
+      where: { staff: { some: { userId, isActive: true } } },
+      select: { id: true },
+    });
+    await Promise.all(businesses.map((business) => visitsAreOpen(this.prisma, business.id)));
+    const fresh = await this.prisma.business.findMany({
+      where: { staff: { some: { userId, isActive: true } } },
       include: {
         branches: true,
         subscriptions: { include: { plan: true } },
+        staff: { where: { userId }, select: { role: true } },
       },
     });
-    await Promise.all(businesses.map((business) => this.settleExpiredProTrial(business.id)));
-    return this.prisma.business.findMany({
-      where: { staff: { some: { userId } } },
-      include: {
-        branches: true,
-        subscriptions: { include: { plan: true } },
-      },
-    });
-  }
-
-  private async settleExpiredProTrial(businessId: string) {
-    const advanced = await this.prisma.plan.findUnique({ where: { tier: PlanTier.ADVANCED } });
-    if (!advanced) return;
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { businessId },
-      include: { plan: true },
-    });
-    if (!subscription || (subscription.planId === advanced.id && subscription.status === SubscriptionStatus.ACTIVE)) {
-      return;
-    }
-    await this.prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        planId: advanced.id,
-        status: SubscriptionStatus.ACTIVE,
-        trialEndsAt: null,
-        currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      },
-    });
+    return fresh.map((business) => ({
+      ...business,
+      myRole: business.staff[0]?.role || UserRole.OWNER,
+    }));
   }
 
   async findById(id: string) {
-    await this.settleExpiredProTrial(id);
+    await visitsAreOpen(this.prisma, id);
     const business = await this.prisma.business.findUnique({
       where: { id },
       include: {
@@ -242,6 +225,7 @@ export class BusinessService {
         address: b.address || 'Central City',
         phone: b.phone,
         logoUrl: b.logoUrl,
+        instagramHandle: b.instagramHandle,
         isOpen: activeQueues.length > 0,
         activeQueueCount: activeQueues.length,
         totalWaiting,
@@ -259,8 +243,6 @@ export class BusinessService {
           averageWaitMinutes: q.averageWaitMinutes,
           estimatedWaitMin: q.tokens.length * q.averageWaitMinutes,
         })),
-        rating: 4.8,
-        reviewCount: 32 + (b.name.length % 20),
       };
     });
   }
@@ -300,7 +282,8 @@ export class BusinessService {
       },
     });
     if (!business) throw new NotFoundException('Business not found');
-    return business;
+    const access = await visitsAreOpen(this.prisma, business.id);
+    return { ...business, visitsOpen: access.open };
   }
 
   async getTodayReport(businessId: string, userId: string) {
@@ -438,6 +421,9 @@ export class BusinessService {
       averageWaitMinutes?: number;
       isOpen?: boolean;
       remoteJoinEnabled?: boolean;
+      logoUrl?: string;
+      instagramHandle?: string;
+      gstin?: string;
     },
   ) {
     const business = await this.prisma.business.findFirst({
@@ -453,6 +439,11 @@ export class BusinessService {
         ...(dto.name ? { name: dto.name.trim() } : {}),
         ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
         ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl.trim() || null } : {}),
+        ...(dto.instagramHandle !== undefined
+          ? { instagramHandle: dto.instagramHandle.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '') || null }
+          : {}),
+        ...(dto.gstin !== undefined ? { gstin: dto.gstin.trim().toUpperCase() || null } : {}),
         ...(reviewFields ? { googlePlaceId: reviewFields.googlePlaceId, googleReviewUrl: reviewFields.googleReviewUrl } : {}),
       },
     });
@@ -475,6 +466,57 @@ export class BusinessService {
     }
 
     return updated;
+  }
+
+  async listStaff(businessId: string, userId: string) {
+    await this.assertManager(businessId, userId);
+    return this.prisma.staff.findMany({
+      where: { businessId },
+      include: { user: { select: { email: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createStaff(businessId: string, userId: string, input: { username: string; password: string; role: UserRole }) {
+    await this.assertManager(businessId, userId);
+    if (![UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER].includes(input.role)) {
+      throw new BadRequestException('Choose a staff role');
+    }
+    const email = input.username.trim().toLowerCase();
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    const user = existing
+      ? existing
+      : await this.prisma.user.create({
+          data: { email, passwordHash, role: input.role },
+        });
+    if (existing) {
+      await this.prisma.user.update({ where: { id: existing.id }, data: { passwordHash, isActive: true, role: input.role } });
+    }
+    const staff = await this.prisma.staff.upsert({
+      where: { userId_businessId: { userId: user.id, businessId } },
+      update: { role: input.role, isActive: true },
+      create: { userId: user.id, businessId, role: input.role },
+    });
+    return { id: staff.id, username: email, role: staff.role, isActive: staff.isActive };
+  }
+
+  async saveIntegration(businessId: string, userId: string, provider: 'SWIGGY' | 'ZOMATO', webhookSecret: string) {
+    await this.assertManager(businessId, userId);
+    const secret = webhookSecret.trim();
+    if (secret.length < 8) throw new BadRequestException('Use a webhook secret of at least 8 characters');
+    return this.prisma.integration.upsert({
+      where: { businessId_provider: { businessId, provider } },
+      update: { isActive: true, config: { webhookSecret: secret } },
+      create: { businessId, provider, isActive: true, config: { webhookSecret: secret } },
+    });
+  }
+
+  private async assertManager(businessId: string, userId: string) {
+    const staff = await this.prisma.staff.findFirst({
+      where: { businessId, userId, isActive: true, role: { in: [UserRole.OWNER, UserRole.MANAGER] } },
+    });
+    if (!staff) throw new ForbiddenException('Only an owner or manager can do that');
   }
 }
 

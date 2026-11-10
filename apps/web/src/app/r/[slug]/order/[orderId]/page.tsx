@@ -25,6 +25,7 @@ import {
 import { getApiUrl } from '@/lib/api';
 import { reviewHref } from '@/lib/google-place';
 import { VisitBill } from '@/components/visit-bill';
+import { ReviewPrompt } from '@/components/review-prompt';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -42,6 +43,7 @@ export default function OrderTrackingPage() {
   const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const apiUrl = getApiUrl();
 
@@ -51,6 +53,10 @@ export default function OrderTrackingPage() {
       if (res.ok) {
         const data = await res.json();
         setOrder(data);
+        if (data.status === 'COMPLETED' && !sessionStorage.getItem(`qfast_review_order_${orderId}`)) {
+          sessionStorage.setItem(`qfast_review_order_${orderId}`, '1');
+          setReviewOpen(true);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -360,10 +366,35 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
+        {isCompleted ? (
+          <section className="rounded-3xl bg-emerald-50 p-5 text-center">
+            <p className="text-lg font-black text-emerald-950">You’re done</p>
+            {order.loyalty?.hasProgram !== false && order.loyalty && (
+              <p className="mt-2 text-sm font-bold text-emerald-900">
+                {(order.loyalty.stamps || 0) >= (order.loyalty.stampsForReward || 8)
+                  ? `Your card is full: ${order.loyalty.stamps} of ${order.loyalty.stampsForReward}. Show this phone at the counter and collect ${order.loyalty.rewardName || 'your free dish'}.`
+                  : `You have ${order.loyalty.stamps || 0} of ${order.loyalty.stampsForReward || 8} stamps.`}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-emerald-800">
+              {order.source === 'TABLE_QR' ? 'You can leave the table.' : 'The bill is closed.'}
+            </p>
+            {order.queueTokenId && (
+              <Link href={`/r/${slug}/join?fresh=1`} className="mt-4 inline-flex rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white">
+                Join the queue again
+              </Link>
+            )}
+          </section>
+        ) : (
         <div id="bill">
           <VisitBill
             title={isTakeaway ? 'Takeaway bill' : 'Your bill'}
             businessName={order.business?.name}
+            address={order.business?.address}
+            phone={order.business?.phone}
+            gstin={order.business?.gstin}
+            logoUrl={order.business?.logoUrl}
+            billNo={order.id.slice(-6).toUpperCase()}
             detail={isTakeaway ? 'Collect at the counter' : order.table?.name ? `Table ${order.table.name}` : 'Dine in'}
             downloadName={`bill-${order.id.slice(-6)}`}
             lines={(order.items || []).map((item: any) => ({
@@ -379,8 +410,9 @@ export default function OrderTrackingPage() {
             payments={order.payments || []}
           />
         </div>
+        )}
 
-        {order.queueTokenId && (
+        {order.queueTokenId && !isCompleted && (
           <Link href={`/r/${slug}/join`} className="block rounded-3xl bg-orange-500 px-5 py-4 text-center text-sm font-black text-white">
             Back to your queue
           </Link>
@@ -593,6 +625,14 @@ export default function OrderTrackingPage() {
           </div>
         </div>
       )}
+      <ReviewPrompt
+        open={reviewOpen}
+        reviewUrl={reviewHref(order.business?.googleReviewUrl, order.business?.googlePlaceId)}
+        stamps={order.loyalty?.stamps}
+        goal={order.loyalty?.stampsForReward}
+        rewardName={order.loyalty?.rewardName}
+        onClose={() => setReviewOpen(false)}
+      />
     </div>
   );
 }

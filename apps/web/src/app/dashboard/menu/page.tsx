@@ -38,6 +38,8 @@ export default function MenuManagementPage() {
     isVeg: true,
     prepTimeMinutes: 15,
     description: '',
+    servedAs: '',
+    imageUrl: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
@@ -141,6 +143,8 @@ export default function MenuManagementPage() {
             isVeg: itemForm.isVeg,
             prepTimeMinutes: Number(itemForm.prepTimeMinutes),
             description: itemForm.description.trim() || undefined,
+            servedAs: itemForm.servedAs.trim() || undefined,
+            imageUrl: itemForm.imageUrl.trim() || undefined,
           }),
         });
         if (!res.ok) throw new Error('Failed to update dish');
@@ -160,13 +164,15 @@ export default function MenuManagementPage() {
             isVeg: itemForm.isVeg,
             prepTimeMinutes: Number(itemForm.prepTimeMinutes),
             description: itemForm.description.trim() || undefined,
+            servedAs: itemForm.servedAs.trim() || undefined,
+            imageUrl: itemForm.imageUrl.trim() || undefined,
           }),
         });
         if (!res.ok) throw new Error('Failed to create dish');
         toast.success('Dish Added', `"${itemForm.name}" is now on your menu.`);
       }
 
-      setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '' });
+      setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', imageUrl: '' });
       setEditingItem(null);
       setShowItemModal(false);
       fetchData();
@@ -238,7 +244,7 @@ export default function MenuManagementPage() {
 
   const openAddItemModal = (catId?: string) => {
     setEditingItem(null);
-    setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '' });
+    setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', imageUrl: '' });
     if (catId) {
       setSelectedCategoryId(catId);
     } else if (menu?.categories?.length > 0) {
@@ -256,6 +262,8 @@ export default function MenuManagementPage() {
       isVeg: item.isVeg,
       prepTimeMinutes: item.prepTimeMinutes || 15,
       description: item.description || '',
+      servedAs: item.servedAs || '',
+      imageUrl: item.imageUrl || '',
     });
     setShowItemModal(true);
   };
@@ -618,7 +626,7 @@ export default function MenuManagementPage() {
       {/* Add / Edit Dish Modal */}
       {showItemModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
               <h3 className="font-extrabold text-base text-gray-900">
                 {editingItem ? 'Edit Dish' : 'Add New Dish'}
@@ -734,8 +742,26 @@ export default function MenuManagementPage() {
                   rows={2}
                   value={itemForm.description}
                   onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
-                  placeholder="Key spices, serving size, or allergen warnings..."
+                  placeholder="What is in it, and anything a guest should know"
                   className="w-full border border-gray-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">How it’s served</label>
+                <input
+                  value={itemForm.servedAs}
+                  onChange={(e) => setItemForm({ ...itemForm, servedAs: e.target.value })}
+                  placeholder="In a copper bowl with mint chutney"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Photo URL</label>
+                <input
+                  value={itemForm.imageUrl}
+                  onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })}
+                  placeholder="https://"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs"
                 />
               </div>
 

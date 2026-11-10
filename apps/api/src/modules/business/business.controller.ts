@@ -4,6 +4,30 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessSettingsDto } from './dto/update-business-settings.dto';
+import { IsIn, IsString, MinLength } from 'class-validator';
+import { UserRole } from '@prisma/client';
+
+class CreateStaffBody {
+  @IsString()
+  @MinLength(3)
+  username!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @IsIn([UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER])
+  role!: UserRole;
+}
+
+class IntegrationBody {
+  @IsIn(['SWIGGY', 'ZOMATO'])
+  provider!: 'SWIGGY' | 'ZOMATO';
+
+  @IsString()
+  @MinLength(8)
+  webhookSecret!: string;
+}
 
 @ApiTags('business')
 @Controller('business')
@@ -57,6 +81,27 @@ export class BusinessController {
   @ApiOperation({ summary: 'Get business details by ID' })
   async findOne(@Param('id') id: string) {
     return this.businessService.findById(id);
+  }
+
+  @Get(':id/staff')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async listStaff(@Param('id') id: string, @Req() req: any) {
+    return this.businessService.listStaff(id, req.user.sub);
+  }
+
+  @Post(':id/staff')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async createStaff(@Param('id') id: string, @Body() body: CreateStaffBody, @Req() req: any) {
+    return this.businessService.createStaff(id, req.user.sub, body);
+  }
+
+  @Post(':id/integrations')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async saveIntegration(@Param('id') id: string, @Body() body: IntegrationBody, @Req() req: any) {
+    return this.businessService.saveIntegration(id, req.user.sub, body.provider, body.webhookSecret);
   }
 
   @Get('public/:slug')

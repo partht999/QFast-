@@ -24,6 +24,11 @@ export default function SettingsPage() {
   const [averageWaitMinutes, setAverageWaitMinutes] = useState(8);
   const [isOpen, setIsOpen] = useState(true);
   const [remoteJoinEnabled, setRemoteJoinEnabled] = useState(true);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [instagramHandle, setInstagramHandle] = useState('');
+  const [gstin, setGstin] = useState('');
+  const [swiggySecret, setSwiggySecret] = useState('');
+  const [zomatoSecret, setZomatoSecret] = useState('');
   const [stampsForReward, setStampsForReward] = useState(8);
   const [rewardName, setRewardName] = useState('Free visit');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -55,6 +60,9 @@ export default function SettingsPage() {
         setName(current.name || '');
         setPhone(current.phone || '');
         setAddress(current.address || '');
+        setLogoUrl(current.logoUrl || '');
+        setInstagramHandle(current.instagramHandle || '');
+        setGstin(current.gstin || '');
         setGooglePlaceId(current.googlePlaceId || '');
         const queueResponse = await fetch(`${apiUrl}/api/v1/queue/manage/${current.id}`, { headers });
         if (queueResponse.ok) {
@@ -93,6 +101,9 @@ export default function SettingsPage() {
           name,
           phone,
           address,
+          logoUrl,
+          instagramHandle,
+          gstin,
           googlePlaceId,
           averageWaitMinutes: Number(averageWaitMinutes),
           isOpen,
@@ -180,6 +191,20 @@ export default function SettingsPage() {
           Guests can join from their phone
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
+          Logo URL
+          <input value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="https://" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+        </label>
+        <label className="block text-sm font-semibold text-neutral-800">
+          Instagram
+          <input value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} placeholder="yourplace" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+        </label>
+        {food && (
+          <label className="block text-sm font-semibold text-neutral-800">
+            GSTIN
+            <input value={gstin} onChange={(event) => setGstin(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          </label>
+        )}
+        <label className="block text-sm font-semibold text-neutral-800">
           Google Maps link
           <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Paste the listing link from Google Maps" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
           {googleReviewTarget(googlePlaceId) && (
@@ -204,6 +229,54 @@ export default function SettingsPage() {
           {saving ? 'Saving…' : 'Save settings'}
         </button>
       </form>
+
+      {food && (
+        <form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const token = localStorage.getItem('accessToken');
+            if (!token || !businessId) return;
+            setSaving(true);
+            try {
+              const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+              if (swiggySecret.trim()) {
+                const response = await fetch(`${apiUrl}/api/v1/business/${businessId}/integrations`, {
+                  method: 'POST', headers, body: JSON.stringify({ provider: 'SWIGGY', webhookSecret: swiggySecret.trim() }),
+                });
+                if (!response.ok) throw new Error('Could not save the Swiggy secret');
+              }
+              if (zomatoSecret.trim()) {
+                const response = await fetch(`${apiUrl}/api/v1/business/${businessId}/integrations`, {
+                  method: 'POST', headers, body: JSON.stringify({ provider: 'ZOMATO', webhookSecret: zomatoSecret.trim() }),
+                });
+                if (!response.ok) throw new Error('Could not save the Zomato secret');
+              }
+              toast.success('Delivery partners saved', 'Orders sent to the webhook appear on the kitchen screen.');
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'Could not save delivery partners');
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5"
+        >
+          <h2 className="text-lg font-black text-neutral-950">Swiggy and Zomato</h2>
+          <p className="text-sm text-neutral-500">
+            Paste a secret, then send orders to <span className="font-mono text-xs">/api/v1/orders/public/partner/your-slug</span> with that secret. They show on the kitchen screen and stay off the QR menu.
+          </p>
+          <label className="block text-sm font-semibold text-neutral-800">
+            Swiggy webhook secret
+            <input value={swiggySecret} onChange={(event) => setSwiggySecret(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          </label>
+          <label className="block text-sm font-semibold text-neutral-800">
+            Zomato webhook secret
+            <input value={zomatoSecret} onChange={(event) => setZomatoSecret(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          </label>
+          <button type="submit" disabled={saving} className="rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+            Save delivery partners
+          </button>
+        </form>
+      )}
 
       <form onSubmit={changePassword} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
         <h2 className="text-lg font-black text-neutral-950">Password</h2>

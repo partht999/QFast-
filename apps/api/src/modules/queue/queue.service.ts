@@ -13,6 +13,7 @@ import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
 import { BusinessType, OrderStatus, PaymentStatus, Prisma, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
 import { isCounterPayment, unpaidReason } from '../orders/payment-state';
+import { visitsAreOpen } from '../business/subscription-access';
 
 @Injectable()
 export class QueueService {
@@ -34,6 +35,15 @@ export class QueueService {
     });
 
     if (!business) throw new NotFoundException('Business not found');
+    const access = await visitsAreOpen(this.prisma, business.id);
+    const profile = {
+      logoUrl: business.logoUrl,
+      address: business.address,
+      phone: business.phone,
+      instagramHandle: business.instagramHandle,
+      gstin: business.gstin,
+      visitsOpen: access.open,
+    };
     const queue = business.queues.find((q) => q.isOpen && !q.isPaused) || business.queues[0];
     if (queue) await this.expireOverdueRemoteTokens(queue.id);
     if (!queue) {
@@ -46,6 +56,7 @@ export class QueueService {
         waitingCount: 0,
         estimatedWaitMin: 0,
         queueId: null,
+        ...profile,
       };
     }
 
@@ -69,6 +80,7 @@ export class QueueService {
       waitingCount,
       averageWaitMinutes: avgWait,
       estimatedWaitMin: waitingCount * avgWait,
+      ...profile,
     };
   }
 
@@ -117,6 +129,10 @@ export class QueueService {
     });
 
     if (!business) throw new NotFoundException('Business not found');
+    const access = await visitsAreOpen(this.prisma, business.id);
+    if (!access.open) {
+      throw new BadRequestException('This queue is closed because the business plan has expired.');
+    }
 
     let queue = null;
     if (dto.queueId) {
@@ -283,6 +299,11 @@ export class QueueService {
                 type: true,
                 googlePlaceId: true,
                 googleReviewUrl: true,
+                address: true,
+                phone: true,
+                logoUrl: true,
+                instagramHandle: true,
+                gstin: true,
               },
             },
           },
@@ -577,7 +598,7 @@ export class QueueService {
         const earlierEntry = await this.prisma.queueToken.findFirst({
           where: {
             queueId: currentToken.queueId,
-            status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+            status: QueueTokenStatus.WAITING,
             createdAt: { lt: currentToken.createdAt },
           },
           orderBy: { createdAt: 'asc' },

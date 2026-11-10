@@ -22,6 +22,11 @@ export class CreateMenuItemDto {
   @IsOptional()
   description?: string;
 
+  @ApiProperty({ example: 'Served in a copper bowl with mint chutney', required: false })
+  @IsString()
+  @IsOptional()
+  servedAs?: string;
+
   @ApiProperty({ example: true, default: true })
   @IsBoolean()
   @IsOptional()
@@ -53,6 +58,11 @@ export class UpdateMenuItemDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  servedAs?: string;
 
   @ApiProperty({ required: false })
   @IsBoolean()

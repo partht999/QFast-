@@ -200,7 +200,7 @@ export default function ReviewsManagementPage() {
             </span>
             <h2 className="text-2xl font-black tracking-tight">Boost 5-Star Google Reviews Automatically</h2>
             <p className="text-xs text-emerald-100 max-w-xl leading-relaxed">
-              After a completed visit, happy customers (4–5★) get a one-tap link to your Google listing. Lower ratings stay private in this inbox so you can respond before they become public.
+              After a completed visit, every customer sees both a Google review link and a private feedback form. Nothing here hides the Google link.
             </p>
           </div>
 

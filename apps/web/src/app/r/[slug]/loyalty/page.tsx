@@ -88,7 +88,7 @@ export default function CustomerLoyaltyPage() {
         <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-orange-700">{card?.businessName || businessName || 'Stamp card'}</p>
           <h1 className="mt-1 text-3xl font-black">Collect {target} stamps</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Each visit adds one stamp. A full card is {prize}. Ask the counter to mark it.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Each visit adds one stamp. A full card is {prize}.</p>
 
           <div className="mt-6 grid grid-cols-4 gap-3">
             {Array.from({ length: target }).map((_, index) => (
@@ -102,8 +102,12 @@ export default function CustomerLoyaltyPage() {
               </div>
             ))}
           </div>
-          <p className="mt-4 text-sm font-semibold text-slate-700">
-            {card ? `${stamps} of ${target}${stamps >= target ? ' · show this at the counter' : ''}` : 'Enter your mobile number to see your stamps.'}
+          <p className={`mt-4 rounded-2xl px-3 py-3 text-sm font-bold ${stamps >= target && card ? 'bg-emerald-50 text-emerald-900' : 'text-slate-700'}`}>
+            {card
+              ? stamps >= target
+                ? `Your card is full: ${stamps} of ${target}. Show this phone at the counter and collect ${prize}.`
+                : `You have collected ${stamps} of ${target} stamps.`
+              : 'Enter your mobile number to see your stamps.'}
           </p>
 
           <form onSubmit={submit} className="mt-4 flex gap-2">

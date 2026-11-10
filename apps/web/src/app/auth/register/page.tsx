@@ -81,7 +81,7 @@ export default function RegisterPage() {
         <BrandMark href="/" tone="light" size="lg" label="Qfast home" />
         <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Create your workspace</h1>
         <p className="mt-2 text-sm text-slate-400">
-          The Advanced plan is free to use right now. Create your account, then open a live queue.
+          The full product is free for 30 days. Create your account, then open a live queue.
         </p>
       </div>
 

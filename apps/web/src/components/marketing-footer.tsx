@@ -3,6 +3,7 @@ import { BrandMark } from './brand-mark';
 
 const industryLinks = [
   ['Restaurants', '/restaurants'],
+  ['Cafes', '/cafes'],
   ['Clinics', '/clinics'],
   ['Salons', '/salons'],
   ['Diagnostics', '/diagnostics'],

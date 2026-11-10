@@ -17,11 +17,16 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'Qfast — A clear queue for every service business',
+    default: 'Qfast — Queues, table ordering, and stamp cards',
     template: '%s | Qfast',
   },
   description:
-    'Give customers a place in line and give your team one board to call the next person. The Advanced plan is free to use right now.',
+    'Qfast gives restaurants, cafes, salons, clinics, labs, and service desks a live queue. Guests join from a QR code. Restaurants can also take table orders, print a bill, and collect stamps.',
+  openGraph: {
+    title: 'Qfast — The wait should be obvious',
+    description: 'A live queue for service businesses, with table ordering, bills, and stamp cards for restaurants and cafes.',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

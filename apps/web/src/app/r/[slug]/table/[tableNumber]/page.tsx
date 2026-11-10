@@ -22,7 +22,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
-import { readGuest, saveGuest } from '@/lib/guest';
+import { isIndianMobile, localMobile } from '@/lib/phone';
 
 interface CartItem {
   id: string;
@@ -65,6 +65,7 @@ export default function TableOrderPage() {
   const orderKey = useRef('');
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<any | null>(null);
   const router = useRouter();
 
   const apiUrl = getApiUrl();
@@ -75,15 +76,7 @@ export default function TableOrderPage() {
   };
 
   useEffect(() => {
-    if (isFixedTable) router.replace(`/r/${slug}/join`);
-  }, [isFixedTable, router, slug]);
-
-  useEffect(() => {
-    const guest = readGuest(slug);
-    if (guest) {
-      setCustomerName((current) => current || guest.name);
-      setCustomerPhone((current) => current || guest.phone);
-    }
+    if (isFixedTable) return;
     const tokenId = tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : null);
     if (tokenId) {
       fetch(`${apiUrl}/api/v1/queue/public/token/${tokenId}`)
@@ -173,6 +166,10 @@ export default function TableOrderPage() {
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+    if (orderSource === 'TABLE_QR' && (!customerName.trim() || !isIndianMobile(customerPhone))) {
+      setError('Enter your name and a 10-digit mobile number. Stamps are saved to that number.');
+      return;
+    }
     if (!orderKey.current) orderKey.current = crypto.randomUUID();
     setPlacingOrder(true);
     setError('');
@@ -192,7 +189,7 @@ export default function TableOrderPage() {
           tableName: orderSource === 'TABLE_QR' ? tableNumber : undefined,
           queueTokenId: resolvedQueueTokenId,
           customerName: customerName.trim() || undefined,
-          customerPhone: customerPhone.trim() || undefined,
+          customerPhone: customerPhone.trim() ? localMobile(customerPhone) : undefined,
           specialInstructions: specialInstructions.trim() || undefined,
           paymentMethod,
           tipAmount,
@@ -211,9 +208,6 @@ export default function TableOrderPage() {
 
       setCart([]);
       setIsCartOpen(false);
-      if (customerName.trim() && customerPhone.trim()) {
-        saveGuest(slug, { name: customerName.trim(), phone: customerPhone.trim() });
-      }
       orderKey.current = '';
       if (resolvedQueueTokenId) {
         router.push(`/r/${slug}/join`);
@@ -227,10 +221,13 @@ export default function TableOrderPage() {
     }
   };
 
-  if (isFixedTable) {
+  if (!loading && restaurant && restaurant.visitsOpen === false) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6 text-center">
-        <p className="text-sm font-semibold text-neutral-600">Tables are assigned when your party is called. Opening the queue.</p>
+        <div className="max-w-sm rounded-3xl bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-black">{restaurant.name}</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">Ordering is paused because the business plan has expired. Please ask the counter.</p>
+        </div>
       </div>
     );
   }
@@ -298,6 +295,11 @@ export default function TableOrderPage() {
                   </span>
                 )}
               </div>
+              {restaurant?.instagramHandle && (
+                <a href={`https://instagram.com/${restaurant.instagramHandle}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-orange-700">
+                  Follow @{restaurant.instagramHandle}
+                </a>
+              )}
               <p className="text-[11px] text-neutral-400 font-medium">
                 {orderSource === 'QUEUE_PREORDER'
                   ? 'Dine-in Pre-order · Served when table is ready'
@@ -465,6 +467,10 @@ export default function TableOrderPage() {
                         {item.description}
                       </p>
                     )}
+                    {item.servedAs && <p className="mt-1 text-xs font-semibold text-neutral-700">Served: {item.servedAs}</p>}
+                    <button type="button" onClick={() => setDetailItem(item)} className="mt-2 text-xs font-bold text-orange-700">
+                      See how it’s served
+                    </button>
 
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-neutral-400">
                       {item.prepTimeMinutes && (
@@ -657,11 +663,6 @@ export default function TableOrderPage() {
                   </div>
                 )}
 
-                {customerName && customerPhone ? (
-                  <p className="rounded-xl bg-orange-50 px-3 py-2 text-xs font-bold text-orange-950">
-                    Ordering as {customerName} · {customerPhone}
-                  </p>
-                ) : (
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
@@ -683,12 +684,12 @@ export default function TableOrderPage() {
                       type="tel"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
+                      placeholder="10-digit mobile"
+                      inputMode="numeric"
                       className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
                     />
                   </div>
                 </div>
-                )}
 
                 <div>
                   <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
@@ -807,6 +808,40 @@ export default function TableOrderPage() {
                   )}
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {detailItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-4 sm:items-center">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            {detailItem.imageUrl && (
+              <img src={detailItem.imageUrl} alt="" className="h-48 w-full object-cover" />
+            )}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black">{detailItem.name}</h2>
+                  <p className="mt-1 text-sm font-bold">₹{Number(detailItem.price).toFixed(0)}</p>
+                </div>
+                <button type="button" onClick={() => setDetailItem(null)} className="rounded-full bg-neutral-100 p-2">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {detailItem.description && <p className="mt-3 text-sm leading-6 text-neutral-600">{detailItem.description}</p>}
+              <p className="mt-3 rounded-2xl bg-orange-50 px-3 py-3 text-sm font-semibold text-orange-950">
+                {detailItem.servedAs ? `How it’s served: ${detailItem.servedAs}` : 'The kitchen will confirm how this dish is served.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  addToCart(detailItem);
+                  setDetailItem(null);
+                }}
+                className="mt-4 w-full rounded-2xl bg-orange-500 py-3 text-sm font-black text-white"
+              >
+                Add to order
+              </button>
             </div>
           </div>
         </div>

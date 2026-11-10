@@ -8,6 +8,7 @@ import {
   Scissors,
   Stethoscope,
   Store,
+  Coffee,
   Ticket,
   Users,
   Wrench,
@@ -59,7 +60,8 @@ const industries = [
   { icon: Scissors, label: 'Salons', href: '/salons', detail: 'One walk-in queue, in arrival order.' },
   { icon: ClipboardList, label: 'Diagnostics', href: '/diagnostics', detail: 'One queue for collection and imaging.' },
   { icon: Wrench, label: 'Service centres', href: '/service-centres', detail: 'One queue for the counter.' },
-  { icon: Store, label: 'Restaurants', href: '/restaurants', detail: 'The waitlist, plus table ordering and the kitchen when you need them.' },
+  { icon: Store, label: 'Restaurants', href: '/restaurants', detail: 'The waitlist, plus table ordering, bills, and stamp cards.' },
+  { icon: Coffee, label: 'Cafes', href: '/cafes', detail: 'The same queue and table QR, sized for a counter that turns over fast.' },
 ];
 
 export default function HomePage() {
@@ -97,7 +99,7 @@ export default function HomePage() {
                 Advanced plan
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-400">Every workspace is on the Advanced plan. It is free to use right now.</p>
+            <p className="mt-4 text-xs text-slate-400">The full product is free for 30 days. After that, a subscription keeps the queue open.</p>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl">
@@ -189,7 +191,7 @@ export default function HomePage() {
 
         <div className="mt-16">
           <h2 className="text-2xl font-black">The same queue, shaped for the work you do</h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {industries.map((industry) => {
               const Icon = industry.icon;
               return (
@@ -207,9 +209,9 @@ export default function HomePage() {
       <section id="advanced" className="border-t border-slate-200 bg-slate-50 px-5 py-20 sm:px-8">
         <div className="mx-auto max-w-3xl">
           <p className="text-xs font-black uppercase tracking-widest text-orange-600">Advanced plan</p>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">The full workspace is open, and it is free to use right now.</h2>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Thirty days of the full product, then a subscription.</h2>
           <p className="mt-4 text-slate-600 leading-7">
-            Every new business is placed on the Advanced plan, and it is free to use right now. Restaurants get one walk-in queue, tables, and a stamp card. Clinics and hospitals get one queue, and a completed visit asks for a Google review.
+            Restaurants and cafes get the queue, table QR ordering, the kitchen, bills, and stamp cards. Clinics, salons, labs, and service desks get a live queue and a Google review after the visit. When the 30 days end, the workspace asks you to subscribe before customers can join again.
           </p>
           <Link href="/auth/register" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
             Get started <ArrowRight className="h-4 w-4" />

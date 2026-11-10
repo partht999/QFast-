@@ -37,4 +37,19 @@ export class UpdateBusinessSettingsDto {
   @IsOptional()
   @IsBoolean()
   remoteJoinEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  instagramHandle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  gstin?: string;
 }

@@ -167,6 +167,42 @@ export function IndustryLandingPage({ type }: { type: string }) {
         </div>
       </section>
 
+      <section className="border-t border-slate-200 bg-white px-5 py-16 sm:px-8">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-600">How this business uses Qfast</p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-tight">From the QR code to a finished visit</h2>
+          <ol className="mt-8 grid gap-4 md:grid-cols-4">
+            {[
+              ['1. Scan', 'The entrance QR opens the queue in the browser. A table QR opens the menu for that table.'],
+              ['2. Wait or order', 'Guests see their place in line. At a restaurant table they order without joining the queue.'],
+              ['3. Staff board', 'Your team calls the next person, or the kitchen sees the ticket and marks it ready.'],
+              ['4. After', 'The bill closes, stamps update, and every guest can rate you on Google.'],
+            ].map(([title, detail]) => (
+              <li key={title} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-sm font-black">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200 p-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-orange-600">Guest phone</p>
+              <p className="mt-3 text-4xl font-black text-orange-600">#14</p>
+              <p className="mt-2 text-sm text-slate-600">Name and mobile are always typed in. The page does not reuse the last person.</p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 p-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-orange-600">Staff board</p>
+              <p className="mt-3 font-black">Call to Table 4</p>
+              <p className="mt-2 text-sm text-slate-600">The next waiting guest is called to a free table that fits the party.</p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 p-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-orange-600">Stamp card</p>
+              <p className="mt-3 font-black">6 of 8</p>
+              <p className="mt-2 text-sm text-slate-600">A full card tells the guest to show the phone at the counter for the free dish.</p>
+            </div>
+          </div>
+        </div>
+      </section>
       <section className="border-y border-slate-100 bg-slate-50 px-5 py-16 sm:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <CalendarDays className="mx-auto h-8 w-8 text-orange-600" />

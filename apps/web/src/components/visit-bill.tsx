@@ -26,6 +26,12 @@ export function VisitBill({
   total,
   payments,
   downloadName = 'qfast-bill',
+  address,
+  phone,
+  gstin,
+  logoUrl,
+  billNo,
+  issuedAt,
 }: {
   title?: string;
   businessName?: string;
@@ -36,6 +42,12 @@ export function VisitBill({
   total: number;
   payments?: PaymentLike[];
   downloadName?: string;
+  address?: string;
+  phone?: string;
+  gstin?: string;
+  logoUrl?: string;
+  billNo?: string;
+  issuedAt?: string;
 }) {
   const [people, setPeople] = useState(1);
   const share = people > 1 ? Math.ceil((total / people) * 100) / 100 : total;
@@ -52,8 +64,10 @@ export function VisitBill({
     return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
       <style>body{font-family:Georgia,serif;max-width:360px;margin:24px auto;color:#111}h1{font-size:22px;margin-bottom:0}p{margin:6px 0}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 0;border-bottom:1px dashed #ccc;vertical-align:top}.total{font-size:20px;font-weight:700;border-top:2px solid #111;padding-top:8px}</style>
       </head><body>
+      ${logoUrl ? `<img src="${logoUrl}" alt="" style="height:48px" />` : ''}
       <h1>${businessName || 'Qfast'}</h1>
-      <p>${detail || title}</p>
+      <p>${[address, phone, gstin ? `GSTIN ${gstin}` : ''].filter(Boolean).join('<br>')}</p>
+      <p>${detail || title}${billNo ? `<br>Bill ${billNo}` : ''}${issuedAt ? `<br>${issuedAt}` : ''}</p>
       <table>${rows}</table>
       <p>Subtotal ${money(subtotal)}<br>GST ${money(tax)}</p>
       <p class="total">Total ${money(total)}</p>
@@ -86,7 +100,13 @@ export function VisitBill({
             <Receipt className="h-3.5 w-3.5" />
             {title}
           </p>
+          {businessName && <p className="mt-1 text-sm font-black text-neutral-950">{businessName}</p>}
+          {address && <p className="text-xs text-neutral-500">{address}</p>}
+          {(phone || gstin) && (
+            <p className="text-xs text-neutral-500">{[phone, gstin ? `GSTIN ${gstin}` : ''].filter(Boolean).join(' · ')}</p>
+          )}
           {detail && <p className="mt-1 text-sm font-bold text-neutral-900">{detail}</p>}
+          {(billNo || issuedAt) && <p className="text-xs text-neutral-500">{[billNo && `Bill ${billNo}`, issuedAt].filter(Boolean).join(' · ')}</p>}
         </div>
         <button
           type="button"

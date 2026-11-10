@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { isCounterPayment, unpaidReason } from './payment-state';
+import { visitsAreOpen } from '../business/subscription-access';
 
 @Injectable()
 export class OrdersService {
@@ -27,6 +28,10 @@ export class OrdersService {
       include: { branches: true },
     });
     if (!business) throw new NotFoundException('Restaurant not found');
+    const access = await visitsAreOpen(this.prisma, business.id);
+    if (!access.open) {
+      throw new ForbiddenException('Ordering is paused because this business plan has expired.');
+    }
 
     if (dto.idempotencyKey) {
       const existing = await this.prisma.order.findUnique({
@@ -39,11 +44,10 @@ export class OrdersService {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('Order must contain at least one item');
     }
-    if (dto.source === OrderSource.TABLE_QR || dto.tableId || dto.tableName) {
-      throw new BadRequestException('Scan the queue QR. A table is chosen only when your party is called.');
-    }
-
     const lines = await this.pricedLines(business.id, dto.items);
+    if (dto.source === OrderSource.TABLE_QR || dto.tableName) {
+      return this.createTableOrder(business, dto, lines);
+    }
     let queueTokenId = dto.queueTokenId;
     let tokenNumber: number | undefined;
     let tokenStatus: string | undefined;
@@ -201,6 +205,11 @@ export class OrdersService {
             googleReviewUrl: true,
             googlePlaceId: true,
             currencyCode: true,
+            address: true,
+            phone: true,
+            logoUrl: true,
+            instagramHandle: true,
+            gstin: true,
           },
         },
         table: true,
@@ -213,7 +222,10 @@ export class OrdersService {
     });
 
     if (!order) throw new NotFoundException('Order not found');
-    return order;
+    const loyalty = order.customerPhone
+      ? await this.loyalty.getCustomerBalance(order.business.slug, order.customerPhone)
+      : null;
+    return { ...order, loyalty };
   }
 
   async getActiveOrders(businessId: string) {
@@ -400,6 +412,181 @@ export class OrdersService {
     });
     this.events.emitOrderUpdate(order.businessId, order.id, { type: 'STAFF_HELP', alert });
     return { ok: true };
+  }
+
+  async ingestPartnerOrder(
+    slug: string,
+    input: {
+      provider: 'SWIGGY' | 'ZOMATO';
+      secret: string;
+      externalId: string;
+      customerName?: string;
+      items: Array<{ name: string; quantity: number; price: number }>;
+    },
+  ) {
+    const business = await this.prisma.business.findUnique({ where: { slug }, include: { branches: true } });
+    if (!business) throw new NotFoundException('Restaurant not found');
+    const access = await visitsAreOpen(this.prisma, business.id);
+    if (!access.open) throw new ForbiddenException('This business plan has expired.');
+    const provider = input.provider === 'ZOMATO' ? IntegrationProvider.ZOMATO : IntegrationProvider.SWIGGY;
+    const integration = await this.prisma.integration.findUnique({
+      where: { businessId_provider: { businessId: business.id, provider } },
+    });
+    const config = (integration?.config || {}) as { webhookSecret?: string };
+    if (!integration?.isActive || !config.webhookSecret || config.webhookSecret !== input.secret) {
+      throw new UnauthorizedException('Partner webhook was rejected');
+    }
+    const externalId = input.externalId.trim();
+    if (!externalId) throw new BadRequestException('externalId is required');
+    const existing = await this.prisma.externalOrder.findUnique({
+      where: { integrationId_externalId: { integrationId: integration.id, externalId } },
+    });
+    if (existing) {
+      const prior = await this.prisma.order.findFirst({
+        where: { businessId: business.id, externalOrderId: externalId },
+        include: this.orderInclude,
+      });
+      if (prior) return prior;
+    }
+
+    const category = await this.partnerCategory(business.id);
+    const lines = [];
+    for (const item of input.items || []) {
+      const name = item.name?.trim();
+      if (!name || !item.quantity) continue;
+      const price = Math.max(0, Number(item.price) || 0);
+      let menuItem = await this.prisma.menuItem.findFirst({
+        where: { categoryId: category.id, name: { equals: name, mode: 'insensitive' } },
+      });
+      if (!menuItem) {
+        menuItem = await this.prisma.menuItem.create({
+          data: { categoryId: category.id, name, price, description: `${input.provider} dish`, isAvailable: true },
+        });
+      }
+      lines.push({ menuItem, quantity: item.quantity, price });
+    }
+    if (!lines.length) throw new BadRequestException('Add at least one dish');
+    const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+    const taxAmount = Math.round(subtotal * 0.05 * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+    const order = await this.prisma.order.create({
+      data: {
+        businessId: business.id,
+        branchId: business.branches[0]?.id,
+        customerName: input.customerName || input.provider,
+        source: OrderSource.INTEGRATION,
+        status: OrderStatus.PENDING,
+        externalOrderId: externalId,
+        subtotal,
+        taxAmount,
+        tipAmount: 0,
+        discountAmount: 0,
+        totalAmount,
+        specialInstructions: `${input.provider} #${externalId}`,
+        items: {
+          create: lines.map((line) => ({
+            menuItemId: line.menuItem.id,
+            quantity: line.quantity,
+            unitPrice: line.price,
+            addonsTotal: 0,
+            totalPrice: line.price * line.quantity,
+            status: OrderStatus.PENDING,
+          })),
+        },
+        payments: {
+          create: { businessId: business.id, amount: totalAmount, method: 'UPI_AT_COUNTER', status: PaymentStatus.PENDING },
+        },
+      },
+      include: this.orderInclude,
+    });
+    await this.prisma.externalOrder.upsert({
+      where: { integrationId_externalId: { integrationId: integration.id, externalId } },
+      update: { processedAt: new Date() },
+      create: { integrationId: integration.id, externalId, source: input.provider, rawPayload: input as object, processedAt: new Date() },
+    });
+    this.events.emitNewOrder(business.id, order);
+    return order;
+  }
+
+  private async partnerCategory(businessId: string) {
+    const menu = await this.prisma.menu.findFirst({ where: { businessId, isDefault: true } });
+    if (!menu) throw new BadRequestException('Create a menu before connecting delivery partners');
+    const existing = await this.prisma.menuCategory.findFirst({ where: { menuId: menu.id, name: 'Partner orders' } });
+    if (existing) return existing;
+    return this.prisma.menuCategory.create({
+      data: { menuId: menu.id, name: 'Partner orders', description: 'Dishes received from Swiggy or Zomato. Hidden from the QR menu.', isActive: false },
+    });
+  }
+
+  private async createTableOrder(
+    business: { id: string; branches: { id: string }[] },
+    dto: CreateOrderDto,
+    lines: Awaited<ReturnType<OrdersService['pricedLines']>>,
+  ) {
+    const tableName = (dto.tableName || '').trim();
+    const table = await this.prisma.table.findFirst({
+      where: { businessId: business.id, isActive: true, name: { equals: tableName, mode: 'insensitive' } },
+    });
+    if (!table) throw new BadRequestException('This table QR is not active. Ask the counter to reprint it.');
+    const digits = (dto.customerPhone || '').replace(/\D/g, '');
+    const phone = digits.length > 10 ? digits.slice(-10) : digits;
+    if (!/^[6-9]\d{9}$/.test(phone)) throw new BadRequestException('Enter a 10-digit mobile number so your stamps are saved.');
+    if (!dto.customerName?.trim()) throw new BadRequestException('Enter your name.');
+
+    const open = await this.prisma.order.findFirst({
+      where: { tableId: table.id, status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (open) return this.appendToOrder(open.id, lines, dto.tipAmount || 0, 'SEATED', table.id);
+
+    const customer = await this.prisma.customer.upsert({
+      where: { phone },
+      update: { name: dto.customerName.trim() },
+      create: { phone, name: dto.customerName.trim() },
+    });
+    const totals = this.totalsFor(lines, dto.tipAmount || 0);
+    const order = await this.prisma.order.create({
+      data: {
+        businessId: business.id,
+        branchId: business.branches[0]?.id,
+        tableId: table.id,
+        customerId: customer.id,
+        customerName: dto.customerName.trim(),
+        customerPhone: phone,
+        source: OrderSource.TABLE_QR,
+        status: OrderStatus.PENDING,
+        subtotal: new Prisma.Decimal(totals.subtotal),
+        taxAmount: new Prisma.Decimal(totals.taxAmount),
+        tipAmount: new Prisma.Decimal(totals.tipAmount),
+        discountAmount: new Prisma.Decimal(0),
+        totalAmount: new Prisma.Decimal(totals.totalAmount),
+        specialInstructions: dto.specialInstructions,
+        idempotencyKey: dto.idempotencyKey,
+        items: {
+          create: lines.map((line) => ({
+            menuItemId: line.item.menuItemId,
+            variantId: line.item.variantId,
+            quantity: line.item.quantity,
+            unitPrice: new Prisma.Decimal(line.unitPrice),
+            addonsTotal: new Prisma.Decimal(0),
+            totalPrice: new Prisma.Decimal(line.totalPrice),
+            specialNote: line.item.specialNote,
+            status: OrderStatus.PENDING,
+          })),
+        },
+        payments: {
+          create: {
+            businessId: business.id,
+            amount: new Prisma.Decimal(totals.totalAmount),
+            method: dto.paymentMethod,
+            status: PaymentStatus.PENDING,
+          },
+        },
+      },
+      include: this.orderInclude,
+    });
+    this.events.emitNewOrder(business.id, order);
+    return order;
   }
 
   private async pricedLines(businessId: string, items: CreateOrderDto['items']) {
