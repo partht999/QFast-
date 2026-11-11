@@ -38,6 +38,7 @@ export default function MenuManagementPage() {
     prepTimeMinutes: 15,
     description: '',
     servedAs: '',
+    badge: '',
     imageUrl: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -143,6 +144,7 @@ export default function MenuManagementPage() {
             prepTimeMinutes: Number(itemForm.prepTimeMinutes),
             description: itemForm.description.trim() || undefined,
             servedAs: itemForm.servedAs.trim() || undefined,
+            badge: itemForm.badge || null,
             imageUrl: itemForm.imageUrl.trim() || undefined,
           }),
         });
@@ -164,6 +166,7 @@ export default function MenuManagementPage() {
             prepTimeMinutes: Number(itemForm.prepTimeMinutes),
             description: itemForm.description.trim() || undefined,
             servedAs: itemForm.servedAs.trim() || undefined,
+            badge: itemForm.badge || null,
             imageUrl: itemForm.imageUrl.trim() || undefined,
           }),
         });
@@ -171,7 +174,7 @@ export default function MenuManagementPage() {
         toast.success('Dish Added', `"${itemForm.name}" is now on your menu.`);
       }
 
-      setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', imageUrl: '' });
+      setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', badge: '', imageUrl: '' });
       setEditingItem(null);
       setShowItemModal(false);
       fetchData();
@@ -243,7 +246,7 @@ export default function MenuManagementPage() {
 
   const openAddItemModal = (catId?: string) => {
     setEditingItem(null);
-    setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', imageUrl: '' });
+    setItemForm({ name: '', price: 250, isVeg: true, prepTimeMinutes: 15, description: '', servedAs: '', badge: '', imageUrl: '' });
     if (catId) {
       setSelectedCategoryId(catId);
     } else if (menu?.categories?.length > 0) {
@@ -262,6 +265,7 @@ export default function MenuManagementPage() {
       prepTimeMinutes: item.prepTimeMinutes || 15,
       description: item.description || '',
       servedAs: item.servedAs || '',
+      badge: item.badge || '',
       imageUrl: item.imageUrl || '',
     });
     setShowItemModal(true);
@@ -505,6 +509,7 @@ export default function MenuManagementPage() {
                               title={item.isVeg ? 'Vegetarian' : 'Non-Vegetarian'}
                             />
                             <h4 className="truncate text-base font-bold text-gray-950">{item.name}</h4>
+                            {item.badge && <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-800">{item.badge}</span>}
                           </div>
 
                           <span className="block text-base font-extrabold text-gray-950">
@@ -748,12 +753,27 @@ export default function MenuManagementPage() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs"
                 />
               </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500">Tag</label>
+                <select
+                  value={itemForm.badge}
+                  onChange={(event) => setItemForm({ ...itemForm, badge: event.target.value })}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="">No tag</option>
+                  <option value="Chef's special">Chef&apos;s special</option>
+                  <option value="New">New</option>
+                  <option value="Spicy">Spicy</option>
+                  <option value="House special">House special</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Most ordered is added automatically from this restaurant’s orders.</p>
+              </div>
               <PhotoUpload
                 label="Photo"
                 businessId={business?.id}
                 value={itemForm.imageUrl}
                 onChange={(imageUrl) => setItemForm({ ...itemForm, imageUrl })}
-                hint="Stored with this dish. Guests see it when they open the item."
+                hint="Guests see this photo beside the short description on the menu."
               />
 
               <div className="flex justify-end gap-2 pt-2">

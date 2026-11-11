@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsIn, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateMenuItemDto {
@@ -26,6 +26,11 @@ export class CreateMenuItemDto {
   @IsString()
   @IsOptional()
   servedAs?: string;
+
+  @ApiProperty({ example: "Chef's special", required: false })
+  @IsIn(["Chef's special", 'New', 'Spicy', 'House special'])
+  @IsOptional()
+  badge?: string | null;
 
   @ApiProperty({ example: true, default: true })
   @IsBoolean()
@@ -63,6 +68,11 @@ export class UpdateMenuItemDto {
   @IsString()
   @IsOptional()
   servedAs?: string;
+
+  @ApiProperty({ required: false })
+  @IsIn(["Chef's special", 'New', 'Spicy', 'House special'])
+  @IsOptional()
+  badge?: string | null;
 
   @ApiProperty({ required: false })
   @IsBoolean()

@@ -113,6 +113,7 @@ export class MenuService {
         price: dto.price,
         description: dto.description,
         servedAs: dto.servedAs,
+        badge: dto.badge || null,
         imageUrl: dto.imageUrl,
         isVeg: dto.isVeg ?? true,
         prepTimeMinutes: dto.prepTimeMinutes || 15,
@@ -123,7 +124,10 @@ export class MenuService {
   async updateItem(id: string, dto: UpdateMenuItemDto) {
     return this.prisma.menuItem.update({
       where: { id },
-      data: dto,
+      data: {
+        ...dto,
+        ...(dto.badge !== undefined ? { badge: dto.badge || null } : {}),
+      },
     });
   }
 

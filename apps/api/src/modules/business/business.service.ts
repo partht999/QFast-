@@ -325,7 +325,38 @@ export class BusinessService {
     });
     if (!business) throw new NotFoundException('Business not found');
     const access = await visitsAreOpen(this.prisma, business.id);
-    return { ...business, visitsOpen: access.open };
+    const totals = await this.prisma.orderItem.groupBy({
+      by: ['menuItemId'],
+      where: {
+        order: {
+          businessId: business.id,
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+        },
+      },
+      _sum: { quantity: true },
+    });
+    const popular = new Set(
+      totals
+        .map((row) => ({ id: row.menuItemId, count: row._sum.quantity || 0 }))
+        .filter((row) => row.count >= 3)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+        .map((row) => row.id),
+    );
+    return {
+      ...business,
+      visitsOpen: access.open,
+      menus: business.menus.map((menu) => ({
+        ...menu,
+        categories: menu.categories.map((category) => ({
+          ...category,
+          items: category.items.map((item) => ({
+            ...item,
+            mostOrdered: popular.has(item.id),
+          })),
+        })),
+      })),
+    };
   }
 
   async getTodayReport(businessId: string, userId: string) {

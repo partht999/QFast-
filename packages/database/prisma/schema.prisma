@@ -441,6 +441,7 @@ model MenuItem {
   name            String
   description     String?
   servedAs        String?
+  badge           String?
   price           Decimal              @db.Decimal(10, 2)
   imageUrl        String?
   isVeg           Boolean              @default(true)

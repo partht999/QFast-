@@ -273,9 +273,13 @@ export default function TableOrderPage() {
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
-              <UtensilsCrossed className="w-5 h-5" />
-            </div>
+            {restaurant?.logoUrl ? (
+              <img src={restaurant.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
+                <UtensilsCrossed className="w-5 h-5" />
+              </div>
+            )}
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h1 className="text-lg font-black tracking-tight text-neutral-950 line-clamp-1">
@@ -437,9 +441,18 @@ export default function TableOrderPage() {
                 className={`bg-white rounded-2xl p-4 border transition-all shadow-xs ${qty > 0 ? 'border-orange-300 ring-1 ring-orange-200/50' : 'border-neutral-200/70 hover:border-orange-200'
                   }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex items-start gap-3">
+                  {item.imageUrl ? (
+                    <button type="button" onClick={() => setDetailItem(item)} className="shrink-0">
+                      <img src={item.imageUrl} alt="" className="h-24 w-24 rounded-2xl object-cover" />
+                    </button>
+                  ) : (
+                    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-300">
+                      <UtensilsCrossed className="h-6 w-6" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       {/* Dietary Dot Indicator */}
                       <span
                         className={`w-4 h-4 rounded-md flex items-center justify-center border text-[8px] font-bold ${item.isVeg
@@ -451,10 +464,15 @@ export default function TableOrderPage() {
                         ●
                       </span>
                       <h3 className="font-bold text-neutral-950 text-base leading-snug">{item.name}</h3>
-                      {item.isVeg ? (
-                        <span className="text-[10px] text-emerald-700 font-semibold hidden sm:inline">Veg</span>
-                      ) : (
-                        <span className="text-[10px] text-red-700 font-semibold hidden sm:inline">Non-Veg</span>
+                      {item.mostOrdered && (
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-800">
+                          Most ordered
+                        </span>
+                      )}
+                      {item.badge && (
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-neutral-700">
+                          {item.badge}
+                        </span>
                       )}
                     </div>
 
@@ -463,7 +481,7 @@ export default function TableOrderPage() {
                     </div>
 
                     {item.description && (
-                      <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2 pr-2">
+                      <p className="line-clamp-2 pr-2 text-sm leading-5 text-neutral-600">
                         {item.description}
                       </p>
                     )}
@@ -796,6 +814,10 @@ export default function TableOrderPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black">{detailItem.name}</h2>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detailItem.mostOrdered && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-800">Most ordered</span>}
+                    {detailItem.badge && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-neutral-700">{detailItem.badge}</span>}
+                  </div>
                   <p className="mt-1 text-sm font-bold">₹{Number(detailItem.price).toFixed(0)}</p>
                 </div>
                 <button type="button" onClick={() => setDetailItem(null)} className="rounded-full bg-neutral-100 p-2">
