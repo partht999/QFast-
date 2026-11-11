@@ -40,7 +40,7 @@ export class UpdateBusinessSettingsDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(400)
+  @MaxLength(500000)
   logoUrl?: string;
 
   @IsOptional()

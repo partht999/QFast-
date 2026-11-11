@@ -21,6 +21,7 @@ import {
   Leaf,
   Gift,
 } from 'lucide-react';
+import { BackLink, useOverlayHistory } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
 import { isIndianMobile, localMobile } from '@/lib/phone';
 
@@ -67,6 +68,8 @@ export default function TableOrderPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<any | null>(null);
   const router = useRouter();
+  useOverlayHistory(Boolean(detailItem), () => setDetailItem(null));
+  useOverlayHistory(isCartOpen, () => setIsCartOpen(false));
 
   const apiUrl = getApiUrl();
 
@@ -271,23 +274,24 @@ export default function TableOrderPage() {
 
       {/* Top Navigation Bar */}
       <header className="bg-white/95 backdrop-blur-md border-b border-neutral-200 sticky top-0 z-20 shadow-xs">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h1 className="text-lg font-black tracking-tight text-neutral-950 line-clamp-1">
                   {restaurant?.name || 'Restaurant'}
                 </h1>
                 {orderSource === 'QUEUE_PREORDER' ? (
                   <span className="text-[11px] bg-amber-100 text-amber-900 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300 shrink-0">
-                    ⏳ Queue #{queueToken?.tokenNumber || 'Waitlist'}
+                    Queue #{queueToken?.tokenNumber || 'Waitlist'}
                   </span>
                 ) : orderSource === 'TAKEAWAY' ? (
                   <span className="text-[11px] bg-purple-100 text-purple-900 font-extrabold px-2.5 py-0.5 rounded-full border border-purple-300 shrink-0">
-                    🛍️ Takeaway
+                    Takeaway
                   </span>
                 ) : (
                   <span className="text-[11px] bg-orange-100 text-orange-800 font-extrabold px-2.5 py-0.5 rounded-full border border-orange-200/60 shrink-0">

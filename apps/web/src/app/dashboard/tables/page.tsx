@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   Armchair,
   Plus,
@@ -16,7 +15,6 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  ArrowLeft,
   Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
@@ -237,32 +235,21 @@ export default function TablesManagementPage() {
     <>
       <div className="min-h-screen bg-gray-50 flex flex-col font-sans qr-manager-screen">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-xs font-bold transition-colors bg-gray-100 px-3 py-1.5 rounded-xl"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Dashboard</span>
-            </Link>
-            <span className="text-gray-300">/</span>
-            <div className="flex items-center gap-2">
-              <Armchair className="w-5 h-5 text-orange-600" />
-              <h1 className="text-base font-extrabold text-gray-900">Tables &amp; QR Standees</h1>
-              <span className="text-xs bg-orange-50 text-orange-700 font-bold px-2.5 py-0.5 rounded-full border border-orange-200">
+        <header className="sticky top-0 z-30 border-b border-gray-200/80 bg-white px-4 py-3 shadow-xs sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Armchair className="h-5 w-5 shrink-0 text-orange-600" />
+              <h1 className="text-base font-extrabold text-gray-900">Tables and QR</h1>
+              <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-bold text-orange-700">
                 {tables.length} tables · {totalSeats} seats
               </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
             <button
               onClick={openAddModal}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-98"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-orange-700"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Table</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add table</span>
             </button>
           </div>
         </header>

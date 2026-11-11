@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { useOverlayHistory } from '@/components/navigation-memory';
 import { AlertTriangle, Info, Trash2, X } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -26,6 +27,8 @@ export function ConfirmModal({
   variant = 'danger',
   loading = false,
 }: ConfirmModalProps) {
+  useOverlayHistory(isOpen, onClose);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) onClose();

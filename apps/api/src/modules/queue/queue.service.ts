@@ -574,7 +574,6 @@ export class QueueService {
     userId: string,
     userRole?: string,
     tableId?: string,
-    allowWithoutTable?: boolean,
   ) {
     const currentToken = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
@@ -672,7 +671,6 @@ export class QueueService {
         foodBusiness &&
         !tableId &&
         !currentToken.tableId &&
-        !allowWithoutTable &&
         currentToken.status !== QueueTokenStatus.CALLED
       ) {
         throw new BadRequestException('Choose a table that fits this party.');
@@ -681,6 +679,9 @@ export class QueueService {
       data.seatedAt = new Date();
       data.servedAt = new Date();
       if (tableId) data.tableId = tableId;
+      if (foodBusiness && !tableId && !currentToken.tableId) {
+        throw new BadRequestException('Choose a table that fits this party.');
+      }
     } else if (status === QueueTokenStatus.COMPLETED) {
       data.completedAt = new Date();
       if (!currentToken.servedAt) data.servedAt = new Date();

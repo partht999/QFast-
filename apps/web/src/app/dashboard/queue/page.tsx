@@ -240,7 +240,6 @@ export default function DashboardQueuePage() {
     tokenId: string,
     action: 'call' | 'seat' | 'complete' | 'skip' | 'cancel' | 'restore',
     tableId?: string,
-    allowWithoutTable?: boolean,
   ) => {
     const token = localStorage.getItem('accessToken');
     const party = tokens.find((entry) => entry.id === tokenId);
@@ -254,7 +253,7 @@ export default function DashboardQueuePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ tableId, allowWithoutTable }),
+        body: JSON.stringify({ tableId }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -462,7 +461,7 @@ export default function DashboardQueuePage() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
         >
           <UserPlus className="h-4 w-4" />
           {copy.addButton}
@@ -1176,46 +1175,41 @@ export default function DashboardQueuePage() {
             {selectedTokenForSeat.orders && selectedTokenForSeat.orders.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
                 <span className="mb-0.5 block font-bold">They already ordered</span>
-                The pre-order does not hold a table. It can be cooked after you call them.
+                Calling them releases that pre-order to the kitchen and puts it on the table you choose.
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                Tables for {selectedTokenForSeat.partySize || 1} guests
+                Tables with at least {selectedTokenForSeat.partySize || 1} seats
               </label>
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
-                {tables.map((t) => {
-                  const busy = (t.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id);
-                  const tooSmall = Number(t.capacity) < Number(selectedTokenForSeat.partySize || 1);
-                  const disabled = busy || tooSmall;
-                  return (
+                {tables
+                  .filter((table) => Number(table.capacity) >= Number(selectedTokenForSeat.partySize || 1))
+                  .filter((table) => !(table.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id))
+                  .map((table) => (
                     <button
-                      key={t.id}
+                      key={table.id}
                       type="button"
-                      disabled={disabled}
-                      onClick={() => setTargetTableId(t.id)}
-                      className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center disabled:cursor-not-allowed disabled:opacity-50 ${
-                        targetTableId === t.id
+                      onClick={() => setTargetTableId(table.id)}
+                      className={`rounded-xl border px-2 py-2.5 text-center text-xs font-bold transition-all ${
+                        targetTableId === table.id
                           ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs'
-                          : 'border-gray-200 text-gray-700 bg-white hover:border-gray-300'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <span className="block truncate">{t.name}</span>
-                      <span className="text-[10px] text-gray-400 font-normal">
-                        {busy ? 'Taken' : tooSmall ? `Only ${t.capacity}` : `Seats ${t.capacity}`}
-                      </span>
+                      <span className="block truncate">{table.name}</span>
+                      <span className="text-[10px] font-normal text-gray-400">Seats {table.capacity}</span>
                     </button>
-                  );
-                })}
+                  ))}
               </div>
             </div>
 
             {actionError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{actionError}</p>}
-            {!tables.length && (
-              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">No tables yet. You can still call them, then add tables and seat them.</p>
+            {!tables.some((table) => Number(table.capacity) >= Number(selectedTokenForSeat.partySize || 1) && !(table.queueTokens || []).some((held: { id: string }) => held.id !== selectedTokenForSeat.id)) && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">No free table has enough seats for this party. Takeaway orders do not use a table.</p>
             )}
-            <div className="pt-2 flex flex-col gap-2">
+            <div className="pt-2">
               <button
                 type="button"
                 disabled={!targetTableId}
@@ -1226,29 +1220,14 @@ export default function DashboardQueuePage() {
                     targetTableId,
                   )
                 }
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-40"
               >
-                <Armchair className="w-4 h-4" />
+                <Armchair className="h-4 w-4" />
                 <span>
                   {targetTableId
-                    ? `${assignMode === 'call' ? 'Call to' : 'Seat at'} ${tables.find((t) => t.id === targetTableId)?.name || 'this table'}`
+                    ? `${assignMode === 'call' ? 'Call to' : 'Seat at'} ${tables.find((table) => table.id === targetTableId)?.name || 'this table'}`
                     : 'Choose a table'}
                 </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleUpdateStatus(
-                    selectedTokenForSeat.id,
-                    assignMode === 'call' ? 'call' : 'seat',
-                    undefined,
-                    assignMode === 'call',
-                  )
-                }
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition-colors"
-              >
-                {assignMode === 'call' ? 'Call without a table' : 'Seat anyway, without a table'}
               </button>
             </div>
           </div>

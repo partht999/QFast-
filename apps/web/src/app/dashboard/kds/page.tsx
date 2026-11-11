@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   ChefHat,
   Clock,
@@ -12,7 +11,6 @@ import {
   VolumeX,
   Play,
   Flame,
-  ArrowLeft,
   AlertTriangle,
   RefreshCw,
   Maximize2,
@@ -25,6 +23,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { describePayments } from '@/lib/payment';
+import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function KDSPage() {
@@ -271,23 +270,22 @@ export default function KDSPage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
       {/* KDS Header Bar */}
       <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-xs font-bold transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-neutral-700">|</span>
-          <div className="flex items-center gap-2">
-            <ChefHat className="w-5 h-5 text-orange-500" />
-            <h1 className="font-black text-sm uppercase tracking-wider text-white">
-              Kitchen Display (KDS)
-            </h1>
-            <span className="text-xs bg-neutral-800 text-neutral-300 px-2.5 py-0.5 rounded-full font-mono border border-neutral-700">
-              {business?.name}
-            </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {business?.myRole !== 'KITCHEN_STAFF' && (
+            <BackLink
+              fallback="/dashboard"
+              label="Back"
+              className="inline-flex min-h-10 items-center gap-1.5 text-xs font-bold text-neutral-400 hover:text-white"
+            />
+          )}
+          <div className="flex min-w-0 items-center gap-2">
+            <ChefHat className="h-5 w-5 shrink-0 text-orange-500" />
+            <h1 className="text-sm font-black uppercase tracking-wider text-white">Kitchen</h1>
+            {business?.name && (
+              <span className="truncate rounded-full border border-neutral-700 bg-neutral-800 px-2.5 py-0.5 font-mono text-xs text-neutral-300">
+                {business.name}
+              </span>
+            )}
           </div>
         </div>
 
@@ -333,12 +331,12 @@ export default function KDSPage() {
           </button>
 
           {/* Mode Filter */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-xl border border-neutral-800">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900 p-1">
             {(['ALL', 'DINE_IN', 'QUEUE_PREORDER', 'TAKEAWAY'] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setFilter(mode)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold transition-all ${
                   filter === mode
                     ? 'bg-orange-500 text-white shadow-xs'
                     : 'text-neutral-400 hover:text-white'
@@ -347,9 +345,9 @@ export default function KDSPage() {
                 {mode === 'ALL'
                   ? 'All'
                   : mode === 'DINE_IN'
-                  ? 'Dine-in Tables'
+                  ? 'Dine-in'
                   : mode === 'QUEUE_PREORDER'
-                  ? 'Queue Pre-orders'
+                  ? 'Queue'
                   : 'Takeaway'}
               </button>
             ))}

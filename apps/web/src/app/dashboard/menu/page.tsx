@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   UtensilsCrossed,
   Plus,
@@ -16,12 +15,12 @@ import {
   AlertCircle,
   X,
   Layers,
-  ArrowLeft,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EmptyState } from '@/components/ui/empty-state';
+import { PhotoUpload } from '@/components/photo-upload';
 
 export default function MenuManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -314,47 +313,38 @@ export default function MenuManagementPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       {/* Top Navigation */}
-      <header className="bg-white border-b border-gray-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-xs font-bold transition-colors bg-gray-100 px-3 py-1.5 rounded-xl"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-gray-300">/</span>
-          <div className="flex items-center gap-2">
-            <UtensilsCrossed className="w-5 h-5 text-orange-600" />
-            <h1 className="text-base font-extrabold text-gray-900">Menu Catalog</h1>
-            <span className="text-xs bg-orange-50 text-orange-700 font-bold px-2 py-0.5 rounded-full border border-orange-200">
+      <header className="sticky top-0 z-30 border-b border-gray-200/80 bg-white px-4 py-3 shadow-xs sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <UtensilsCrossed className="h-5 w-5 shrink-0 text-orange-600" />
+            <h1 className="text-base font-extrabold text-gray-900">Menu</h1>
+            <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-700">
               {totalItemsCount} dishes
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCategoryModal(true)}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Category</span>
-          </button>
-          <button
-            onClick={() => {
-              if (categories.length === 0) {
-                toast.warning('No Categories', 'Please create at least one category before adding dishes.');
-                setShowCategoryModal(true);
-                return;
-              }
-              openAddItemModal();
-            }}
-            className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-98"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Dish</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gray-100 px-3.5 text-xs font-bold text-gray-800 transition-colors hover:bg-gray-200 sm:flex-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>New category</span>
+            </button>
+            <button
+              onClick={() => {
+                if (categories.length === 0) {
+                  toast.warning('No Categories', 'Please create at least one category before adding dishes.');
+                  setShowCategoryModal(true);
+                  return;
+                }
+                openAddItemModal();
+              }}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-orange-700 sm:flex-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add dish</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -503,6 +493,9 @@ export default function MenuManagementPage() {
                             : 'bg-gray-50/80 border-gray-200/60 opacity-75'
                         }`}
                       >
+                        {item.imageUrl && (
+                          <img src={item.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+                        )}
                         <div className="space-y-1 flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span
@@ -755,15 +748,12 @@ export default function MenuManagementPage() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Photo URL</label>
-                <input
-                  value={itemForm.imageUrl}
-                  onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })}
-                  placeholder="https://"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs"
-                />
-              </div>
+              <PhotoUpload
+                label="Photo"
+                value={itemForm.imageUrl}
+                onChange={(imageUrl) => setItemForm({ ...itemForm, imageUrl })}
+                hint="Guests see this when they open the dish. JPG, PNG, or WebP."
+              />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button

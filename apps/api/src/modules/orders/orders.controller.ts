@@ -48,6 +48,21 @@ export class OrdersController {
     return this.ordersService.createPublicOrder(dto);
   }
 
+  @Post('public/:orderId/pay')
+  @ApiOperation({ summary: 'Guest pays the current bill at the table or counter' })
+  async customerPay(
+    @Param('orderId') orderId: string,
+    @Body('method') method: 'CASH' | 'UPI_AT_COUNTER',
+  ) {
+    return this.ordersService.customerPay(orderId, method === 'CASH' ? 'CASH' : 'UPI_AT_COUNTER');
+  }
+
+  @Post('public/:orderId/close')
+  @ApiOperation({ summary: 'Guest closes a table or takeaway bill after it is paid' })
+  async customerClose(@Param('orderId') orderId: string) {
+    return this.ordersService.customerCloseOrder(orderId);
+  }
+
   @Post('public/:orderId/help')
   @ApiOperation({ summary: 'Ask staff for a waiter or the bill' })
   async requestHelp(@Param('orderId') orderId: string, @Body('kind') kind: 'waiter' | 'bill') {

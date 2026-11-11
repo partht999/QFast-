@@ -24,6 +24,9 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { reviewHref } from '@/lib/google-place';
+import { BrandMark } from '@/components/brand-mark';
+import { BackLink } from '@/components/navigation-memory';
+import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { VisitBill } from '@/components/visit-bill';
 import { ReviewPrompt } from '@/components/review-prompt';
 
@@ -184,36 +187,38 @@ export default function OrderTrackingPage() {
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 pb-20">
       {/* Top Bar */}
-      <header className="px-5 py-3.5 bg-white/95 backdrop-blur-md border-b border-neutral-200 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2.5">
-          <Link
-            href={order.table?.name ? `/r/${slug}/table/${encodeURIComponent(order.table.name)}` : `/r/${slug}/join`}
-            className="text-lg font-black text-orange-600"
-          >
-            ⚡ Qfast
-          </Link>
-          <span className="text-neutral-300">/</span>
-          <span className="text-xs text-neutral-500 font-semibold">Live Order Tracker</span>
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-2">
+          <BackLink
+            fallback={
+              order.table?.name
+                ? `/r/${slug}/table/${encodeURIComponent(order.table.name)}`
+                : order.source === 'TAKEAWAY'
+                  ? `/r/${slug}/table/takeaway`
+                  : `/r/${slug}/join`
+            }
+          />
+          <BrandMark href={`/r/${slug}/order/${order.id}`} size="sm" label="Qfast" />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/r/${slug}/loyalty`}
-            className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3 py-1 rounded-full transition shadow-xs"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 text-xs font-bold text-amber-900 transition hover:bg-amber-200"
           >
-            <Gift className="w-3.5 h-3.5 text-orange-600" />
-            <span>Rewards</span>
+            <Gift className="h-3.5 w-3.5 text-orange-600" />
+            <span>Stamps</span>
           </Link>
           {order.table?.name ? (
-            <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-3 py-1 rounded-full border border-emerald-200/50">
-              🍽️ Table {order.table.name}
+            <span className="rounded-full border border-emerald-200/50 bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
+              Table {order.table.name}
             </span>
           ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
-            <span className="text-xs bg-amber-100 text-amber-900 font-extrabold px-3 py-1 rounded-full border border-amber-300">
-              ⏳ Queue Pre-order {order.queueToken?.tokenNumber ? `#${order.queueToken.tokenNumber}` : ''}
+            <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900">
+              Queue {order.queueToken?.tokenNumber ? `#${order.queueToken.tokenNumber}` : 'pre-order'}
             </span>
           ) : (
-            <span className="text-xs bg-purple-100 text-purple-800 font-extrabold px-3 py-1 rounded-full border border-purple-200/50">
-              🛍️ Takeaway / Parcel
+            <span className="rounded-full border border-purple-200/50 bg-purple-100 px-3 py-1 text-xs font-extrabold text-purple-800">
+              Takeaway
             </span>
           )}
         </div>
@@ -247,14 +252,18 @@ export default function OrderTrackingPage() {
           {/* Queue Status Callout */}
           {(order.source === 'QUEUE_PREORDER' || order.queueToken) && (
             order.table?.name ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-900 mb-4 flex items-center gap-2">
-                <span className="text-base">🍽️</span>
-                <span><strong>Seated at Table {order.table.name}!</strong> Your pre-ordered dishes are being served to your table now.</span>
+              <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Your table</p>
+                <p className="mt-1 text-xl font-black">{order.table.name}</p>
+                <p className="mt-1 text-xs">Your pre-order is on this table. Add more, pay, or call a waiter.</p>
+              </div>
+            ) : order.queueToken?.status === 'WAITING' ? (
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                <strong>Pre-order held.</strong> The kitchen starts when the restaurant calls you and gives you a table.
               </div>
             ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-950 mb-4 flex items-center gap-2">
-                <span className="text-base">⏳</span>
-                <span><strong>Dine-in Pre-order:</strong> The kitchen is cooking your meal now while you wait for your table. It will be served once you are seated!</span>
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                <strong>Called.</strong> Come to the host. Your food moves to the table they confirm.
               </div>
             )
           )}
@@ -386,7 +395,7 @@ export default function OrderTrackingPage() {
             )}
           </section>
         ) : (
-        <div id="bill">
+        <div id="bill" className="space-y-3">
           <VisitBill
             title={isTakeaway ? 'Takeaway bill' : 'Your bill'}
             businessName={order.business?.name}
@@ -409,6 +418,28 @@ export default function OrderTrackingPage() {
             total={totalAmount}
             payments={order.payments || []}
           />
+          <GuestVisitActions
+            apiUrl={apiUrl}
+            orders={[order]}
+            canClose={!order.queueTokenId}
+            onChanged={() => void fetchOrder()}
+            onWaiter={isTakeaway ? undefined : () => void askStaff('waiter')}
+          />
+          {!isCompleted && order.table?.name && (
+            <Link href={`/r/${slug}/table/${encodeURIComponent(order.table.name)}`} className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-bold text-neutral-900">
+              Add more items
+            </Link>
+          )}
+          {!isCompleted && order.queueTokenId && !order.table?.name && (
+            <Link href={`/r/${slug}/table/queue?token=${order.queueTokenId}`} className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-bold text-neutral-900">
+              Add more items
+            </Link>
+          )}
+          {!isCompleted && isTakeaway && (
+            <Link href={`/r/${slug}/table/takeaway`} className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-bold text-neutral-900">
+              Add more items
+            </Link>
+          )}
         </div>
         )}
 

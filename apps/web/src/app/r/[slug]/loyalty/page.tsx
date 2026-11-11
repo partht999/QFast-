@@ -1,9 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { BackLink } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
 
 type Card = {
@@ -75,10 +74,7 @@ export default function CustomerLoyaltyPage() {
   return (
     <main className="min-h-screen bg-orange-50 px-4 py-8 text-slate-950">
       <div className="mx-auto max-w-md">
-        <Link href={publicPath} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Link>
+        <BackLink fallback={publicPath} />
         {!available ? (
           <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
             <h1 className="text-2xl font-black">No stamp card here</h1>

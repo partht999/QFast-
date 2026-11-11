@@ -87,6 +87,20 @@ export class OrdersService {
     }
 
     const orderSource = queueTokenId ? OrderSource.QUEUE_PREORDER : OrderSource.TAKEAWAY;
+    if (!queueTokenId && dto.customerPhone) {
+      const digits = dto.customerPhone.replace(/\D/g, '');
+      const phone = digits.length > 10 ? digits.slice(-10) : digits;
+      const openTakeaway = await this.prisma.order.findFirst({
+        where: {
+          businessId: business.id,
+          source: OrderSource.TAKEAWAY,
+          customerPhone: phone,
+          status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (openTakeaway) return this.appendToOrder(openTakeaway.id, lines, dto.tipAmount || 0);
+    }
     const fallbackCustomerName = queueTokenId
       ? tokenNumber
         ? `Queue #${tokenNumber}`
@@ -381,6 +395,55 @@ export class OrdersService {
       data: { status: PaymentStatus.PAID, paidAt: new Date() },
     });
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
+  }
+
+  async customerPay(orderId: string, method: 'CASH' | 'UPI_AT_COUNTER') {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { payments: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (['COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) {
+      throw new ConflictException('This bill is already closed.');
+    }
+    const pending = order.payments.filter((payment) => payment.status !== PaymentStatus.PAID);
+    if (!order.payments.length) {
+      await this.prisma.payment.create({
+        data: {
+          orderId,
+          businessId: order.businessId,
+          amount: order.totalAmount,
+          method,
+          status: PaymentStatus.PAID,
+          paidAt: new Date(),
+        },
+      });
+    } else if (pending.length) {
+      await this.prisma.payment.updateMany({
+        where: { id: { in: pending.map((payment) => payment.id) } },
+        data: { method, status: PaymentStatus.PAID, paidAt: new Date() },
+      });
+    }
+    return this.getPublicOrder(orderId);
+  }
+
+  async customerCloseOrder(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { payments: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.queueTokenId) {
+      throw new ConflictException('The restaurant closes this bill when the visit is finished.');
+    }
+    if (['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
+      throw new ConflictException('The kitchen is still cooking. Close the bill when the food is ready.');
+    }
+    const reason = unpaidReason(order.payments);
+    if (!order.payments.length || reason) {
+      throw new ConflictException(reason || 'Pay the bill before closing it.');
+    }
+    return this.updateOrderStatus(orderId, OrderStatus.COMPLETED);
   }
 
   async requestStaffHelp(orderId: string, kind: 'waiter' | 'bill') {

@@ -6,6 +6,7 @@ import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
 import { googleReviewTarget } from '@/lib/google-place';
 import { readApiError } from '@/lib/read-api-error';
+import { PhotoUpload } from '@/components/photo-upload';
 import { useToast } from '@/components/ui/toast';
 
 export default function SettingsPage() {
@@ -190,10 +191,12 @@ export default function SettingsPage() {
           <input type="checkbox" checked={remoteJoinEnabled} onChange={(event) => setRemoteJoinEnabled(event.target.checked)} />
           Guests can join from their phone
         </label>
-        <label className="block text-sm font-semibold text-neutral-800">
-          Logo URL
-          <input value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="https://" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
-        </label>
+        <PhotoUpload
+          label="Logo"
+          value={logoUrl}
+          onChange={setLogoUrl}
+          hint="Shown on the guest page and the bill. JPG, PNG, or WebP."
+        />
         <label className="block text-sm font-semibold text-neutral-800">
           Instagram
           <input value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} placeholder="yourplace" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />

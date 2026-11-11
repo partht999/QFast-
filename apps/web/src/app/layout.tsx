@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { NavigationProvider } from '@/components/navigation-memory';
 import { ToastProvider } from '@/components/ui/toast';
 import './globals.css';
 
@@ -33,7 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body className={`${inter.className} antialiased bg-white text-gray-900`}>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <NavigationProvider>{children}</NavigationProvider>
+        </ToastProvider>
       </body>
     </html>
   );

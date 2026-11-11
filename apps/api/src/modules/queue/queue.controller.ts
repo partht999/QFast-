@@ -161,7 +161,7 @@ export class QueueController {
   @ApiOperation({ summary: 'Call the guest forward' })
   async callToken(
     @Param('tokenId') tokenId: string,
-    @Body() body: { allowWithoutTable?: boolean },
+    @Body() body: { tableId?: string },
     @Req() req: any,
   ) {
     return this.queueService.updateTokenStatus(
@@ -169,8 +169,7 @@ export class QueueController {
       QueueTokenStatus.CALLED,
       req.user.sub,
       req.user.role,
-      undefined,
-      body?.allowWithoutTable,
+      body?.tableId,
     );
   }
 

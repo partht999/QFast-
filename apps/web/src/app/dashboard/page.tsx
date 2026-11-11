@@ -28,6 +28,7 @@ import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { BUSINESS_TYPES } from '@/lib/business-types';
+import { useOverlayHistory } from '@/components/navigation-memory';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TodayReport, TodayReportData } from '@/components/today-report';
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   const isFetching = useRef(false);
   const router = useRouter();
   const toast = useToast();
+  useOverlayHistory(Boolean(selectedOrderDetails), () => setSelectedOrderDetails(null));
 
   const apiUrl = getApiUrl();
 

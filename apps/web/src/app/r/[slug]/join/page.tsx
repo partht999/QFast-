@@ -28,6 +28,7 @@ import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib
 import { isIndianMobile, localMobile } from '@/lib/phone';
 import { ReviewPrompt } from '@/components/review-prompt';
 import { reviewHref } from '@/lib/google-place';
+import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
@@ -327,7 +328,7 @@ export default function JoinQueuePage() {
       )}
 
       {/* Top Header */}
-      <header className="px-6 py-4 bg-white/90 backdrop-blur-md border-b border-orange-100/80 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-orange-100/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md">
         <div className="flex items-center gap-2">
           <BrandMark href="/" size="sm" label="Qfast home" />
           <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
@@ -517,11 +518,11 @@ export default function JoinQueuePage() {
                 )}
                 <p className="text-sm font-bold text-neutral-800 mt-2">{activeToken.customerName}</p>
                 {foodBusiness && activeToken.status === 'SEATED' && (
-                  <p className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
-                    {activeToken.table?.name
-                      ? `You are at ${activeToken.table.name}. Add anything else, then the bill is closed at the table.`
-                      : 'You are seated. Add anything else before the bill is closed.'}
-                  </p>
+                  <div className="mt-3 rounded-2xl bg-emerald-50 px-3 py-3 text-emerald-950">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Your table</p>
+                    <p className="mt-1 text-2xl font-black">{activeToken.table?.name || 'Being seated'}</p>
+                    <p className="mt-1 text-sm font-semibold">Add anything else, pay here, or call a waiter. The restaurant closes the bill.</p>
+                  </div>
                 )}
                 {foodBusiness && Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && activeToken.status !== 'SEATED' && activeToken.status !== 'COMPLETED' && (
                   <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-left">
@@ -650,7 +651,9 @@ export default function JoinQueuePage() {
                       <ChevronRight className="w-4 h-4 -ml-0.5" />
                     </Link>
                     <p className="text-[11px] text-center text-neutral-500 font-medium">
-                      The kitchen starts now. You come back to this queue after ordering.
+                      {activeToken.status === 'WAITING'
+                        ? 'The kitchen holds this pre-order until you are called.'
+                        : 'You come back to this page after ordering.'}
                     </p>
                   </div>
                 )}
@@ -664,13 +667,38 @@ export default function JoinQueuePage() {
               </>
               )}
               {foodBusiness && activeToken.status === 'SEATED' && (
-                <Link
-                  href={`/r/${slug}/table/queue?token=${activeToken.id}`}
-                  className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-sm font-extrabold text-white"
-                >
-                  <UtensilsCrossed className="h-4 w-4" />
-                  Add more items
-                </Link>
+                <div className="relative z-10 space-y-3">
+                  {Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && (
+                    <GuestVisitActions
+                      apiUrl={apiUrl}
+                      orders={activeToken.orders}
+                      canClose={false}
+                      onChanged={() => {
+                        void fetch(`${apiUrl}/api/v1/queue/public/token/${activeToken.id}`)
+                          .then((response) => response.json())
+                          .then((data) => {
+                            if (data?.id) setActiveToken(data);
+                          });
+                      }}
+                      onWaiter={() => {
+                        const orderId = activeToken.orders?.[0]?.id;
+                        if (!orderId) return;
+                        void fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ kind: 'waiter' }),
+                        });
+                      }}
+                    />
+                  )}
+                  <Link
+                    href={`/r/${slug}/table/queue?token=${activeToken.id}`}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-sm font-extrabold text-white"
+                  >
+                    <UtensilsCrossed className="h-4 w-4" />
+                    Add more items
+                  </Link>
+                </div>
               )}
             </div>
           </div>
