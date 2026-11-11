@@ -32,7 +32,7 @@ export class TablesService {
         },
         queueTokens: {
           where: { status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] } },
-          select: { id: true, tokenNumber: true, customerName: true, status: true },
+          select: { id: true, tokenNumber: true, customerName: true, partySize: true, status: true },
         },
       },
       orderBy: { name: 'asc' },

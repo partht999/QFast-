@@ -28,6 +28,8 @@ export default function TablesManagementPage() {
   const [tableForm, setTableForm] = useState({ name: '', capacity: 4 });
   const [submitting, setSubmitting] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<any | null>(null);
+  const [floorFilter, setFloorFilter] = useState<'ALL' | 'FREE' | 'BUSY'>('ALL');
+  const [tableQuery, setTableQuery] = useState('');
   const [printQR, setPrintQR] = useState<{
     title: string;
     url: string;
@@ -35,13 +37,11 @@ export default function TablesManagementPage() {
     image: string;
     kind: 'entrance' | 'table';
   } | null>(null);
-  const [qrError, setQrError] = useState('');
-
   const router = useRouter();
   const toast = useToast();
   const apiUrl = getApiUrl();
 
-  const fetchData = async () => {
+  const fetchData = async (quiet = false) => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
       router.push('/auth/login');
@@ -71,7 +71,7 @@ export default function TablesManagementPage() {
       }
     } catch (err) {
       console.error(err);
-      toast.error('Network Error', 'Failed to load restaurant floor tables.');
+      if (!quiet) toast.error('Network Error', 'Failed to load restaurant floor tables.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +79,10 @@ export default function TablesManagementPage() {
 
   useEffect(() => {
     fetchData();
+    const timer = window.setInterval(() => {
+      void fetchData(true);
+    }, 15000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -104,7 +108,6 @@ export default function TablesManagementPage() {
     kind: 'entrance' | 'table',
   ) => {
     try {
-      setQrError('');
       const image = await generateQrDataUrl(url);
       setPrintQR({ title, url, instruction, image, kind });
     } catch (err) {
@@ -113,16 +116,21 @@ export default function TablesManagementPage() {
     }
   };
 
-  const handleDownloadQr = async (url: string, filename: string) => {
+  const handleDownloadQr = async (url: string, filename: string, quiet = false) => {
     try {
-      setQrError('');
       await downloadQrCode(url, filename);
-      toast.success('Downloaded', `Saved ${filename} to your downloads.`);
+      if (!quiet) toast.success('Downloaded', `Saved ${filename} to your downloads.`);
     } catch (err) {
       console.error('Failed to download QR code:', err);
-      toast.error('Download Failed', 'Could not download high-res QR code.');
+      toast.error('Download Failed', 'Could not download this QR code.');
     }
   };
+
+  const tableOrderUrl = (name: string) =>
+    `${typeof window !== 'undefined' ? window.location.origin : ''}/r/${business?.slug}/table/${encodeURIComponent(name)}`;
+
+  const qrFileName = (name: string) =>
+    `${business?.slug || 'restaurant'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.png`;
 
   const handleSaveTable = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,6 +232,16 @@ export default function TablesManagementPage() {
   const occupiedTables = tables.filter(
     (t) => (t.orders && t.orders.length > 0) || (t.queueTokens && t.queueTokens.length > 0),
   );
+  const tableIsOccupied = (table: any) =>
+    (table.orders && table.orders.length > 0) || (table.queueTokens && table.queueTokens.length > 0);
+  const freeSeats = tables.reduce((sum, table) => sum + (tableIsOccupied(table) ? 0 : table.capacity || 0), 0);
+  const visibleTables = tables.filter((table) => {
+    const occupied = tableIsOccupied(table);
+    if (floorFilter === 'FREE' && occupied) return false;
+    if (floorFilter === 'BUSY' && !occupied) return false;
+    if (tableQuery.trim() && !table.name.toLowerCase().includes(tableQuery.trim().toLowerCase())) return false;
+    return true;
+  });
 
   return (
     <>
@@ -233,7 +251,7 @@ export default function TablesManagementPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Armchair className="h-5 w-5 shrink-0 text-orange-600" />
-              <h1 className="text-base font-extrabold text-gray-900">QR codes</h1>
+              <h1 className="text-base font-extrabold text-gray-900">Tables</h1>
               <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-bold text-orange-700">
                 {tables.length} tables · {totalSeats} seats
               </span>
@@ -249,167 +267,182 @@ export default function TablesManagementPage() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-          {/* Entrance QR Standee Hero */}
-          <div className="bg-gradient-to-r from-orange-600 via-amber-600 to-amber-500 rounded-3xl p-6 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-xs">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Front Entrance Standee</span>
-              </span>
-              <h2 className="text-2xl font-black tracking-tight">Door QR</h2>
-              <p className="text-xs text-orange-100 max-w-lg leading-relaxed">
-                Put this at the entrance. Guests join the queue, pre-order, and come back to the same screen to pay.
-              </p>
-              <div className="pt-2 flex flex-wrap gap-2 text-xs">
-                <a
-                  href={entranceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-white text-gray-900 hover:bg-orange-50 font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-orange-600" />
-                  <span>Open guest page</span>
-                </a>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-3 bg-white rounded-2xl p-4 text-center shrink-0 text-gray-900 shadow-xl border border-white/20">
-              <EntranceQrPreview url={entranceUrl} alt={`Entrance QR for ${business?.name}`} />
-              <div className="text-center">
-                <span className="text-xs font-black block text-gray-900">{business?.name || 'Restaurant'}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Entrance Waitlist</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 w-full pt-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    void prepareQrAction(
-                      'Entrance Queue Standee',
-                      entranceUrl,
-                      'Scan to join our live waitlist',
-                      'entrance'
-                    )
-                  }
-                  className="bg-gray-900 hover:bg-black text-white text-[11px] font-bold py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1"
-                >
-                  <Printer className="w-3 h-3" />
-                  <span>Print</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void handleDownloadQr(
-                      entranceUrl,
-                      `${business?.slug || 'restaurant'}-entrance-qr.png`
-                    )
-                  }
-                  className="bg-orange-100 hover:bg-orange-200 text-orange-900 text-[11px] font-bold py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>PNG</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
+        <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 p-4 sm:p-6">
           <div className="grid grid-cols-3 gap-3">
-            {[
-              ['Tables', tables.length],
-              ['Busy', occupiedTables.length],
-              ['Free', Math.max(tables.length - occupiedTables.length, 0)],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-                <p className="mt-1 text-2xl font-black text-gray-950">{value}</p>
-              </div>
-            ))}
+            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tables</p>
+              <p className="mt-1 text-2xl font-black text-gray-950">{tables.length}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Available</p>
+              <p className="mt-1 text-2xl font-black text-emerald-800">{Math.max(tables.length - occupiedTables.length, 0)}</p>
+              <p className="text-xs font-semibold text-emerald-700">{freeSeats} seats open</p>
+            </div>
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-red-700">Occupied</p>
+              <p className="mt-1 text-2xl font-black text-red-800">{occupiedTables.length}</p>
+              <p className="text-xs font-semibold text-red-700">{totalSeats - freeSeats} seats in use</p>
+            </div>
           </div>
 
-          {/* Floor Plan Tables Grid */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="space-y-4 rounded-3xl border border-gray-200/80 bg-white p-5 shadow-xs sm:p-6">
+            <div className="flex flex-col gap-3 border-b border-gray-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h3 className="text-base font-black text-gray-900">Table QR codes</h3>
-                <p className="text-xs text-gray-500">
-                  Stick one code on each table. A guest scans it, adds dishes, calls a waiter, pays, and leaves a review. The same table is also used when you seat a queue party.
-                </p>
+                <h3 className="text-base font-black text-gray-900">Floor</h3>
+                <p className="text-xs text-gray-500">Green is free. Red is occupied. This updates while the restaurant is open.</p>
               </div>
-
-              <button
-                onClick={openAddModal}
-                className="self-start sm:self-auto bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5 text-gray-600" />
-                <span>Add Floor Table</span>
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['ALL', 'All'],
+                  ['FREE', 'Available'],
+                  ['BUSY', 'Occupied'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setFloorFilter(value)}
+                    className={`min-h-11 rounded-xl px-3 text-xs font-bold ${floorFilter === value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
+            <input
+              value={tableQuery}
+              onChange={(event) => setTableQuery(event.target.value)}
+              placeholder="Find a table"
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+            />
 
             {tables.length === 0 ? (
               <EmptyState
                 icon={Armchair}
-                title="No dining tables added yet"
-                description="Add a table and its ordering QR is created. Print it and put it on the table."
+                title="No tables yet"
+                description="Add the tables you can seat. Each one gets an ordering QR you can download below."
                 actionLabel="Add Table 1"
                 onAction={openAddModal}
               />
+            ) : visibleTables.length === 0 ? (
+              <p className="py-6 text-sm text-gray-500">No tables match this view.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {tables.map((table) => {
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {visibleTables.map((table) => {
                   const heldParty = table.queueTokens?.[0];
-                  const isOccupied = (table.orders && table.orders.length > 0) || Boolean(heldParty);
-                  const tableUrl = `${origin}/r/${business?.slug}/table/${encodeURIComponent(table.name)}`;
-
+                  const isOccupied = tableIsOccupied(table);
                   return (
                     <div
                       key={table.id}
-                      className={`flex flex-col gap-3 rounded-2xl border p-4 ${
-                        isOccupied ? 'border-amber-300 bg-amber-50/40' : 'border-gray-200 bg-white'
+                      className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 ${
+                        isOccupied ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-lg font-black text-gray-950">{table.name}</p>
-                          <p className="text-xs text-gray-500">{table.capacity} seats · {isOccupied ? 'In use' : 'Free'}</p>
-                          {isOccupied && (
-                            <p className="mt-1 text-xs font-bold text-amber-900">
-                              {heldParty ? `#${heldParty.tokenNumber} ${heldParty.customerName}` : `Open bill ₹${Number(table.orders[0]?.totalAmount || 0).toFixed(0)}`}
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-lg font-black text-gray-950">{table.name}</p>
+                            <p className={`text-xs font-bold ${isOccupied ? 'text-red-700' : 'text-emerald-700'}`}>
+                              {isOccupied ? 'Occupied' : 'Available'}
                             </p>
-                          )}
+                          </div>
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => openEditModal(table)} className="rounded-lg p-2 text-gray-500 hover:bg-white" aria-label="Edit table">
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" onClick={() => setTableToDelete(table)} className="rounded-lg p-2 text-gray-500 hover:bg-white hover:text-red-600" aria-label="Remove table">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => openEditModal(table)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100" aria-label="Edit table">
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" onClick={() => setTableToDelete(table)} className="rounded-lg p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Remove table">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                      <TableQrPreview url={tableUrl} />
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void prepareQrAction(table.name, tableUrl, 'Scan to order, pay, and review', 'table')}
-                          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-gray-900 text-xs font-bold text-white"
-                        >
-                          <Printer className="h-3.5 w-3.5" />
-                          Print
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDownloadQr(tableUrl, `${business?.slug || 'restaurant'}-${table.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.png`)}
-                          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-orange-50 text-xs font-bold text-orange-900"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Save
-                        </button>
+                        <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-600">
+                          <Users className="h-3.5 w-3.5" />
+                          Seats {table.capacity}
+                        </p>
+                        {isOccupied && (
+                          <p className="mt-2 text-xs font-bold text-red-950">
+                            {heldParty
+                              ? `#${heldParty.tokenNumber} ${heldParty.customerName} · ${heldParty.partySize || 1} guests`
+                              : `${table.orders?.length || 1} open bill${(table.orders?.length || 1) === 1 ? '' : 's'} · ₹${Number(table.orders?.[0]?.totalAmount || 0).toFixed(0)}`}
+                          </p>
+                        )}
+                        {isOccupied && table.orders?.[0]?.status && (
+                          <p className="mt-1 text-xs font-semibold text-red-800">
+                            Kitchen {{
+                              PENDING: 'waiting',
+                              ACCEPTED: 'accepted',
+                              PREPARING: 'cooking',
+                              READY: 'ready to serve',
+                            }[table.orders[0].status as string] || String(table.orders[0].status).toLowerCase()}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
+
+          <div className="space-y-3 rounded-3xl border border-gray-200/80 bg-white p-5 shadow-xs sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-black text-gray-900">QR codes</h3>
+                <p className="text-xs text-gray-500">Download or print a code. The image stays off this screen until you print it.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    await handleDownloadQr(entranceUrl, `${business?.slug || 'restaurant'}-entrance-qr.png`, true);
+                    for (const table of tables) {
+                      await new Promise((resolve) => window.setTimeout(resolve, 350));
+                      await handleDownloadQr(tableOrderUrl(table.name), qrFileName(table.name), true);
+                    }
+                    toast.success('QR codes saved', 'The door code and every table code were downloaded.');
+                  })();
+                }}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-gray-900 px-3 text-xs font-bold text-white"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download all
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              <div className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-bold text-gray-950">Door</p>
+                  <p className="text-xs text-gray-500">Guests join the queue from this code.</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => void prepareQrAction('Door', entranceUrl, 'Scan to join the queue', 'entrance')} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-800">
+                    <Printer className="h-3.5 w-3.5" />
+                    Print
+                  </button>
+                  <button type="button" onClick={() => void handleDownloadQr(entranceUrl, `${business?.slug || 'restaurant'}-entrance-qr.png`)} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-orange-50 px-3 text-xs font-bold text-orange-900">
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </button>
+                </div>
+              </div>
+              {tables.map((table) => (
+                <div key={table.id} className="flex items-center justify-between gap-3 py-3">
+                  <div>
+                    <p className="font-bold text-gray-950">{table.name}</p>
+                    <p className="text-xs text-gray-500">{table.capacity} seats · scan to order, pay, and review</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" onClick={() => void prepareQrAction(table.name, tableOrderUrl(table.name), 'Scan to order, pay, and review', 'table')} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-800">
+                      <Printer className="h-3.5 w-3.5" />
+                      Print
+                    </button>
+                    <button type="button" onClick={() => void handleDownloadQr(tableOrderUrl(table.name), qrFileName(table.name))} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-orange-50 px-3 text-xs font-bold text-orange-900">
+                      <Download className="h-3.5 w-3.5" />
+                      Download
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </main>
 
@@ -524,50 +557,3 @@ export default function TablesManagementPage() {
   );
 }
 
-function EntranceQrPreview({ url, alt }: { url: string; alt: string }) {
-  const [dataUrl, setDataUrl] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    generateQrDataUrl(url)
-      .then((result) => {
-        if (!cancelled) setDataUrl(result);
-      })
-      .catch((err) => console.error('Failed to generate entrance QR preview:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-
-  return dataUrl ? (
-    <img src={dataUrl} alt={alt} className="w-40 h-40 rounded-xl" />
-  ) : (
-    <div className="w-40 h-40 rounded-xl bg-gray-100 flex items-center justify-center text-xs text-gray-500">
-      Generating QR…
-    </div>
-  );
-}
-
-function TableQrPreview({ url }: { url: string }) {
-  const [dataUrl, setDataUrl] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    generateQrDataUrl(url)
-      .then((result) => {
-        if (!cancelled) setDataUrl(result);
-      })
-      .catch((err) => console.error('Failed to generate table QR preview:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-
-  return dataUrl ? (
-    <img src={dataUrl} alt="Table QR" className="mx-auto h-36 w-36 rounded-xl bg-white" />
-  ) : (
-    <div className="w-44 h-44 rounded-xl bg-gray-100 flex items-center justify-center text-xs text-gray-500">
-      Generating QR…
-    </div>
-  );
-}

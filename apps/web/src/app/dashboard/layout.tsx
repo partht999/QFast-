@@ -45,7 +45,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/queue': 'Live Queue',
   '/dashboard/kds': 'Kitchen Display',
   '/dashboard/menu': 'Menu Editor',
-  '/dashboard/tables': 'QR codes',
+  '/dashboard/tables': 'Tables',
   '/dashboard/reviews': 'Google Reviews',
   '/dashboard/loyalty': 'Stamp card',
   '/dashboard/staff': 'Staff',
