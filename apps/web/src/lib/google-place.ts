@@ -59,25 +59,43 @@ export function googleReviewLink(placeId: string) {
   return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`;
 }
 
-/** Where the review button should go. A real Place ID opens the review form. A Maps link opens that link. */
+/** A URL that opens Google's rating form, when the link contains a Place ID or is a g.page link. */
+export function directReviewUrl(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  if (/search\.google\.com\/local\/writereview/i.test(trimmed)) return trimmed;
+
+  const placeId = extractGooglePlaceId(trimmed);
+  if (placeId && PLACE_ID.test(placeId)) return googleReviewLink(placeId);
+
+  const listing = mapsListingUrl(trimmed);
+  if (!listing) return null;
+  try {
+    const url = new URL(listing);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'g.page') {
+      const path = url.pathname.replace(/\/$/, '');
+      url.pathname = path.endsWith('/review') ? path : `${path}/review`;
+      return url.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Where the review button should go. A Place ID or g.page link opens the rating form. */
 export function googleReviewTarget(input: string): { placeId: string; reviewUrl: string } | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
   const extracted = extractGooglePlaceId(trimmed);
-  if (extracted && PLACE_ID.test(extracted)) {
-    return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
-  }
-
   const listing = mapsListingUrl(trimmed);
-  if (listing) return { placeId: trimmed, reviewUrl: listing };
-
-  if (extracted) return { placeId: extracted, reviewUrl: googleReviewLink(extracted) };
-  return null;
+  const reviewUrl = directReviewUrl(trimmed) || (listing ?? (extracted ? googleReviewLink(extracted) : null));
+  if (!reviewUrl) return null;
+  return { placeId: extracted && PLACE_ID.test(extracted) ? extracted : trimmed, reviewUrl };
 }
 
 export function reviewHref(reviewUrl?: string | null, placeId?: string | null) {
-  if (reviewUrl) return reviewUrl;
-  if (!placeId) return '';
-  return googleReviewTarget(placeId)?.reviewUrl || '';
+  return directReviewUrl(placeId || '') || directReviewUrl(reviewUrl || '') || reviewUrl || '';
 }

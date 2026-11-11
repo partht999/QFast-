@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Gift } from 'lucide-react';
+import { Gift, Search, Stamp } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
 import { readApiError } from '@/lib/read-api-error';
@@ -138,100 +138,117 @@ export default function LoyaltyManagementPage() {
   const goal = guest?.stampsForReward || stampsForReward;
   const filled = guest?.stamps || 0;
 
+  const previewCount = Math.min(Math.max(stampsForReward || 8, 2), 20);
+
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+      <section className="overflow-hidden rounded-3xl border border-orange-200 bg-white">
+        <div className="bg-orange-600 px-5 py-4 text-white sm:px-6">
+          <div className="flex items-center gap-3">
             <Gift className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-black text-slate-950">Stamp card</h2>
-            <p className="text-sm text-slate-500">One stamp per visit. A full card is one reward.</p>
+            <div>
+              <h2 className="text-lg font-black">Stamp card</h2>
+              <p className="text-sm text-orange-100">One stamp each visit. A full card is the reward.</p>
+            </div>
           </div>
         </div>
-        <form onSubmit={saveCard} className="mt-5 grid gap-4 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
-          <label className="block text-sm font-semibold text-slate-700">
-            Stamps
-            <input
-              type="number"
-              min={2}
-              max={20}
-              value={stampsForReward}
-              onChange={(event) => setStampsForReward(Number(event.target.value))}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
-            />
-          </label>
-          <label className="block text-sm font-semibold text-slate-700">
-            Reward
-            <input
-              value={rewardName}
-              onChange={(event) => setRewardName(event.target.value)}
-              maxLength={80}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save card'}
-          </button>
-        </form>
+        <div className="p-5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What guests collect</p>
+          <div className="mt-3 flex flex-wrap gap-2" aria-hidden="true">
+            {Array.from({ length: previewCount }).map((_, index) => (
+              <span key={index} className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-200 bg-orange-50 text-xs font-black text-orange-700">
+                {index + 1}
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-semibold text-gray-800">{previewCount} stamps · {rewardName || 'Free visit'}</p>
+          <form onSubmit={saveCard} className="mt-5 grid gap-4 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
+            <label className="block text-sm font-semibold text-slate-700">
+              Stamps
+              <input
+                type="number"
+                min={2}
+                max={20}
+                value={stampsForReward}
+                onChange={(event) => setStampsForReward(Number(event.target.value))}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700">
+              Reward
+              <input
+                value={rewardName}
+                onChange={(event) => setRewardName(event.target.value)}
+                maxLength={80}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+              />
+            </label>
+            <button type="submit" disabled={saving} className="min-h-11 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save card'}
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-        <h2 className="text-lg font-black text-slate-950">Guest card</h2>
-        <p className="mt-1 text-sm text-slate-500">Look up the mobile number, add a stamp, or give the reward when the card is full.</p>
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-orange-600" />
+          <h2 className="text-lg font-black text-slate-950">Look up a guest</h2>
+        </div>
+        <p className="mt-1 text-sm text-slate-500">Enter the mobile number from the bill. Add a stamp, or give the reward when the card is full.</p>
         <form onSubmit={lookup} className="mt-4 flex gap-2">
           <input
             type="tel"
+            inputMode="numeric"
             required
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            placeholder="Mobile number"
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+            placeholder="10-digit mobile"
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
           />
-          <button type="submit" disabled={working} className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={working} className="min-h-11 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
             Find
           </button>
         </form>
 
         {guest && (
-          <div className="mt-5">
-            <p className="text-sm font-semibold text-slate-700">
-              {filled} of {goal} stamps
-              {filled >= goal ? ' · ready to redeem' : ` · ${goal - filled} to go`}
-            </p>
+          <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-slate-900">
+                {filled} of {goal}
+              </p>
+              <p className={`text-xs font-bold ${filled >= goal ? 'text-emerald-700' : 'text-orange-800'}`}>
+                {filled >= goal ? 'Ready for the reward' : `${goal - filled} more to go`}
+              </p>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+              <div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.min(100, Math.round((filled / Math.max(goal, 1)) * 100))}%` }} />
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {Array.from({ length: goal }).map((_, index) => (
                 <span
                   key={index}
-                  className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black ${
-                    index < filled ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-200 bg-slate-50 text-slate-300'
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-black ${
+                    index < filled ? 'border-orange-500 bg-orange-500 text-white' : 'border-white bg-white text-slate-300'
                   }`}
                 >
-                  {index + 1}
+                  {index < filled ? <Stamp className="h-4 w-4" /> : index + 1}
                 </span>
               ))}
             </div>
-            <p className="mt-3 text-sm text-slate-600">Reward: {guest.rewardName || rewardName}</p>
+            <p className="mt-3 text-sm font-semibold text-slate-700">Reward: {guest.rewardName || rewardName}</p>
+            {Array.isArray(guest.transactions) && guest.transactions.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs text-slate-600">
+                {guest.transactions.slice(0, 3).map((entry: { id: string; reason?: string; createdAt: string; type?: string }) => (
+                  <li key={entry.id}>{entry.reason || entry.type || 'Stamp'} · {new Date(entry.createdAt).toLocaleDateString('en-IN')}</li>
+                ))}
+              </ul>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={working}
-                onClick={() => setStampConfirm('stamps')}
-                className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
-              >
+              <button type="button" disabled={working} onClick={() => setStampConfirm('stamps')} className="min-h-11 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
                 Add stamp
               </button>
-              <button
-                type="button"
-                disabled={working || filled < goal}
-                onClick={() => setStampConfirm('redeem')}
-                className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800 disabled:opacity-40"
-              >
+              <button type="button" disabled={working || filled < goal} onClick={() => setStampConfirm('redeem')} className="min-h-11 rounded-xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold text-orange-800 disabled:opacity-40">
                 Give reward
               </button>
             </div>

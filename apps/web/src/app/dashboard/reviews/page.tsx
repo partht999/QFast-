@@ -2,22 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Star,
-  ShieldCheck,
-  CheckCircle2,
-  ExternalLink,
-  MessageSquare,
-  HelpCircle,
-  Save,
-  Filter,
-  AlertTriangle,
-  Sparkles,
-  TrendingUp,
-} from 'lucide-react';
+import { Star, CheckCircle2, ExternalLink, MessageSquare, Save } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
-import { isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
-import { googleReviewTarget } from '@/lib/google-place';
+import { isFoodBusiness } from '@/lib/business-links';
+import { directReviewUrl, googleReviewTarget } from '@/lib/google-place';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -32,6 +20,7 @@ export default function ReviewsManagementPage() {
   }>({ averageRating: 5.0, totalCount: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [googlePlaceId, setGooglePlaceId] = useState('');
+  const [savedReviewUrl, setSavedReviewUrl] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PENDING' | 'RESOLVED' | 'POSITIVE' | 'CRITICAL'>('ALL');
   const [resolveTarget, setResolveTarget] = useState<any>(null);
@@ -60,6 +49,7 @@ export default function ReviewsManagementPage() {
         const curBiz = bizList[0];
         setBusiness(curBiz);
         setGooglePlaceId(curBiz.googlePlaceId || '');
+        setSavedReviewUrl(curBiz.googleReviewUrl || '');
 
         const fbRes = await fetch(`${apiUrl}/api/v1/reviews/${curBiz.id}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -100,7 +90,7 @@ export default function ReviewsManagementPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(readApiError(data, 'Could not save the Google listing'));
-      toast.success('Review link saved', 'Happy guests can now open your Google review page.');
+      toast.success('Review link saved', 'Guests now open Google’s page to rate you.');
       fetchData();
     } catch (err: any) {
       toast.error('Save Failed', err.message);
@@ -129,6 +119,8 @@ export default function ReviewsManagementPage() {
     }
   };
 
+  const previewUrl = directReviewUrl(googlePlaceId) || directReviewUrl(savedReviewUrl) || googleReviewTarget(googlePlaceId)?.reviewUrl || '';
+  const opensRatingForm = previewUrl.includes('writereview') || /g\.page\/.+\/review/i.test(previewUrl);
   const items = feedbackData.items || [];
   const positiveCount = items.filter((fb) => fb.rating >= 4).length;
   const criticalCount = items.filter((fb) => fb.rating < 4).length;
@@ -171,9 +163,7 @@ export default function ReviewsManagementPage() {
           </div>
           {!isFoodBusiness(business?.type) && (
             <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500">
-              {isClinicalBusiness(business?.type)
-                ? 'When a visit is marked complete, the patient is asked to leave a Google review. Paste the Place ID below.'
-                : 'When a visit is marked complete, the customer is asked to leave a Google review. Paste the Place ID below.'}
+              When a visit is finished, the guest can rate you on Google. The link opens the rating page, not just the map.
             </p>
           )}
         </div>
@@ -181,30 +171,18 @@ export default function ReviewsManagementPage() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {/* Smart Reputation Shield Banner */}
-        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 rounded-3xl p-6 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-200" />
-              <span>Smart Reputation Shield</span>
-            </span>
-            <h2 className="text-2xl font-black tracking-tight">Boost 5-Star Google Reviews Automatically</h2>
-            <p className="text-xs text-emerald-100 max-w-xl leading-relaxed">
-              After a completed visit, every customer sees both a Google review link and a private feedback form. Nothing here hides the Google link.
-            </p>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center shrink-0 min-w-56 space-y-2">
-            <span className="text-xs uppercase font-bold text-emerald-200 tracking-wider block">
-              Google Funnel Stats
-            </span>
-            <div className="text-3xl font-black text-white">
-              {items.length > 0 ? `${Math.round((positiveCount / items.length) * 100)}%` : '—'}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            ['Average', items.length ? feedbackData.averageRating.toFixed(1) : '—', 'Private notes'],
+            ['4–5 stars', String(positiveCount), 'Happy notes'],
+            ['Needs a look', String(pendingCount), 'Not marked done'],
+          ].map(([label, value, hint]) => (
+            <div key={label} className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+              <p className="mt-1 text-2xl font-black text-gray-950">{value}</p>
+              <p className="text-xs text-gray-500">{hint}</p>
             </div>
-            <p className="text-[11px] text-emerald-100">
-              {items.length > 0 ? `${positiveCount} of ${items.length} rated 4 or 5` : 'No reviews yet'}
-            </p>
-          </div>
+          ))}
         </div>
 
         {/* Metrics & Google Place ID Integration */}
@@ -213,7 +191,7 @@ export default function ReviewsManagementPage() {
           <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-xs flex flex-col justify-between">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block mb-1">
-                Internal Rating Score
+                Private rating
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-black text-amber-500">★ {feedbackData.averageRating.toFixed(1)}</span>
@@ -228,14 +206,14 @@ export default function ReviewsManagementPage() {
               <div className="flex justify-between items-center">
                 <span className="flex items-center gap-1.5 font-bold text-emerald-700">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  4–5★ Positive Prompts
+                  4–5 stars
                 </span>
                 <span className="font-extrabold text-gray-900">{positiveCount}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="flex items-center gap-1.5 font-bold text-amber-700">
                   <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  1–3★ Private Shielded
+                  1–3 stars
                 </span>
                 <span className="font-extrabold text-gray-900">{criticalCount}</span>
               </div>
@@ -257,7 +235,7 @@ export default function ReviewsManagementPage() {
                 )}
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Paste the Google Maps link for your listing, including a maps.app.goo.gl link. A Place ID works too.
+                Paste the Google Maps link. Guests then land on the page where they rate the restaurant.
               </p>
             </div>
 
@@ -280,17 +258,12 @@ export default function ReviewsManagementPage() {
                 </button>
               </div>
 
-              {googleReviewTarget(googlePlaceId) && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 space-y-1">
-                  <p className="font-medium">Guests will open this Google listing.</p>
-                  <a
-                    href={googleReviewTarget(googlePlaceId)?.reviewUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline break-all"
-                  >
-                    Test the review link
-                    <ExternalLink className="w-3 h-3 shrink-0" />
+              {previewUrl && (
+                <div className={`rounded-xl border p-3 text-xs ${opensRatingForm ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                  <p className="font-semibold">{opensRatingForm ? 'This opens Google’s rating page.' : 'Save the link. If Google only gave a map link, we turn it into the rating page when we can.'}</p>
+                  <a href={previewUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 font-bold hover:underline">
+                    Open the rating page
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
                 </div>
               )}
@@ -330,7 +303,7 @@ export default function ReviewsManagementPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveFilter(tab.id as any)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                  className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-bold transition-all ${
                     activeFilter === tab.id
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -384,7 +357,7 @@ export default function ReviewsManagementPage() {
                         {fb.status !== 'RESOLVED' ? (
                           <button
                             onClick={() => setResolveTarget(fb)}
-                            className="text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>Mark Resolved</span>

@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException, ConflictException, B
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { BusinessType, PlanTier, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
-import { reviewFieldsFromInput } from '../reviews/google-place';
+import { reviewFieldsFromInputResolved } from '../reviews/google-place';
 import { visitsAreOpen } from './subscription-access';
 import * as bcrypt from 'bcryptjs';
 
@@ -504,7 +504,7 @@ export class BusinessService {
     });
     if (!business) throw new ForbiddenException('You do not have access to this workspace');
 
-    const reviewFields = reviewFieldsFromInput(dto.googlePlaceId);
+    const reviewFields = await reviewFieldsFromInputResolved(dto.googlePlaceId);
 
     const updated = await this.prisma.business.update({
       where: { id: businessId },

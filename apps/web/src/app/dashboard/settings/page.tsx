@@ -210,10 +210,11 @@ export default function SettingsPage() {
         )}
         <label className="block text-sm font-semibold text-neutral-800">
           Google Maps link
+          <span className="mt-1 block text-xs font-medium text-neutral-500">Guests open Google’s page to rate the restaurant.</span>
           <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Paste the listing link from Google Maps" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
           {googleReviewTarget(googlePlaceId) && (
             <a href={googleReviewTarget(googlePlaceId)?.reviewUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs font-medium text-emerald-700 hover:underline">
-              Test the review link
+              Open the rating page
             </a>
           )}
         </label>

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFeedbackDto, UpdateGoogleSettingsDto } from './dto/create-feedback.dto';
 import { FeedbackStatus } from '@prisma/client';
-import { reviewFieldsFromInput } from './google-place';
+import { reviewFieldsFromInputResolved } from './google-place';
 
 @Injectable()
 export class ReviewsService {
@@ -74,7 +74,7 @@ export class ReviewsService {
   }
 
   async updateGoogleSettings(businessId: string, dto: UpdateGoogleSettingsDto) {
-    const fields = reviewFieldsFromInput(dto.googlePlaceId);
+    const fields = await reviewFieldsFromInputResolved(dto.googlePlaceId);
     if (!fields) {
       return this.prisma.business.findUnique({ where: { id: businessId } });
     }
