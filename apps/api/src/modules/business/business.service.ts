@@ -131,6 +131,48 @@ export class BusinessService {
     return business;
   }
 
+  async listPlans() {
+    const labels: Record<string, string> = {
+      'queue.enabled': 'Live queue and entrance QR',
+      'table_ordering.enabled': 'Ordering from the table QR',
+      'takeaway.enabled': 'Takeaway orders',
+      'kds.enabled': 'Kitchen display',
+      'reviews.google_prompt': 'Google review prompt',
+      'reviews.feedback_inbox': 'Private feedback inbox',
+      'loyalty.program': 'Stamp card',
+      'analytics.basic': 'Today’s queue and sales',
+    };
+    const plans = await this.prisma.plan.findMany({
+      where: { isActive: true },
+      include: { features: true },
+    });
+    const tierOrder = ['FREE', 'ESSENTIAL', 'ADVANCED'];
+    return plans
+      .sort((a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier))
+      .map((plan) => ({
+        id: plan.id,
+        tier: plan.tier,
+        name: plan.name,
+        description: plan.description,
+        priceMonthly: Number(plan.priceMonthly),
+        priceYearly: Number(plan.priceYearly),
+        highlights: plan.features
+          .map((feature) => {
+            if (!feature.enabled) return '';
+            if (feature.featureKey === 'staff.limit') {
+              if (feature.limitValue == null || feature.limitValue < 0) return 'Unlimited staff';
+              return `Up to ${feature.limitValue} staff`;
+            }
+            if (feature.featureKey === 'branches') {
+              if (feature.limitValue == null || feature.limitValue < 0) return 'More than one location';
+              return feature.limitValue === 1 ? 'One location' : `${feature.limitValue} locations`;
+            }
+            return labels[feature.featureKey] || '';
+          })
+          .filter(Boolean),
+      }));
+  }
+
   async findByOwner(userId: string) {
     const businesses = await this.prisma.business.findMany({
       where: { staff: { some: { userId, isActive: true } } },

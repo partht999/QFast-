@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Search,
@@ -64,7 +64,6 @@ export default function TableOrderPage() {
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<any | null>(null);
-  const router = useRouter();
   useOverlayHistory(Boolean(detailItem), () => setDetailItem(null));
   useOverlayHistory(isCartOpen, () => setIsCartOpen(false));
 
@@ -206,17 +205,15 @@ export default function TableOrderPage() {
       const orderData = await res.json();
       if (!res.ok) throw new Error(orderData.message || 'Failed to submit order');
 
-      setCart([]);
-      releaseOverlayHistory();
-      setIsCartOpen(false);
-      setDetailItem(null);
-      orderKey.current = '';
-      if (orderSource === 'QUEUE_PREORDER' || resolvedQueueTokenId) {
-        router.replace(`/r/${slug}/join`);
-      } else {
+      if (orderSource === 'TAKEAWAY' && orderData.id) {
         localStorage.setItem(`qfast_takeaway_${slug}`, orderData.id);
-        router.push(`/r/${slug}/order/${orderData.id}`);
       }
+      releaseOverlayHistory();
+      const destination =
+        orderSource === 'QUEUE_PREORDER' || resolvedQueueTokenId
+          ? `/r/${slug}/join`
+          : `/r/${slug}/order/${orderData.id}`;
+      window.location.assign(destination);
     } catch (err: any) {
       setError(err.message || 'Could not place order');
       setPlacingOrder(false);

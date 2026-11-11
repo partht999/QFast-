@@ -56,6 +56,14 @@ export class BusinessController {
     return this.businessService.findByOwner(req.user.sub);
   }
 
+  @Get('plans')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Plans a restaurant can be on' })
+  async plans() {
+    return this.businessService.listPlans();
+  }
+
   @Get('explore')
   @ApiOperation({ summary: 'Public endpoint to discover businesses with live queue status' })
   async explore(

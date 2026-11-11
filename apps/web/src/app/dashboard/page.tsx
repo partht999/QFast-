@@ -320,14 +320,14 @@ export default function DashboardPage() {
                   <span className="text-[11px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
                     {BUSINESS_TYPES.find((type) => type.value === selectedBusiness?.type)?.label || 'Business'}
                   </span>
-                  <span className="text-xs text-neutral-400">
+                  <Link href="/dashboard/billing" className="text-xs text-neutral-400 hover:text-white">
                     Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Free'}</strong>
                     {selectedBusiness?.subscriptions?.[0]?.status === 'TRIALING' && selectedBusiness?.subscriptions?.[0]?.trialEndsAt && (
                       <span className="ml-2 text-orange-300">
-                        free until {new Date(selectedBusiness.subscriptions[0].trialEndsAt).toLocaleDateString()}
+                        free until {new Date(selectedBusiness.subscriptions[0].trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                     )}
-                  </span>
+                  </Link>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   {selectedBusiness?.name}

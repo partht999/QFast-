@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   ChefHat,
   ChevronLeft,
+  CreditCard,
   ChevronRight,
   Gift,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
+import { PlanBoard } from '@/components/plan-board';
 import { getApiUrl } from '@/lib/api';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { isFoodBusiness } from '@/lib/business-links';
@@ -34,6 +36,7 @@ const navigation = [
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
   { label: 'Staff', href: '/dashboard/staff', icon: Users },
+  { label: 'Plan', href: '/dashboard/billing', icon: CreditCard },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -46,6 +49,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/reviews': 'Google Reviews',
   '/dashboard/loyalty': 'Stamp card',
   '/dashboard/staff': 'Staff',
+  '/dashboard/billing': 'Plan',
   '/dashboard/settings': 'Settings',
   '/dashboard/onboarding': 'Onboarding',
 };
@@ -72,13 +76,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
     if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables'].includes(item.href);
     if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/queue', '/dashboard/tables'].includes(item.href);
-    if (!['OWNER', 'MANAGER'].includes(staffRole) && item.href === '/dashboard/staff') return false;
+    if (!['OWNER', 'MANAGER'].includes(staffRole) && (item.href === '/dashboard/staff' || item.href === '/dashboard/billing')) return false;
     return true;
   });
   const visibleNavigation = !businessType
-    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff'].includes(item.href))
+    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff'].includes(item.href))
+      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
       : roleNavigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);
@@ -168,17 +172,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (planStatus === 'LAPSED') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
-        <div className="max-w-md text-center">
-          <p className="text-xs font-black uppercase tracking-widest text-orange-300">Qfast</p>
-          <h1 className="mt-3 text-3xl font-black">Your plan has expired</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            The 30-day premium trial is over. Buy a subscription to keep the queue, table ordering, and the kitchen open.
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <Link href="/contact" className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white">Talk to us</Link>
-            <button type="button" onClick={handleLogout} className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold">Sign out</button>
+      <div className="min-h-screen bg-neutral-50 px-4 py-8 text-neutral-900">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-orange-600">Qfast</p>
+              <h1 className="mt-1 text-3xl font-black">Your plan has expired</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-600">
+                The 30-day Advanced trial is over. The queue, table ordering, and kitchen stay closed until a plan is active.
+              </p>
+            </div>
+            <button type="button" onClick={handleLogout} className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-bold">
+              Sign out
+            </button>
           </div>
+          <PlanBoard />
         </div>
       </div>
     );
