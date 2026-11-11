@@ -67,10 +67,27 @@ export class TablesService {
   }
 
   async updateTable(id: string, dto: Partial<CreateTableDto>) {
-    return this.prisma.table.update({
+    const table = await this.prisma.table.findUnique({
       where: { id },
-      data: dto,
+      include: { business: { select: { slug: true } }, qrCode: true },
     });
+    if (!table) throw new NotFoundException('Table not found');
+    const name = dto.name?.trim() || table.name;
+    const updated = await this.prisma.table.update({
+      where: { id },
+      data: {
+        ...(dto.name ? { name } : {}),
+        ...(dto.capacity != null ? { capacity: dto.capacity } : {}),
+      },
+      include: { qrCode: true },
+    });
+    if (dto.name && table.qrCode) {
+      await this.prisma.qRCode.update({
+        where: { id: table.qrCode.id },
+        data: { targetUrl: `/r/${table.business.slug}/table/${encodeURIComponent(name)}` },
+      });
+    }
+    return updated;
   }
 
   async deleteTable(id: string) {

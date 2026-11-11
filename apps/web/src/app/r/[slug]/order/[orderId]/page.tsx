@@ -4,22 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Clock,
   CheckCircle2,
   Bell,
   Receipt,
   Star,
-  Users,
-  ChevronRight,
   ExternalLink,
-  ChefHat,
-  Sparkles,
-  Heart,
-  Droplet,
-  Utensils,
-  HelpCircle,
-  X,
-  Share2,
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
@@ -38,9 +27,6 @@ export default function OrderTrackingPage() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [assistanceMsg, setAssistanceMsg] = useState('');
-  const [showCallWaiterModal, setShowCallWaiterModal] = useState(false);
-  const [showSplitBillModal, setShowSplitBillModal] = useState(false);
-  const [splitCount, setSplitCount] = useState(2);
   const [rating, setRating] = useState(5);
   const [tags, setTags] = useState<string[]>([]);
   const [feedbackComment, setFeedbackComment] = useState('');
@@ -75,7 +61,6 @@ export default function OrderTrackingPage() {
   }, [orderId]);
 
   const askStaff = async (kind: 'waiter' | 'bill', reason?: string) => {
-    setShowCallWaiterModal(false);
     try {
       await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
         method: 'POST',
@@ -91,14 +76,6 @@ export default function OrderTrackingPage() {
       setAssistanceMsg('Could not reach the host. Please wave someone down.');
     }
     setTimeout(() => setAssistanceMsg(''), 6000);
-  };
-
-  const handleWaiterRequest = (reason: string) => {
-    void askStaff('waiter', reason);
-  };
-
-  const handleRequestBill = () => {
-    void askStaff('bill');
   };
 
   const toggleTag = (t: string) => {
@@ -182,7 +159,6 @@ export default function OrderTrackingPage() {
 
   const isCompleted = order.status === 'COMPLETED';
   const totalAmount = Number(order.totalAmount || 0);
-  const perPersonSplit = Math.ceil(totalAmount / splitCount);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 pb-20">
@@ -323,56 +299,6 @@ export default function OrderTrackingPage() {
             })}
           </div>
 
-          {/* Quick Table Service Action Buttons */}
-          {!isCompleted && !isTakeaway && (
-            <div className="grid grid-cols-2 gap-2.5 pt-5 border-t border-neutral-100 mt-6">
-              <button
-                onClick={() => setShowCallWaiterModal(true)}
-                className="bg-neutral-50 hover:bg-neutral-100 text-neutral-800 font-bold py-2.5 px-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 border border-neutral-200/70"
-              >
-                <Bell className="w-3.5 h-3.5 text-orange-600" />
-                <span>Call Waiter</span>
-              </button>
-
-              <button
-                onClick={handleRequestBill}
-                className="bg-neutral-50 hover:bg-neutral-100 text-neutral-800 font-bold py-2.5 px-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 border border-neutral-200/70"
-              >
-                <Receipt className="w-3.5 h-3.5 text-neutral-600" />
-                <span>Request Bill</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Share Live Tracker with Tablemates */}
-        <div className="flex items-center justify-between gap-2 bg-white rounded-2xl p-3.5 border border-neutral-200/80 shadow-2xs text-xs">
-          <div className="flex items-center gap-2">
-            <Share2 className="w-4 h-4 text-orange-600" />
-            <span className="font-bold text-neutral-800">Share live order status:</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(`Follow our live food order at ${order.business?.name || 'the restaurant'}: ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors flex items-center gap-1"
-            >
-              <span>WhatsApp</span>
-            </a>
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  navigator.clipboard.writeText(window.location.href);
-                  setAssistanceMsg('Tracking link copied to clipboard!');
-                  setTimeout(() => setAssistanceMsg(''), 4000);
-                }
-              }}
-              className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold px-3 py-1.5 rounded-xl transition-colors"
-            >
-              Copy
-            </button>
-          </div>
         </div>
 
         {isCompleted ? (
@@ -394,7 +320,7 @@ export default function OrderTrackingPage() {
               </Link>
             )}
           </section>
-        ) : (
+        ) : null}
         <div id="bill" className="space-y-3">
           <VisitBill
             title={isTakeaway ? 'Takeaway bill' : 'Your bill'}
@@ -441,7 +367,6 @@ export default function OrderTrackingPage() {
             </Link>
           )}
         </div>
-        )}
 
         {order.queueTokenId && !isCompleted && (
           <Link href={`/r/${slug}/join`} className="block rounded-3xl bg-orange-500 px-5 py-4 text-center text-sm font-black text-white">
@@ -449,7 +374,7 @@ export default function OrderTrackingPage() {
           </Link>
         )}
 
-        {/* Review & Feedback Card (Always available, highlighted upon completion) */}
+        {isCompleted && (
         <div className="bg-white rounded-3xl p-6 border-2 border-orange-200/80 shadow-sm space-y-4">
           <div className="text-center">
             <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-2">
@@ -555,107 +480,8 @@ export default function OrderTrackingPage() {
             </form>
           )}
         </div>
+        )}
       </main>
-
-      {/* Call Waiter Modal */}
-      {showCallWaiterModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-orange-600" />
-                <h3 className="font-extrabold text-sm text-neutral-900">How can we help?</h3>
-              </div>
-              <button
-                onClick={() => setShowCallWaiterModal(false)}
-                className="w-7 h-7 rounded-full bg-neutral-100 text-neutral-400 hover:text-neutral-700 flex items-center justify-center text-xs font-bold"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              {[
-                { label: 'Drinking Water', icon: '💧' },
-                { label: 'Extra Cutlery', icon: '🍴' },
-                { label: 'Napkins / Tissue', icon: '🧻' },
-                { label: 'Clean Table', icon: '🧹' },
-                { label: 'Order More Items', icon: '📖' },
-                { label: 'General Assistance', icon: '🙋‍♂️' },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => handleWaiterRequest(item.label)}
-                  className="p-3 bg-neutral-50 hover:bg-orange-50 border border-neutral-200/80 hover:border-orange-300 rounded-2xl text-left transition-all group"
-                >
-                  <span className="text-xl block mb-1">{item.icon}</span>
-                  <span className="text-xs font-bold text-neutral-800 group-hover:text-orange-950 block">
-                    {item.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Split Bill Calculator Modal */}
-      {showSplitBillModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-center">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-left">
-                <Users className="w-5 h-5 text-orange-600" />
-                <h3 className="font-extrabold text-sm text-neutral-900">Split Bill Calculator</h3>
-              </div>
-              <button
-                onClick={() => setShowSplitBillModal(false)}
-                className="w-7 h-7 rounded-full bg-neutral-100 text-neutral-400 hover:text-neutral-700 flex items-center justify-center text-xs font-bold"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-4">
-              <span className="text-xs font-bold text-orange-800/80 uppercase tracking-wide">
-                Each Person Pays
-              </span>
-              <div className="text-3xl font-black text-orange-600 mt-1">
-                ₹{perPersonSplit.toFixed(2)}
-              </div>
-              <p className="text-[11px] text-neutral-500 mt-0.5">
-                Total ₹{totalAmount.toFixed(2)} split between {splitCount} guests
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-neutral-500 block">Number of People</span>
-              <div className="flex items-center justify-center gap-3">
-                {[2, 3, 4, 5, 6].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() => setSplitCount(num)}
-                    className={`w-10 h-10 rounded-xl font-bold text-sm transition-all border ${
-                      splitCount === num
-                        ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                        : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowSplitBillModal(false)}
-              className="w-full bg-neutral-900 hover:bg-black text-white font-bold py-3 rounded-xl text-xs transition-colors"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
       <ReviewPrompt
         open={reviewOpen}
         reviewUrl={reviewHref(order.business?.googleReviewUrl, order.business?.googlePlaceId)}

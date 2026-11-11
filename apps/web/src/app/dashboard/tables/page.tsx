@@ -5,15 +5,11 @@ import { useRouter } from 'next/navigation';
 import {
   Armchair,
   Plus,
-  QrCode,
   Printer,
   Download,
   ExternalLink,
   Edit2,
   Trash2,
-  Users,
-  CheckCircle2,
-  AlertCircle,
   X,
   Sparkles,
 } from 'lucide-react';
@@ -33,7 +29,6 @@ export default function TablesManagementPage() {
   const [tableForm, setTableForm] = useState({ name: '', capacity: 4 });
   const [submitting, setSubmitting] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<any | null>(null);
-  const [selectedTableForQR, setSelectedTableForQR] = useState<any>(null);
   const [printQR, setPrintQR] = useState<{
     title: string;
     url: string;
@@ -239,7 +234,7 @@ export default function TablesManagementPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Armchair className="h-5 w-5 shrink-0 text-orange-600" />
-              <h1 className="text-base font-extrabold text-gray-900">Tables and QR</h1>
+              <h1 className="text-base font-extrabold text-gray-900">QR codes</h1>
               <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-bold text-orange-700">
                 {tables.length} tables · {totalSeats} seats
               </span>
@@ -263,9 +258,9 @@ export default function TablesManagementPage() {
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Front Entrance Standee</span>
               </span>
-              <h2 className="text-2xl font-black tracking-tight">Main Door &amp; Reception QR</h2>
+              <h2 className="text-2xl font-black tracking-tight">Door QR</h2>
               <p className="text-xs text-orange-100 max-w-lg leading-relaxed">
-                This is the only guest QR. People scan it to join the line or order takeaway. Tables below are seats you assign when you call a party.
+                Put this at the entrance. Guests join the queue, pre-order, and come back to the same screen to pay.
               </p>
               <div className="pt-2 flex flex-wrap gap-2 text-xs">
                 <a
@@ -275,7 +270,7 @@ export default function TablesManagementPage() {
                   className="bg-white text-gray-900 hover:bg-orange-50 font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-orange-600" />
-                  <span>Test Guest Scan Flow</span>
+                  <span>Open guest page</span>
                 </a>
               </div>
             </div>
@@ -336,16 +331,9 @@ export default function TablesManagementPage() {
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
-                <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
-                  <span>Dining Floor Tables ({tables.length})</span>
-                  {occupiedTables.length > 0 && (
-                    <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
-                      {occupiedTables.length} occupied
-                    </span>
-                  )}
-                </h3>
+                <h3 className="text-base font-black text-gray-900">Table QR codes</h3>
                 <p className="text-xs text-gray-500">
-                  Free tables are offered automatically when you call the next party. A busy table stays with that party until the bill is closed.
+                  Stick one code on each table. A guest scans it, adds dishes, calls a waiter, pays, and leaves a review. The same table is also used when you seat a queue party.
                 </p>
               </div>
 
@@ -362,7 +350,7 @@ export default function TablesManagementPage() {
               <EmptyState
                 icon={Armchair}
                 title="No dining tables added yet"
-                description="Add the tables you can seat. When you call a party, the next free table is assigned to them."
+                description="Add a table and its ordering QR is created. Print it and put it on the table."
                 actionLabel="Add Table 1"
                 onAction={openAddModal}
               />
@@ -371,64 +359,52 @@ export default function TablesManagementPage() {
                 {tables.map((table) => {
                   const heldParty = table.queueTokens?.[0];
                   const isOccupied = (table.orders && table.orders.length > 0) || Boolean(heldParty);
+                  const tableUrl = `${origin}/r/${business?.slug}/table/${encodeURIComponent(table.name)}`;
 
                   return (
                     <div
                       key={table.id}
-                      className={`rounded-2xl p-4 sm:p-5 border transition-all flex flex-col justify-between space-y-3 ${
-                        isOccupied
-                          ? 'border-amber-300 bg-amber-50/40 shadow-xs'
-                          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-xs'
+                      className={`flex flex-col gap-3 rounded-2xl border p-4 ${
+                        isOccupied ? 'border-amber-300 bg-amber-50/40' : 'border-gray-200 bg-white'
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl font-black text-gray-950">{table.name}</span>
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                              isOccupied
-                                ? 'bg-amber-100 text-amber-900 border-amber-200'
-                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            }`}
-                          >
-                            {isOccupied ? 'Busy' : 'Free'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                          <Users className="w-3.5 h-3.5 text-gray-400" />
-                          <span>Seats up to <strong className="text-gray-800">{table.capacity} guests</strong></span>
-                        </div>
-
-                        {isOccupied && (
-                          <div className="bg-white rounded-xl p-2.5 border border-amber-200 text-xs space-y-1 shadow-2xs">
-                            <span className="text-[10px] uppercase font-bold text-amber-700 block">
-                              {heldParty ? `Party #${heldParty.tokenNumber}` : 'Open order'}
-                            </span>
-                            <p className="font-extrabold text-gray-900">
-                              {heldParty?.customerName || `₹${Number(table.orders[0]?.totalAmount || 0).toFixed(0)}`}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-lg font-black text-gray-950">{table.name}</p>
+                          <p className="text-xs text-gray-500">{table.capacity} seats · {isOccupied ? 'In use' : 'Free'}</p>
+                          {isOccupied && (
+                            <p className="mt-1 text-xs font-bold text-amber-900">
+                              {heldParty ? `#${heldParty.tokenNumber} ${heldParty.customerName}` : `Open bill ₹${Number(table.orders[0]?.totalAmount || 0).toFixed(0)}`}
                             </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openEditModal(table)}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Edit Table"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => openEditModal(table)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100" aria-label="Edit table">
+                            <Edit2 className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            onClick={() => setTableToDelete(table)}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Deactivate Table"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <button type="button" onClick={() => setTableToDelete(table)} className="rounded-lg p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Remove table">
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
+                      </div>
+                      <TableQrPreview url={tableUrl} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void prepareQrAction(table.name, tableUrl, 'Scan to order, pay, and review', 'table')}
+                          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-gray-900 text-xs font-bold text-white"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          Print
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDownloadQr(tableUrl, `${business?.slug || 'restaurant'}-${table.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.png`)}
+                          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-orange-50 text-xs font-bold text-orange-900"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Save
+                        </button>
                       </div>
                     </div>
                   );
@@ -501,75 +477,6 @@ export default function TablesManagementPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
-
-        {/* View QR Code Standee Modal */}
-        {selectedTableForQR && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <h3 className="font-extrabold text-base text-gray-900">
-                  {selectedTableForQR.name} QR Standee
-                </h3>
-                <button
-                  onClick={() => setSelectedTableForQR(null)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* QR Image preview */}
-              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col items-center justify-center">
-                <TableQrPreview url={selectedTableForQR.url} />
-                <span className="text-xs font-black text-gray-800 mt-3">{business?.name}</span>
-                <span className="text-xs text-orange-600 font-extrabold">{selectedTableForQR.name}</span>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <a
-                  href={selectedTableForQR.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block w-full bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-sm"
-                >
-                  Test Table Order Page 📱
-                </a>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void prepareQrAction(
-                        selectedTableForQR.name,
-                        selectedTableForQR.url,
-                        'Scan to view menu & order from your table',
-                        'table'
-                      )
-                    }
-                    className="w-full bg-gray-900 hover:bg-black text-white font-bold text-xs py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Print Standee</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleDownloadQr(
-                        selectedTableForQR.url,
-                        `${business?.slug || 'restaurant'}-${selectedTableForQR.name
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, '-')}-qr.png`
-                      )
-                    }
-                    className="w-full bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 font-bold text-xs py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download PNG</span>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -658,7 +565,7 @@ function TableQrPreview({ url }: { url: string }) {
   }, [url]);
 
   return dataUrl ? (
-    <img src={dataUrl} alt="Table QR" className="w-44 h-44 rounded-xl shadow-xs" />
+    <img src={dataUrl} alt="Table QR" className="mx-auto h-36 w-36 rounded-xl bg-white" />
   ) : (
     <div className="w-44 h-44 rounded-xl bg-gray-100 flex items-center justify-center text-xs text-gray-500">
       Generating QR…

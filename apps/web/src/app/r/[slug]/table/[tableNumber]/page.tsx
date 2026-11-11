@@ -309,7 +309,7 @@ export default function TableOrderPage() {
                   ? 'Dine-in Pre-order · Served when table is ready'
                   : orderSource === 'TAKEAWAY'
                   ? 'Takeaway Menu · Pick up at counter'
-                  : 'Digital Dine-in Menu'}
+                  : 'Order from this table. You pay, call a waiter, and review on the next screen.'}
               </p>
             </div>
           </div>

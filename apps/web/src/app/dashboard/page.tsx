@@ -284,7 +284,7 @@ export default function DashboardPage() {
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
                   >
                     <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Tables &amp; QR</span>
+                    <span>QR codes</span>
                   </Link>
                   <Link
                     href="/dashboard/menu"
