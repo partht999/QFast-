@@ -127,7 +127,7 @@ export function PhotoUpload({
           setReading(true);
           setError('');
           void readPhotoFile(file)
-            .then((image) => (businessId ? uploadStoredPhoto(businessId, image) : Promise.reject(new Error('Save the restaurant before adding a photo'))))
+            .then((image) => (businessId ? uploadStoredPhoto(businessId, image) : image))
             .then(onChange)
             .catch((err) => setError(err instanceof Error ? err.message : 'Could not use this photo'))
             .finally(() => setReading(false));
