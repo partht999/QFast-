@@ -63,8 +63,8 @@ export function VisitBill({
 }) {
   const [people, setPeople] = useState(1);
   const share = people > 1 ? Math.ceil((total / people) * 100) / 100 : total;
-  const payment = describePayments(payments);
-  const amount = payment.amount > 0 ? payment.amount : total;
+  const payment = describePayments(payments, total);
+  const amount = total;
   const cgst = Math.round((tax / 2) * 100) / 100;
   const sgst = Math.round((tax - cgst) * 100) / 100;
   const when = issuedAt || new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });

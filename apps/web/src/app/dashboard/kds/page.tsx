@@ -631,20 +631,15 @@ export default function KDSPage() {
                   </div>
 
                   {(() => {
-                    const payment = describePayments(order.payments || []);
-                    if (payment.counterDue && !payment.paid) {
+                    const payment = describePayments(order.payments || [], Number(order.totalAmount || 0));
+                    if (!payment.paid) {
                       return (
                     <button
                       onClick={() => void handleMarkPaid(order.id)}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs"
                     >
-                      Mark bill paid
+                      Mark bill paid · ₹{Number(order.totalAmount || 0).toFixed(0)}
                     </button>
-                      );
-                    }
-                    if (payment.onlineDue) {
-                      return (
-                        <p className="text-center text-[11px] font-bold text-amber-200">Pay online — not captured</p>
                       );
                     }
                     return (

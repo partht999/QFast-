@@ -12,6 +12,7 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrderStatus } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -52,9 +53,12 @@ export class OrdersController {
   @ApiOperation({ summary: 'Guest pays the current bill at the table or counter' })
   async customerPay(
     @Param('orderId') orderId: string,
-    @Body('method') method: 'CASH' | 'UPI_AT_COUNTER',
+    @Body('method') method: string,
   ) {
-    return this.ordersService.customerPay(orderId, method === 'CASH' ? 'CASH' : 'UPI_AT_COUNTER');
+    if (method !== 'CASH' && method !== 'CARD_AT_COUNTER' && method !== 'UPI_AT_COUNTER') {
+      throw new BadRequestException('Choose UPI, cash, or card.');
+    }
+    return this.ordersService.customerPay(orderId, method);
   }
 
   @Post('public/:orderId/close')

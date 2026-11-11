@@ -4,12 +4,6 @@ export type PaymentLike = {
   amount?: number | string | null;
 };
 
-const COUNTER = new Set(['CASH', 'CARD_AT_COUNTER', 'UPI_AT_COUNTER']);
-
-export function isCounterPayment(method?: string | null) {
-  return !!method && COUNTER.has(method);
-}
-
 export function paymentMethodLabel(method?: string | null) {
   switch (method) {
     case 'CASH':
@@ -27,26 +21,27 @@ export function paymentMethodLabel(method?: string | null) {
   }
 }
 
-export function describePayments(payments?: PaymentLike[] | null) {
-  const list = payments || [];
-  const pending = list.filter((payment) => payment.status === 'PENDING' || payment.status === 'FAILED');
-  const counterDue = pending.filter((payment) => !payment.method || isCounterPayment(payment.method));
-  const onlineDue = pending.filter((payment) => payment.method && !isCounterPayment(payment.method));
-  const amount = list.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+export function describePayments(payments?: PaymentLike[] | null, totalAmount?: number) {
+  const list = (payments || []).filter(
+    (payment) => payment.status !== 'REFUNDED' && payment.status !== 'PARTIALLY_REFUNDED',
+  );
+  const pending = list.filter((payment) => payment.status !== 'PAID');
+  const paidAmount = Math.round(
+    list
+      .filter((payment) => payment.status === 'PAID')
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0) * 100,
+  ) / 100;
+  const total = totalAmount == null ? undefined : Math.round(Number(totalAmount) * 100) / 100;
+  const covered = total == null ? list.length > 0 && pending.length === 0 : paidAmount + 0.009 >= total;
+  const paid = covered && pending.length === 0 && (total == null || total >= 0);
   const methods = [...new Set(list.map((payment) => paymentMethodLabel(payment.method)))].join(', ');
-  const paid = list.length > 0 && pending.length === 0 && list.every((payment) => payment.status === 'PAID');
-
-  let label = 'Pay at the counter';
-  if (paid) label = 'Paid';
-  else if (onlineDue.length && !counterDue.length) label = 'Pay online — not captured';
-  else if (onlineDue.length && counterDue.length) label = 'Pay at the counter · online not captured';
 
   return {
-    label,
+    label: paid ? 'Paid' : 'Due at the counter',
     methods: methods || 'Counter',
-    amount,
+    amount: total ?? paidAmount,
     paid,
-    counterDue: counterDue.length > 0,
-    onlineDue: onlineDue.length > 0,
+    counterDue: !paid,
+    onlineDue: false,
   };
 }

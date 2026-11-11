@@ -896,16 +896,15 @@ export default function DashboardQueuePage() {
             {tokens.filter((token) => token.status === 'SEATED').map((token) => {
               const openOrders = (token.orders || []).filter((order: any) => !['CANCELLED', 'REJECTED'].includes(order.status));
               const cooking = openOrders.some((order: any) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status));
-              const payment = describePayments(openOrders.flatMap((order: any) => order.payments || []));
+              const due = openOrders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0);
+              const payment = describePayments(openOrders.flatMap((order: any) => order.payments || []), due);
               const note = cooking
                 ? 'Kitchen is still cooking'
                 : openOrders.length === 0
                   ? token.table?.name || 'Ready to close'
                   : payment.paid
-                    ? `Paid · ${token.table?.name || 'Ready to close'}`
-                    : payment.onlineDue && !payment.counterDue
-                      ? 'Online payment not captured'
-                      : 'Pay at the counter';
+                    ? `Paid ₹${due.toFixed(0)} · ${token.table?.name || 'Ready to close'}`
+                    : `Due ₹${due.toFixed(0)} at the counter`;
               return (
               <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                 <div className="min-w-0">
@@ -918,7 +917,7 @@ export default function DashboardQueuePage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  {!cooking && payment.counterDue && !payment.paid && (
+                  {!cooking && openOrders.length > 0 && !payment.paid && (
                     <button
                       type="button"
                       onClick={() => void handleMarkPaid(token.id)}

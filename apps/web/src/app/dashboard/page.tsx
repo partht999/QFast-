@@ -27,6 +27,7 @@ import {
 import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
+import { describePayments } from '@/lib/payment';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { useOverlayHistory } from '@/components/navigation-memory';
 import { useToast } from '@/components/ui/toast';
@@ -582,6 +583,15 @@ export default function DashboardPage() {
                               >
                                 {order.status}
                               </span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  describePayments(order.payments, Number(order.totalAmount || 0)).paid
+                                    ? 'bg-emerald-50 text-emerald-800'
+                                    : 'bg-amber-50 text-amber-800'
+                                }`}
+                              >
+                                {describePayments(order.payments, Number(order.totalAmount || 0)).paid ? 'Paid' : 'Due'}
+                              </span>
                             </div>
                             <p className="text-gray-400 mt-0.5 flex items-center gap-2">
                               <span>{order.customerName || 'Diner'}</span>
@@ -703,7 +713,11 @@ export default function DashboardPage() {
             {/* Total Footer */}
             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
               <div>
-                <span className="text-xs text-gray-400">Total Billed</span>
+                <span className="text-xs text-gray-400">
+                  {describePayments(selectedOrderDetails.payments, Number(selectedOrderDetails.totalAmount || 0)).paid
+                    ? 'Paid'
+                    : 'Due at the counter'}
+                </span>
                 <p className="text-lg font-black text-gray-900">
                   ₹{Number(selectedOrderDetails.totalAmount).toFixed(2)}
                 </p>

@@ -4,7 +4,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
-import { isCounterPayment, unpaidReason } from './payment-state';
+import { billDueReason, counterMethod } from './payment-state';
 import { visitsAreOpen } from '../business/subscription-access';
 
 @Injectable()
@@ -180,7 +180,7 @@ export class OrdersService {
           create: {
             businessId: business.id,
             amount: new Prisma.Decimal(totalAmount),
-            method: dto.paymentMethod,
+            method: counterMethod(dto.paymentMethod),
             status: PaymentStatus.PENDING,
           },
         },
@@ -308,9 +308,9 @@ export class OrdersService {
     if (status === OrderStatus.COMPLETED) {
       const payments = await this.prisma.payment.findMany({
         where: { orderId },
-        select: { status: true, method: true },
+        select: { status: true, method: true, amount: true },
       });
-      const reason = unpaidReason(payments);
+      const reason = billDueReason(Number(current.totalAmount), payments);
       if (reason) throw new ConflictException(reason);
     }
 
@@ -373,31 +373,20 @@ export class OrdersService {
   }
 
   async markOrderPaid(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: { queueToken: { select: { status: true } }, payments: true },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    if (['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
-      throw new ConflictException('The kitchen is still cooking this order.');
-    }
-    const pending = order.payments.filter((payment) => payment.status === PaymentStatus.PENDING);
-    const counter = pending.filter((payment) => isCounterPayment(payment.method));
-    if (!counter.length) {
-      throw new ConflictException(
-        pending.length
-          ? 'This online payment has not been captured. It cannot be marked paid at the counter.'
-          : 'This bill is already paid.',
-      );
-    }
-    await this.prisma.payment.updateMany({
-      where: { id: { in: counter.map((payment) => payment.id) } },
-      data: { status: PaymentStatus.PAID, paidAt: new Date() },
-    });
+    await this.collectBill(orderId, undefined, { requireReady: true });
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
   }
 
-  async customerPay(orderId: string, method: 'CASH' | 'UPI_AT_COUNTER') {
+  async customerPay(orderId: string, method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER') {
+    await this.collectBill(orderId, method, { requireReady: false });
+    return this.getPublicOrder(orderId);
+  }
+
+  async collectBill(
+    orderId: string,
+    method?: string | null,
+    options?: { requireReady?: boolean },
+  ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { payments: true },
@@ -406,25 +395,13 @@ export class OrdersService {
     if (['COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) {
       throw new ConflictException('This bill is already closed.');
     }
-    const pending = order.payments.filter((payment) => payment.status !== PaymentStatus.PAID);
-    if (!order.payments.length) {
-      await this.prisma.payment.create({
-        data: {
-          orderId,
-          businessId: order.businessId,
-          amount: order.totalAmount,
-          method,
-          status: PaymentStatus.PAID,
-          paidAt: new Date(),
-        },
-      });
-    } else if (pending.length) {
-      await this.prisma.payment.updateMany({
-        where: { id: { in: pending.map((payment) => payment.id) } },
-        data: { method, status: PaymentStatus.PAID, paidAt: new Date() },
-      });
+    if (options?.requireReady && ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
+      throw new ConflictException('The kitchen is still cooking. Collect payment when the food is ready.');
     }
-    return this.getPublicOrder(orderId);
+    if (!billDueReason(Number(order.totalAmount), order.payments)) return order;
+    const open = order.payments.find((payment) => payment.status === 'PENDING' || payment.status === 'FAILED');
+    await this.recordPayment(order, counterMethod(method || open?.method), true);
+    return order;
   }
 
   async customerCloseOrder(orderId: string) {
@@ -439,10 +416,8 @@ export class OrdersService {
     if (['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
       throw new ConflictException('The kitchen is still cooking. Close the bill when the food is ready.');
     }
-    const reason = unpaidReason(order.payments);
-    if (!order.payments.length || reason) {
-      throw new ConflictException(reason || 'Pay the bill before closing it.');
-    }
+    const reason = billDueReason(Number(order.totalAmount), order.payments);
+    if (reason) throw new ConflictException(reason);
     return this.updateOrderStatus(orderId, OrderStatus.COMPLETED);
   }
 
@@ -641,7 +616,7 @@ export class OrdersService {
           create: {
             businessId: business.id,
             amount: new Prisma.Decimal(totals.totalAmount),
-            method: dto.paymentMethod,
+            method: counterMethod(dto.paymentMethod),
             status: PaymentStatus.PENDING,
           },
         },
@@ -721,21 +696,52 @@ export class OrdersService {
             status,
           })),
         },
-        payments: {
-          updateMany: {
-            where: { orderId },
-            data: {
-              amount: new Prisma.Decimal(totals.totalAmount),
-              status: PaymentStatus.PENDING,
-              paidAt: null,
-            },
-          },
-        },
       },
       include: this.orderInclude,
     });
-    this.events.emitOrderUpdate(order.businessId, order.id, { type: 'ORDER_ITEMS_ADDED', order });
-    return order;
+    await this.recordPayment(order, counterMethod(order.payments[0]?.method), false);
+    const reopened = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: this.orderInclude,
+    });
+    this.events.emitOrderUpdate(order.businessId, order.id, { type: 'ORDER_ITEMS_ADDED', order: reopened });
+    return reopened;
+  }
+
+  private async recordPayment(
+    order: {
+      id: string;
+      businessId: string;
+      totalAmount: Prisma.Decimal | number | string;
+      payments: { id: string; status: string }[];
+    },
+    method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER',
+    markPaid: boolean,
+  ) {
+    const amount = new Prisma.Decimal(Math.round(Number(order.totalAmount) * 100) / 100);
+    const live = order.payments.filter(
+      (payment) => payment.status === 'PENDING' || payment.status === 'FAILED' || payment.status === 'PAID',
+    );
+    const primary = live[0];
+    const extras = live.slice(1).map((payment) => payment.id);
+    await this.prisma.$transaction(async (tx) => {
+      if (extras.length) {
+        await tx.payment.deleteMany({ where: { id: { in: extras }, refunds: { none: {} } } });
+      }
+      const data = {
+        amount,
+        method,
+        status: markPaid ? PaymentStatus.PAID : PaymentStatus.PENDING,
+        paidAt: markPaid ? new Date() : null,
+      };
+      if (primary) {
+        await tx.payment.update({ where: { id: primary.id }, data });
+      } else {
+        await tx.payment.create({
+          data: { orderId: order.id, businessId: order.businessId, ...data },
+        });
+      }
+    });
   }
 
   async getOverviewStats(businessId: string) {
@@ -777,6 +783,7 @@ export class OrdersService {
           table: true,
           queueToken: true,
           items: { include: { menuItem: true } },
+          payments: { select: { status: true, method: true, amount: true } },
         },
       }),
     ]);

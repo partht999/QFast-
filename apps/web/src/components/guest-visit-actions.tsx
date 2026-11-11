@@ -8,6 +8,7 @@ import { readApiError } from '@/lib/read-api-error';
 type VisitOrder = {
   id: string;
   status: string;
+  totalAmount?: number | string | null;
   payments?: PaymentLike[];
 };
 
@@ -28,11 +29,13 @@ export function GuestVisitActions({
   const [message, setMessage] = useState('');
   const openOrders = orders.filter((order) => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status));
   const payments = openOrders.flatMap((order) => order.payments || []);
-  const payment = describePayments(payments);
+  const dueTotal = openOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+  const payment = describePayments(payments, openOrders.every((order) => order.totalAmount != null) ? dueTotal : undefined);
+  const dueLabel = dueTotal > 0 ? `₹${dueTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
   const cooking = openOrders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status));
   const readyToClose = canClose && openOrders.length > 0 && payment.paid && !cooking;
 
-  const pay = async (method: 'CASH' | 'UPI_AT_COUNTER') => {
+  const pay = async (method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER') => {
     const due = openOrders.filter((order) => !describePayments(order.payments).paid);
     if (!due.length) return;
     setBusy(method);
@@ -47,7 +50,7 @@ export function GuestVisitActions({
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(readApiError(data, 'Could not record this payment'));
       }
-      setMessage(method === 'CASH' ? 'Cash payment recorded.' : 'UPI payment recorded.');
+      setMessage(method === 'CASH' ? 'Cash payment recorded.' : method === 'CARD_AT_COUNTER' ? 'Card payment recorded.' : 'UPI payment recorded.');
       onChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not record this payment');
@@ -79,17 +82,19 @@ export function GuestVisitActions({
     <div className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4 text-left">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">Payment</p>
-        <p className={`text-sm font-black ${payment.paid ? 'text-emerald-700' : 'text-amber-800'}`}>{payment.label}</p>
+        <p className={`text-sm font-black ${payment.paid ? 'text-emerald-700' : 'text-amber-800'}`}>
+          {payment.label}{dueLabel ? ` · ${dueLabel}` : ''}
+        </p>
       </div>
       {!payment.paid && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           <button
             type="button"
             disabled={!!busy}
             onClick={() => void pay('UPI_AT_COUNTER')}
             className="min-h-11 rounded-xl bg-orange-500 text-sm font-bold text-white disabled:opacity-60"
           >
-            {busy === 'UPI_AT_COUNTER' ? 'Saving…' : 'Pay by UPI'}
+            {busy === 'UPI_AT_COUNTER' ? 'Saving…' : 'Paid by UPI'}
           </button>
           <button
             type="button"
@@ -97,7 +102,15 @@ export function GuestVisitActions({
             onClick={() => void pay('CASH')}
             className="min-h-11 rounded-xl border border-neutral-200 text-sm font-bold text-neutral-800 disabled:opacity-60"
           >
-            {busy === 'CASH' ? 'Saving…' : 'Pay by cash'}
+            {busy === 'CASH' ? 'Saving…' : 'Paid by cash'}
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void pay('CARD_AT_COUNTER')}
+            className="min-h-11 rounded-xl border border-neutral-200 text-sm font-bold text-neutral-800 disabled:opacity-60"
+          >
+            {busy === 'CARD_AT_COUNTER' ? 'Saving…' : 'Paid by card'}
           </button>
         </div>
       )}

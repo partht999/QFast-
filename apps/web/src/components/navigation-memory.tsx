@@ -101,6 +101,11 @@ export function BackLink({
   );
 }
 
+export function releaseOverlayHistory() {
+  if (typeof window === 'undefined') return;
+  if (window.history.state?.qfastOverlay) window.history.replaceState(null, '');
+}
+
 export function useOverlayHistory(open: boolean, onClose: () => void) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -108,6 +113,7 @@ export function useOverlayHistory(open: boolean, onClose: () => void) {
 
   useEffect(() => {
     if (!open) return;
+    const urlAtOpen = window.location.href;
     window.history.pushState({ qfastOverlay: true }, '');
     const onPop = () => {
       closedByHistory.current = true;
@@ -120,6 +126,7 @@ export function useOverlayHistory(open: boolean, onClose: () => void) {
         closedByHistory.current = false;
         return;
       }
+      if (window.location.href !== urlAtOpen) return;
       if (window.history.state?.qfastOverlay) window.history.back();
     };
   }, [open]);

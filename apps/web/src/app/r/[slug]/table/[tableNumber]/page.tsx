@@ -13,15 +13,13 @@ import {
   Sparkles,
   ArrowRight,
   X,
-  CreditCard,
-  Banknote,
   UtensilsCrossed,
   CheckCircle2,
   Flame,
   Leaf,
   Gift,
 } from 'lucide-react';
-import { BackLink, useOverlayHistory } from '@/components/navigation-memory';
+import { BackLink, releaseOverlayHistory, useOverlayHistory } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
 import { isIndianMobile, localMobile } from '@/lib/phone';
 
@@ -59,7 +57,6 @@ export default function TableOrderPage() {
     isQueueParam ? 'QUEUE_PREORDER' : isTakeawayParam ? 'TAKEAWAY' : 'TABLE_QR'
   );
   const [queueToken, setQueueToken] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'UPI_AT_COUNTER' | 'CASH' | 'RAZORPAY_ONLINE'>('UPI_AT_COUNTER');
   const [tipPercentage, setTipPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [placingOrder, setPlacingOrder] = useState(false);
@@ -194,7 +191,7 @@ export default function TableOrderPage() {
           customerName: customerName.trim() || undefined,
           customerPhone: customerPhone.trim() ? localMobile(customerPhone) : undefined,
           specialInstructions: specialInstructions.trim() || undefined,
-          paymentMethod,
+          paymentMethod: 'UPI_AT_COUNTER',
           tipAmount,
           idempotencyKey: orderKey.current,
           items: cart.map((i) => ({
@@ -210,10 +207,12 @@ export default function TableOrderPage() {
       if (!res.ok) throw new Error(orderData.message || 'Failed to submit order');
 
       setCart([]);
+      releaseOverlayHistory();
       setIsCartOpen(false);
+      setDetailItem(null);
       orderKey.current = '';
-      if (resolvedQueueTokenId) {
-        router.push(`/r/${slug}/join`);
+      if (orderSource === 'QUEUE_PREORDER' || resolvedQueueTokenId) {
+        router.replace(`/r/${slug}/join`);
       } else {
         localStorage.setItem(`qfast_takeaway_${slug}`, orderData.id);
         router.push(`/r/${slug}/order/${orderData.id}`);
@@ -731,43 +730,11 @@ export default function TableOrderPage() {
                   </div>
                 </div>
 
-                {/* Payment Option */}
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1.5">
-                    Payment Preference
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('UPI_AT_COUNTER')}
-                      className={`p-3 rounded-2xl border text-left text-xs transition-all ${paymentMethod === 'UPI_AT_COUNTER'
-                          ? 'border-orange-500 bg-orange-50/70 text-orange-900 shadow-2xs'
-                          : 'border-neutral-200 text-neutral-600 bg-white hover:border-neutral-300'
-                        }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Banknote className="w-4 h-4 text-orange-600" />
-                        <span className="font-bold text-neutral-900">Pay at Counter</span>
-                      </div>
-                      <span className="text-[10px] text-neutral-400 block">Staff collect UPI, cash, or card</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('RAZORPAY_ONLINE')}
-                      className={`p-3 rounded-2xl border text-left text-xs transition-all ${paymentMethod === 'RAZORPAY_ONLINE'
-                          ? 'border-orange-500 bg-orange-50/70 text-orange-900 shadow-2xs'
-                          : 'border-neutral-200 text-neutral-600 bg-white hover:border-neutral-300'
-                        }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <CreditCard className="w-4 h-4 text-orange-600" />
-                        <span className="font-bold text-neutral-900">Pay Online</span>
-                      </div>
-                      <span className="text-[10px] text-neutral-400 block">Not charged yet</span>
-                    </button>
-                  </div>
-                </div>
+                <p className="rounded-2xl bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950">
+                  {orderSource === 'QUEUE_PREORDER'
+                    ? 'This stays on your visit. You pay by UPI, cash, or card after you are seated. Adding more items makes the bill due again.'
+                    : 'The bill stays due until you or the counter record UPI, cash, or card. Adding more items makes a paid bill due again.'}
+                </p>
 
                 {/* Detailed Bill Breakdown */}
                 <div className="bg-neutral-50 rounded-2xl p-3.5 border border-neutral-100 text-xs space-y-1.5">
@@ -803,10 +770,16 @@ export default function TableOrderPage() {
                   className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 text-white font-extrabold py-3.5 rounded-2xl transition-all shadow-md text-sm mt-1 flex items-center justify-center gap-2"
                 >
                   {placingOrder ? (
-                    <span>Sending to Kitchen…</span>
+                    <span>{orderSource === 'QUEUE_PREORDER' ? 'Saving your pre-order…' : 'Sending to Kitchen…'}</span>
                   ) : (
                     <>
-                      <span>Place Table Order (₹{total.toFixed(2)})</span>
+                      <span>
+                        {orderSource === 'QUEUE_PREORDER'
+                          ? `Add to pre-order (₹${total.toFixed(2)})`
+                          : orderSource === 'TAKEAWAY'
+                            ? `Place takeaway order (₹${total.toFixed(2)})`
+                            : `Place order (₹${total.toFixed(2)})`}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
