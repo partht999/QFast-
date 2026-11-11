@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
@@ -6,9 +6,20 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { billDueReason, counterMethod } from './payment-state';
 import { visitsAreOpen } from '../business/subscription-access';
+import { AccessService } from '../access/access.service';
+import { STAFF_ROLES } from '../access/access.rules';
+import { resolveCustomer } from '../../common/customer-identity';
+import { isIndianMobile, normalizePhone, phoneLookupVariants } from '../../common/phone';
+import { businessDayRange } from '../../common/time';
+import { isUniqueConflict } from '../../common/customer-identity';
+import { orderTotals, priceCatalogLine, PricedLine, roundMoney } from './pricing';
+import { reconcilePayments } from './payment-ledger';
+import { parsePartnerOrder, partnerPayloadForStorage, secretsEqual } from './partner-webhook';
+import { tableSessionDecision } from './table-session';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
   private readonly orderInclude = {
     items: { include: { menuItem: true } },
     table: true,
@@ -20,6 +31,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private events: EventsGateway,
     private loyalty: LoyaltyService,
+    private access: AccessService,
   ) {}
 
   async createPublicOrder(dto: CreateOrderDto) {
@@ -87,14 +99,13 @@ export class OrdersService {
     }
 
     const orderSource = queueTokenId ? OrderSource.QUEUE_PREORDER : OrderSource.TAKEAWAY;
-    if (!queueTokenId && dto.customerPhone) {
-      const digits = dto.customerPhone.replace(/\D/g, '');
-      const phone = digits.length > 10 ? digits.slice(-10) : digits;
+    const customerPhone = dto.customerPhone ? this.canonicalPhone(dto.customerPhone) : undefined;
+    if (!queueTokenId && customerPhone) {
       const openTakeaway = await this.prisma.order.findFirst({
         where: {
           businessId: business.id,
           source: OrderSource.TAKEAWAY,
-          customerPhone: phone,
+          customerPhone: { in: phoneLookupVariants(customerPhone) },
           status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
         },
         orderBy: { createdAt: 'desc' },
@@ -109,19 +120,10 @@ export class OrdersService {
     const totals = this.totalsFor(lines, dto.tipAmount || 0);
     const { subtotal, taxAmount, tipAmount, totalAmount } = totals;
 
-    // Optional customer link
     let customerId: string | undefined;
-    if (dto.customerPhone) {
-      const customer = await this.prisma.customer.upsert({
-        where: { phone: dto.customerPhone },
-        update: { name: dto.customerName || undefined },
-        create: {
-          phone: dto.customerPhone,
-          name: dto.customerName || 'Guest',
-        },
-      });
+    if (customerPhone) {
+      const customer = await resolveCustomer(this.prisma, customerPhone, dto.customerName || undefined);
       customerId = customer.id;
-
       await this.prisma.customerBusiness.upsert({
         where: {
           customerId_businessId: {
@@ -129,17 +131,11 @@ export class OrdersService {
             businessId: business.id,
           },
         },
-        update: {
-          visitCount: { increment: 1 },
-          totalSpend: { increment: new Prisma.Decimal(totalAmount) },
-          lastVisitAt: new Date(),
-        },
+        update: {},
         create: {
           customerId: customer.id,
           businessId: business.id,
-          visitCount: 1,
-          totalSpend: new Prisma.Decimal(totalAmount),
-          lastVisitAt: new Date(),
+          visitCount: 0,
         },
       });
     }
@@ -154,7 +150,7 @@ export class OrdersService {
         queueTokenId,
         customerId,
         customerName: dto.customerName || fallbackCustomerName,
-        customerPhone: dto.customerPhone,
+        customerPhone,
         source: orderSource,
         status: OrderStatus.PENDING,
         subtotal: new Prisma.Decimal(subtotal),
@@ -165,16 +161,7 @@ export class OrdersService {
         specialInstructions: dto.specialInstructions,
         idempotencyKey: dto.idempotencyKey,
         items: {
-          create: lines.map((line) => ({
-            menuItemId: line.item.menuItemId,
-            variantId: line.item.variantId,
-            quantity: line.item.quantity,
-            unitPrice: new Prisma.Decimal(line.unitPrice),
-            addonsTotal: new Prisma.Decimal(0),
-            totalPrice: new Prisma.Decimal(line.totalPrice),
-            specialNote: line.item.specialNote,
-            status: OrderStatus.PENDING,
-          })),
+          create: lines.map((line) => this.itemData(line, OrderStatus.PENDING)),
         },
         payments: {
           create: {
@@ -242,7 +229,8 @@ export class OrdersService {
     return { ...order, loyalty };
   }
 
-  async getActiveOrders(businessId: string) {
+  async getActiveOrders(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.kitchen);
     return this.prisma.order.findMany({
       where: {
         businessId,
@@ -267,15 +255,16 @@ export class OrdersService {
     });
   }
 
-  async getRecentCompletedOrders(businessId: string) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+  async getRecentCompletedOrders(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.kitchen);
+    const business = await this.prisma.business.findUnique({ where: { id: businessId }, select: { timezone: true } });
+    const today = businessDayRange(business?.timezone);
 
     return this.prisma.order.findMany({
       where: {
         businessId,
         status: OrderStatus.COMPLETED,
-        updatedAt: { gte: todayStart },
+        updatedAt: { gte: today.start, lt: today.end },
       },
       include: {
         table: true,
@@ -290,7 +279,12 @@ export class OrdersService {
     });
   }
 
-  async updateOrderStatus(orderId: string, status: OrderStatus) {
+  async updateOrderStatus(orderId: string, status: OrderStatus, userId: string) {
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
+    return this.applyOrderStatus(orderId, status);
+  }
+
+  private async applyOrderStatus(orderId: string, status: OrderStatus) {
     const current = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { queueToken: { select: { status: true, tokenNumber: true } } },
@@ -314,72 +308,60 @@ export class OrdersService {
       if (reason) throw new ConflictException(reason);
     }
 
-    let order: Prisma.OrderGetPayload<{
-      include: { table: true; items: { include: { menuItem: true } } };
-    }>;
-    try {
-      order = await this.prisma.$transaction(async (tx) => {
-        return tx.order.update({
+    const order = await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.order.findUnique({ where: { id: orderId }, include: { payments: true } });
+      if (!fresh) throw new NotFoundException('Order not found');
+      if (status === OrderStatus.COMPLETED && fresh.status === OrderStatus.COMPLETED) {
+        return tx.order.findUniqueOrThrow({
           where: { id: orderId },
-          data: { status },
-          include: {
-            table: true,
-            items: { include: { menuItem: true } },
-          },
+          include: { table: true, items: { include: { menuItem: true } } },
         });
-      });
-    } catch (error) {
-      if (
-        status !== OrderStatus.COMPLETED ||
-        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-        error.code !== 'P2002'
-      ) {
-        throw error;
       }
-
-      const priorCredit = await this.prisma.loyaltyTransaction.findFirst({
-        where: { orderId, type: 'EARN' },
-        select: { id: true },
-      });
-      if (!priorCredit) throw error;
-
-      const alreadyCompleted = await this.prisma.order.findUnique({
+      if (status === OrderStatus.COMPLETED) {
+        const reason = billDueReason(Number(fresh.totalAmount), fresh.payments);
+        if (reason) throw new ConflictException(reason);
+      }
+      const updated = await tx.order.update({
         where: { id: orderId },
-        include: {
-          table: true,
-          items: { include: { menuItem: true } },
-        },
+        data: { status },
+        include: { table: true, items: { include: { menuItem: true } } },
       });
-      if (!alreadyCompleted) throw error;
-      order = alreadyCompleted;
-    }
+      if (status === OrderStatus.COMPLETED && fresh.customerPhone) {
+        await this.loyalty.applyCompletion(tx, {
+          businessId: fresh.businessId,
+          phone: fresh.customerPhone,
+          name: fresh.customerName,
+          visitKey: fresh.queueTokenId ? `token:${fresh.queueTokenId}` : `order:${fresh.id}`,
+          orderId: fresh.id,
+          subtotal: Number(fresh.subtotal),
+          spend: Number(fresh.totalAmount),
+        });
+      }
+      return updated;
+    });
 
     this.events.emitOrderUpdate(order.businessId, order.id, {
       type: 'ORDER_STATUS_CHANGED',
       order,
     });
 
-    if (status === OrderStatus.COMPLETED && order.customerPhone) {
-      await this.loyalty.awardVisit({
-        businessId: order.businessId,
-        phone: order.customerPhone,
-        name: order.customerName,
-        sourceKey: order.queueTokenId ? `token:${order.queueTokenId}` : `order:${order.id}`,
-        orderId: order.id,
-      });
-    }
-
     return order;
   }
 
-  async markOrderPaid(orderId: string) {
+  async completeFromQueue(orderId: string) {
+    return this.applyOrderStatus(orderId, OrderStatus.COMPLETED);
+  }
+
+  async markOrderPaid(orderId: string, userId: string) {
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
     await this.collectBill(orderId, undefined, { requireReady: true });
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
   }
 
   async customerPay(orderId: string, method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER') {
-    await this.collectBill(orderId, method, { requireReady: false });
-    return this.getPublicOrder(orderId);
+    const label = method === 'CASH' ? 'cash' : method === 'CARD_AT_COUNTER' ? 'card' : 'UPI';
+    await this.requestStaffHelp(orderId, 'bill', `They say they can pay by ${label}. Confirm the money before closing the bill.`);
+    return { ok: true, paid: false };
   }
 
   async collectBill(
@@ -400,8 +382,17 @@ export class OrdersService {
     }
     if (!billDueReason(Number(order.totalAmount), order.payments)) return order;
     const open = order.payments.find((payment) => payment.status === 'PENDING' || payment.status === 'FAILED');
-    await this.recordPayment(order, counterMethod(method || open?.method), true);
-    return order;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
+      const fresh = await tx.order.findUnique({ where: { id: order.id }, include: { payments: true } });
+      if (!fresh) throw new NotFoundException('Order not found');
+      if (['COMPLETED', 'CANCELLED', 'REJECTED'].includes(fresh.status)) {
+        throw new ConflictException('This bill is already closed.');
+      }
+      const pending = fresh.payments.find((payment) => payment.status === 'PENDING' || payment.status === 'FAILED');
+      await this.applyPaymentPlan(tx, fresh, counterMethod(method || pending?.method || open?.method), true);
+    });
+    return this.prisma.order.findUnique({ where: { id: orderId }, include: { payments: true } });
   }
 
   async customerCloseOrder(orderId: string) {
@@ -418,10 +409,10 @@ export class OrdersService {
     }
     const reason = billDueReason(Number(order.totalAmount), order.payments);
     if (reason) throw new ConflictException(reason);
-    return this.updateOrderStatus(orderId, OrderStatus.COMPLETED);
+    return this.applyOrderStatus(orderId, OrderStatus.COMPLETED);
   }
 
-  async requestStaffHelp(orderId: string, kind: 'waiter' | 'bill') {
+  async requestStaffHelp(orderId: string, kind: 'waiter' | 'bill', detail?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { table: true, queueToken: true, business: { select: { id: true, name: true } } },
@@ -435,7 +426,7 @@ export class OrdersService {
     const subject = kind === 'bill' ? 'Bill request' : 'Guest needs help';
     const body =
       kind === 'bill'
-        ? `${where} asked for the bill.`
+        ? `${where} asked for the bill. ${detail || ''}`.trim()
         : `${where} is asking for someone to come over.`;
     const alert = await this.prisma.notification.create({
       data: {
@@ -452,108 +443,121 @@ export class OrdersService {
     return { ok: true };
   }
 
-  async ingestPartnerOrder(
-    slug: string,
-    input: {
-      provider: 'SWIGGY' | 'ZOMATO';
-      secret: string;
-      externalId: string;
-      customerName?: string;
-      items: Array<{ name: string; quantity: number; price: number }>;
-    },
-  ) {
+  async ingestPartnerOrder(slug: string, input: { secret: string; body: unknown }) {
+    let parsed;
+    try {
+      parsed = parsePartnerOrder(input.body);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Partner payload is invalid.');
+    }
     const business = await this.prisma.business.findUnique({ where: { slug }, include: { branches: true } });
     if (!business) throw new NotFoundException('Restaurant not found');
     const access = await visitsAreOpen(this.prisma, business.id);
     if (!access.open) throw new ForbiddenException('This business plan has expired.');
-    const provider = input.provider === 'ZOMATO' ? IntegrationProvider.ZOMATO : IntegrationProvider.SWIGGY;
+    const provider = parsed.provider === 'ZOMATO' ? IntegrationProvider.ZOMATO : IntegrationProvider.SWIGGY;
     const integration = await this.prisma.integration.findUnique({
       where: { businessId_provider: { businessId: business.id, provider } },
     });
     const config = (integration?.config || {}) as { webhookSecret?: string };
-    if (!integration?.isActive || !config.webhookSecret || config.webhookSecret !== input.secret) {
+    const stored = typeof config.webhookSecret === 'string' ? config.webhookSecret : '';
+    const authorized = Boolean(integration?.isActive && stored && secretsEqual(stored, input.secret || ''));
+    if (!authorized || !integration) {
+      this.logger.warn(`Partner webhook rejected for ${slug} (${parsed.provider})`);
       throw new UnauthorizedException('Partner webhook was rejected');
     }
-    const externalId = input.externalId.trim();
-    if (!externalId) throw new BadRequestException('externalId is required');
-    const existing = await this.prisma.externalOrder.findUnique({
-      where: { integrationId_externalId: { integrationId: integration.id, externalId } },
-    });
-    if (existing) {
-      const prior = await this.prisma.order.findFirst({
-        where: { businessId: business.id, externalOrderId: externalId },
-        include: this.orderInclude,
-      });
-      if (prior) return prior;
-    }
 
-    const category = await this.partnerCategory(business.id);
-    const lines = [];
-    for (const item of input.items || []) {
-      const name = item.name?.trim();
-      if (!name || !item.quantity) continue;
-      const price = Math.max(0, Number(item.price) || 0);
-      let menuItem = await this.prisma.menuItem.findFirst({
-        where: { categoryId: category.id, name: { equals: name, mode: 'insensitive' } },
-      });
-      if (!menuItem) {
-        menuItem = await this.prisma.menuItem.create({
-          data: { categoryId: category.id, name, price, description: `${input.provider} dish`, isAvailable: true },
-        });
-      }
-      lines.push({ menuItem, quantity: item.quantity, price });
-    }
-    if (!lines.length) throw new BadRequestException('Add at least one dish');
-    const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-    const taxAmount = Math.round(subtotal * 0.05 * 100) / 100;
-    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
-    const order = await this.prisma.order.create({
-      data: {
-        businessId: business.id,
-        branchId: business.branches[0]?.id,
-        customerName: input.customerName || input.provider,
-        source: OrderSource.INTEGRATION,
-        status: OrderStatus.PENDING,
-        externalOrderId: externalId,
-        subtotal,
-        taxAmount,
-        tipAmount: 0,
-        discountAmount: 0,
-        totalAmount,
-        specialInstructions: `${input.provider} #${externalId}`,
-        items: {
-          create: lines.map((line) => ({
-            menuItemId: line.menuItem.id,
-            quantity: line.quantity,
-            unitPrice: line.price,
-            addonsTotal: 0,
-            totalPrice: line.price * line.quantity,
-            status: OrderStatus.PENDING,
-          })),
-        },
-        payments: {
-          create: { businessId: business.id, amount: totalAmount, method: 'UPI_AT_COUNTER', status: PaymentStatus.PENDING },
-        },
-      },
+    const prior = await this.prisma.order.findFirst({
+      where: { businessId: business.id, externalOrderId: parsed.externalId, externalSource: parsed.provider },
       include: this.orderInclude,
     });
-    await this.prisma.externalOrder.upsert({
-      where: { integrationId_externalId: { integrationId: integration.id, externalId } },
-      update: { processedAt: new Date() },
-      create: { integrationId: integration.id, externalId, source: input.provider, rawPayload: input as object, processedAt: new Date() },
-    });
-    this.events.emitNewOrder(business.id, order);
-    return order;
-  }
+    if (prior) return prior;
 
-  private async partnerCategory(businessId: string) {
-    const menu = await this.prisma.menu.findFirst({ where: { businessId, isDefault: true } });
-    if (!menu) throw new BadRequestException('Create a menu before connecting delivery partners');
-    const existing = await this.prisma.menuCategory.findFirst({ where: { menuId: menu.id, name: 'Partner orders' } });
-    if (existing) return existing;
-    return this.prisma.menuCategory.create({
-      data: { menuId: menu.id, name: 'Partner orders', description: 'Dishes received from Swiggy or Zomato. Hidden from the QR menu.', isActive: false },
-    });
+    const lines: PricedLine[] = [];
+    for (const item of parsed.items) {
+      const matches = await this.prisma.menuItem.findMany({
+        where: {
+          name: { equals: item.name, mode: 'insensitive' },
+          category: { menu: { businessId: business.id } },
+        },
+        include: { variants: true, addons: true },
+      });
+      if (matches.length !== 1) {
+        this.logger.warn(`Partner item not mapped business=${business.id} provider=${parsed.provider} externalId=${parsed.externalId}`);
+        throw new BadRequestException(`No single menu item matches "${item.name}".`);
+      }
+      const menuItem = matches[0];
+      if (!menuItem.isAvailable) throw new BadRequestException(`${menuItem.name} is not available.`);
+      if (Math.abs(roundMoney(Number(menuItem.price)) - item.price) > 0.009) {
+        throw new BadRequestException(`Price for ${item.name} does not match the menu.`);
+      }
+      lines.push(priceCatalogLine(
+        {
+          id: menuItem.id,
+          price: Number(menuItem.price),
+          taxRate: Number(menuItem.taxRate),
+          variants: [],
+          addons: [],
+        },
+        { quantity: item.quantity },
+      ));
+    }
+    const totals = this.totalsFor(lines, 0);
+    const storedPayload = partnerPayloadForStorage(parsed);
+    try {
+      const order = await this.prisma.$transaction(async (tx) => {
+        await tx.externalOrder.create({
+          data: {
+            integrationId: integration.id,
+            externalId: parsed.externalId,
+            source: parsed.provider,
+            rawPayload: storedPayload,
+          },
+        });
+        const created = await tx.order.create({
+          data: {
+            businessId: business.id,
+            branchId: business.branches[0]?.id,
+            customerName: parsed.customerName || parsed.provider,
+            source: OrderSource.INTEGRATION,
+            status: OrderStatus.PENDING,
+            externalOrderId: parsed.externalId,
+            externalSource: parsed.provider,
+            idempotencyKey: `partner:${integration.id}:${parsed.externalId}`,
+            subtotal: new Prisma.Decimal(totals.subtotal),
+            taxAmount: new Prisma.Decimal(totals.taxAmount),
+            tipAmount: new Prisma.Decimal(0),
+            discountAmount: new Prisma.Decimal(0),
+            totalAmount: new Prisma.Decimal(totals.totalAmount),
+            specialInstructions: `${parsed.provider} #${parsed.externalId}`,
+            items: { create: lines.map((line) => this.itemData(line, OrderStatus.PENDING)) },
+            payments: {
+              create: {
+                businessId: business.id,
+                amount: new Prisma.Decimal(totals.totalAmount),
+                method: 'UPI_AT_COUNTER',
+                status: PaymentStatus.PENDING,
+              },
+            },
+          },
+          include: this.orderInclude,
+        });
+        await tx.externalOrder.update({
+          where: { integrationId_externalId: { integrationId: integration.id, externalId: parsed.externalId } },
+          data: { processedAt: new Date() },
+        });
+        return created;
+      });
+      this.events.emitNewOrder(business.id, order);
+      return order;
+    } catch (error) {
+      if (!isUniqueConflict(error)) throw error;
+      const replay = await this.prisma.order.findFirst({
+        where: { businessId: business.id, externalOrderId: parsed.externalId, externalSource: parsed.provider },
+        include: this.orderInclude,
+      });
+      if (replay) return replay;
+      throw error;
+    }
   }
 
   private async createTableOrder(
@@ -566,24 +570,25 @@ export class OrdersService {
       where: { businessId: business.id, isActive: true, name: { equals: tableName, mode: 'insensitive' } },
     });
     if (!table) throw new BadRequestException('This table QR is not active. Ask the counter to reprint it.');
-    const digits = (dto.customerPhone || '').replace(/\D/g, '');
-    const phone = digits.length > 10 ? digits.slice(-10) : digits;
-    if (!/^[6-9]\d{9}$/.test(phone)) throw new BadRequestException('Enter a 10-digit mobile number so your stamps are saved.');
+    const phone = this.canonicalPhone(dto.customerPhone);
+    if (!phone || !isIndianMobile(phone)) {
+      throw new BadRequestException('Enter a 10-digit mobile number so your stamps are saved.');
+    }
     if (!dto.customerName?.trim()) throw new BadRequestException('Enter your name.');
 
-    const open = await this.prisma.order.findFirst({
-      where: { tableId: table.id, status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (open) return this.appendToOrder(open.id, lines, dto.tipAmount || 0, 'SEATED', table.id);
-
-    const customer = await this.prisma.customer.upsert({
-      where: { phone },
-      update: { name: dto.customerName.trim() },
-      create: { phone, name: dto.customerName.trim() },
-    });
+    const customer = await resolveCustomer(this.prisma, phone, dto.customerName.trim());
     const totals = this.totalsFor(lines, dto.tipAmount || 0);
-    const order = await this.prisma.order.create({
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Table" WHERE id = ${table.id} FOR UPDATE`;
+      const open = await tx.order.findFirst({
+        where: { tableId: table.id, status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (tableSessionDecision(open) === 'append' && open) {
+        const order = await this.writeAppend(tx, open.id, lines, dto.tipAmount || 0, 'SEATED', table.id);
+        return { appended: true, order };
+      }
+      const order = await tx.order.create({
       data: {
         businessId: business.id,
         branchId: business.branches[0]?.id,
@@ -601,16 +606,7 @@ export class OrdersService {
         specialInstructions: dto.specialInstructions,
         idempotencyKey: dto.idempotencyKey,
         items: {
-          create: lines.map((line) => ({
-            menuItemId: line.item.menuItemId,
-            variantId: line.item.variantId,
-            quantity: line.item.quantity,
-            unitPrice: new Prisma.Decimal(line.unitPrice),
-            addonsTotal: new Prisma.Decimal(0),
-            totalPrice: new Prisma.Decimal(line.totalPrice),
-            specialNote: line.item.specialNote,
-            status: OrderStatus.PENDING,
-          })),
+          create: lines.map((line) => this.itemData(line, OrderStatus.PENDING)),
         },
         payments: {
           create: {
@@ -623,59 +619,130 @@ export class OrdersService {
       },
       include: this.orderInclude,
     });
-    this.events.emitNewOrder(business.id, order);
-    return order;
+      return { appended: false, order };
+    });
+    if (outcome.appended) {
+      this.events.emitOrderUpdate(outcome.order.businessId, outcome.order.id, { type: 'ORDER_ITEMS_ADDED', order: outcome.order });
+    } else {
+      this.events.emitNewOrder(business.id, outcome.order);
+    }
+    return outcome.order;
   }
 
   private async pricedLines(businessId: string, items: CreateOrderDto['items']) {
-    const lines = [];
+    const lines: PricedLine[] = [];
     for (const item of items) {
       const menuItem = await this.prisma.menuItem.findFirst({
         where: { id: item.menuItemId, isAvailable: true, category: { menu: { businessId } } },
+        include: { variants: true, addons: true },
       });
       if (!menuItem) throw new BadRequestException('One of those dishes is no longer available.');
-      const unitPrice = Number(menuItem.price);
-      lines.push({
-        item,
-        unitPrice,
-        totalPrice: Math.round(unitPrice * item.quantity * 100) / 100,
-      });
+      try {
+        lines.push(priceCatalogLine(
+          {
+            id: menuItem.id,
+            price: Number(menuItem.price),
+            taxRate: Number(menuItem.taxRate),
+            variants: menuItem.variants.map((variant) => ({
+              id: variant.id,
+              name: variant.name,
+              price: Number(variant.price),
+            })),
+            addons: menuItem.addons.map((addon) => ({
+              id: addon.id,
+              name: addon.name,
+              price: Number(addon.price),
+              maxSelect: addon.maxSelect,
+            })),
+          },
+          {
+            quantity: item.quantity,
+            variantId: item.variantId,
+            addonIds: item.addonIds,
+            specialNote: item.specialNote,
+          },
+        ));
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : 'That item could not be priced.');
+      }
     }
     return lines;
   }
 
   private totalsFor(
-    lines: { totalPrice: number }[],
+    lines: PricedLine[],
     tipInput: number,
-    previous?: { subtotal: number; tip: number },
+    previous?: { subtotal: number; tax: number; tip: number },
   ) {
-    const added = lines.reduce((sum, line) => sum + line.totalPrice, 0);
-    const subtotal = Math.round(((previous?.subtotal || 0) + added) * 100) / 100;
-    const tipAmount = Math.min(subtotal, Math.max(0, (previous?.tip || 0) + Number(tipInput || 0)));
-    const taxAmount = Math.round(subtotal * 0.05 * 100) / 100;
-    const totalAmount = Math.round((subtotal + taxAmount + tipAmount) * 100) / 100;
-    return { subtotal, taxAmount, tipAmount, totalAmount };
+    try {
+      return orderTotals(lines, tipInput, previous);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'That bill could not be priced.');
+    }
+  }
+
+  private itemData(line: PricedLine, status: OrderStatus) {
+    return {
+      menuItemId: line.menuItemId,
+      variantId: line.variantId,
+      quantity: line.quantity,
+      unitPrice: new Prisma.Decimal(line.unitPrice),
+      addonsTotal: new Prisma.Decimal(line.addonsTotal),
+      totalPrice: new Prisma.Decimal(line.totalPrice),
+      addons: line.snapshot as unknown as Prisma.InputJsonValue,
+      specialNote: line.specialNote,
+      status,
+    };
+  }
+
+  private canonicalPhone(raw?: string | null) {
+    if (!raw) return undefined;
+    try {
+      return normalizePhone(raw);
+    } catch {
+      throw new BadRequestException('Enter a valid phone number');
+    }
   }
 
   private async appendToOrder(
     orderId: string,
-    lines: Awaited<ReturnType<OrdersService['pricedLines']>>,
+    lines: PricedLine[],
     tipAmount: number,
     tokenStatus?: string,
     tableId?: string,
   ) {
-    const open = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const reopened = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
+      return this.writeAppend(tx, orderId, lines, tipAmount, tokenStatus, tableId);
+    });
+    this.events.emitOrderUpdate(reopened.businessId, reopened.id, { type: 'ORDER_ITEMS_ADDED', order: reopened });
+    return reopened;
+  }
+
+  private async writeAppend(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    lines: PricedLine[],
+    tipAmount: number,
+    tokenStatus?: string,
+    tableId?: string,
+  ) {
+    const open = await tx.order.findUnique({ where: { id: orderId }, include: { payments: true } });
     if (!open) throw new NotFoundException('Order not found');
+    if (tableSessionDecision(open) === 'closed') {
+      throw new ConflictException('This bill is already closed.');
+    }
     const called = tokenStatus === 'CALLED' || tokenStatus === 'SEATED';
     const totals = this.totalsFor(lines, tipAmount, {
       subtotal: Number(open.subtotal),
+      tax: Number(open.taxAmount),
       tip: Number(open.tipAmount),
     });
     let status = open.status;
     if (!called) status = OrderStatus.PENDING;
     else if (status === OrderStatus.READY) status = OrderStatus.PREPARING;
 
-    const order = await this.prisma.order.update({
+    const order = await tx.order.update({
       where: { id: orderId },
       data: {
         tableId: tableId || open.tableId,
@@ -684,75 +751,77 @@ export class OrdersService {
         taxAmount: new Prisma.Decimal(totals.taxAmount),
         tipAmount: new Prisma.Decimal(totals.tipAmount),
         totalAmount: new Prisma.Decimal(totals.totalAmount),
-        items: {
-          create: lines.map((line) => ({
-            menuItemId: line.item.menuItemId,
-            variantId: line.item.variantId,
-            quantity: line.item.quantity,
-            unitPrice: new Prisma.Decimal(line.unitPrice),
-            addonsTotal: new Prisma.Decimal(0),
-            totalPrice: new Prisma.Decimal(line.totalPrice),
-            specialNote: line.item.specialNote,
-            status,
-          })),
-        },
+        items: { create: lines.map((line) => this.itemData(line, status)) },
       },
       include: this.orderInclude,
     });
-    await this.recordPayment(order, counterMethod(order.payments[0]?.method), false);
-    const reopened = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: this.orderInclude,
-    });
-    this.events.emitOrderUpdate(order.businessId, order.id, { type: 'ORDER_ITEMS_ADDED', order: reopened });
+    await this.applyPaymentPlan(tx, order, counterMethod(order.payments[0]?.method), false);
+    const reopened = await tx.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
+    if (!reopened) throw new NotFoundException('Order not found');
     return reopened;
   }
 
-  private async recordPayment(
-    order: {
-      id: string;
-      businessId: string;
-      totalAmount: Prisma.Decimal | number | string;
-      payments: { id: string; status: string }[];
-    },
+  private async applyPaymentPlan(
+    tx: Prisma.TransactionClient,
+    order: { id: string; businessId: string; totalAmount: Prisma.Decimal | number | string },
     method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER',
     markPaid: boolean,
   ) {
-    const amount = new Prisma.Decimal(Math.round(Number(order.totalAmount) * 100) / 100);
-    const live = order.payments.filter(
-      (payment) => payment.status === 'PENDING' || payment.status === 'FAILED' || payment.status === 'PAID',
-    );
-    const primary = live[0];
-    const extras = live.slice(1).map((payment) => payment.id);
-    await this.prisma.$transaction(async (tx) => {
-      if (extras.length) {
-        await tx.payment.deleteMany({ where: { id: { in: extras }, refunds: { none: {} } } });
-      }
-      const data = {
-        amount,
-        method,
-        status: markPaid ? PaymentStatus.PAID : PaymentStatus.PENDING,
-        paidAt: markPaid ? new Date() : null,
-      };
-      if (primary) {
-        await tx.payment.update({ where: { id: primary.id }, data });
-      } else {
-        await tx.payment.create({
-          data: { orderId: order.id, businessId: order.businessId, ...data },
-        });
-      }
+    const payments = await tx.payment.findMany({ where: { orderId: order.id } });
+    let plan;
+    try {
+      plan = reconcilePayments({
+        totalAmount: Number(order.totalAmount),
+        payments,
+        markPaid,
+      });
+    } catch (error) {
+      throw new ConflictException(error instanceof Error ? error.message : 'Payment could not be updated.');
+    }
+    if (plan.action === 'noop') return;
+    if (plan.action === 'clear-pending') {
+      await tx.payment.deleteMany({
+        where: { id: { in: plan.pendingIds }, status: { in: ['PENDING', 'FAILED'] }, refunds: { none: {} } },
+      });
+      return;
+    }
+    if (plan.retirePendingIds.length) {
+      await tx.payment.deleteMany({
+        where: {
+          id: { in: plan.retirePendingIds },
+          status: { in: ['PENDING', 'FAILED'] },
+          refunds: { none: {} },
+        },
+      });
+    }
+    const data = {
+      amount: new Prisma.Decimal(plan.amount),
+      method,
+      status: plan.markPaid ? PaymentStatus.PAID : PaymentStatus.PENDING,
+      paidAt: plan.markPaid ? new Date() : null,
+    };
+    if (plan.pendingId) {
+      const updated = await tx.payment.updateMany({
+        where: { id: plan.pendingId, status: { in: ['PENDING', 'FAILED'] } },
+        data,
+      });
+      if (updated.count) return;
+    }
+    await tx.payment.create({
+      data: { orderId: order.id, businessId: order.businessId, ...data },
     });
   }
 
-  async getOverviewStats(businessId: string) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+  async getOverviewStats(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId);
+    const business = await this.prisma.business.findUnique({ where: { id: businessId }, select: { timezone: true } });
+    const today = businessDayRange(business?.timezone);
 
     const [todayOrders, waitingTokens, activeTables, recentOrders] = await Promise.all([
       this.prisma.order.findMany({
         where: {
           businessId,
-          createdAt: { gte: todayStart },
+          createdAt: { gte: today.start, lt: today.end },
         },
         select: {
           id: true,

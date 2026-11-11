@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TablesService } from './tables.service';
@@ -31,8 +32,8 @@ export class TablesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all restaurant tables with active orders' })
-  async getTables(@Param('businessId') businessId: string) {
-    return this.tablesService.getTables(businessId);
+  async getTables(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.tablesService.getTables(businessId, req.user.sub);
   }
 
   @Post(':businessId')
@@ -42,24 +43,25 @@ export class TablesController {
   async createTable(
     @Param('businessId') businessId: string,
     @Body() dto: CreateTableDto,
+    @Req() req: any,
   ) {
-    return this.tablesService.createTable(businessId, dto);
+    return this.tablesService.createTable(businessId, dto, req.user.sub);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update table details' })
-  async updateTable(@Param('id') id: string, @Body() dto: Partial<CreateTableDto>) {
-    return this.tablesService.updateTable(id, dto);
+  async updateTable(@Param('id') id: string, @Body() dto: Partial<CreateTableDto>, @Req() req: any) {
+    return this.tablesService.updateTable(id, dto, req.user.sub);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Deactivate table' })
-  async deleteTable(@Param('id') id: string) {
-    return this.tablesService.deleteTable(id);
+  async deleteTable(@Param('id') id: string, @Req() req: any) {
+    return this.tablesService.deleteTable(id, req.user.sub);
   }
 }
 

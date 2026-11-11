@@ -3,8 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
-  ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
@@ -14,6 +15,12 @@ import { BusinessType, OrderStatus, Prisma, QueueEntrySource, QueueTokenStatus }
 import { OrdersService } from '../orders/orders.service';
 import { billDueReason } from '../orders/payment-state';
 import { visitsAreOpen } from '../business/subscription-access';
+import { AccessService } from '../access/access.service';
+import { guestSecretMatches, hashGuestSecret } from '../access/access.rules';
+import { isUniqueConflict, resolveCustomer } from '../../common/customer-identity';
+import { normalizePhone, phoneLookupVariants } from '../../common/phone';
+import { businessDayRange, localDate, safeTimeZone } from '../../common/time';
+import { ACTIVE_QUEUE_STATUSES, allocateDailyToken, assertQueueJoinable, queuePhoneKey, resolvePartySize } from './token-sequence';
 
 @Injectable()
 export class QueueService {
@@ -22,6 +29,7 @@ export class QueueService {
     private events: EventsGateway,
     private loyalty: LoyaltyService,
     private orders: OrdersService,
+    private access: AccessService,
   ) {}
 
   async getStatusBySlug(slug: string) {
@@ -118,7 +126,7 @@ export class QueueService {
     }));
   }
 
-  async joinQueue(slug: string, dto: JoinQueueDto) {
+  async joinQueue(slug: string, dto: JoinQueueDto, options?: { source?: QueueEntrySource }) {
     const business = await this.prisma.business.findUnique({
       where: { slug },
       include: {
@@ -149,46 +157,24 @@ export class QueueService {
       throw new BadRequestException('This queue is temporarily paused');
     }
 
-    const source = dto.source ?? QueueEntrySource.REMOTE;
-    const partySize =
-      business.type === BusinessType.RESTAURANT || business.type === BusinessType.CAFE
-        ? dto.partySize || 1
-        : 1;
-
-    if (source === QueueEntrySource.REMOTE && !queue.remoteJoinEnabled) {
-      throw new BadRequestException('Remote queue joining is currently disabled for this queue');
+    const source = options?.source ?? QueueEntrySource.REMOTE;
+    let partySize = 1;
+    try {
+      partySize = resolvePartySize(business.type, dto.partySize || 1);
+      assertQueueJoinable(queue, source === QueueEntrySource.WALK_IN ? 'WALK_IN' : 'REMOTE');
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'This queue is not available.');
     }
 
     await this.expireOverdueRemoteTokens(queue.id);
-    const customerPhone = this.normalizePhone(dto.customerPhone);
-    if (!/^\+?\d{7,15}$/.test(customerPhone)) {
+    let customerPhone: string;
+    try {
+      customerPhone = normalizePhone(dto.customerPhone);
+    } catch {
       throw new BadRequestException('Enter a valid phone number');
     }
 
-    const existingToken = await this.prisma.queueToken.findFirst({
-      where: {
-        queueId: queue.id,
-        customerPhone,
-        status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
-      },
-    });
-    if (existingToken) {
-      throw new ConflictException(
-        `There is already an active queue entry for this phone number (token #${existingToken.tokenNumber}).`,
-      );
-    }
-
-    // Upsert customer profile if phone exists
-    const customer = await this.prisma.customer.upsert({
-      where: { phone: customerPhone },
-      update: { name: dto.customerName },
-      create: {
-        phone: customerPhone,
-        name: dto.customerName,
-      },
-    });
-
-    // Upsert customer business link
+    const customer = await resolveCustomer(this.prisma, customerPhone, dto.customerName);
     await this.prisma.customerBusiness.upsert({
       where: {
         customerId_businessId: {
@@ -196,16 +182,11 @@ export class QueueService {
           businessId: business.id,
         },
       },
-      update: {
-        visitCount: { increment: 1 },
-        lastVisitAt: new Date(),
-        usualPartySize: partySize,
-      },
+      update: { usualPartySize: partySize },
       create: {
         customerId: customer.id,
         businessId: business.id,
-        visitCount: 1,
-        lastVisitAt: new Date(),
+        visitCount: 0,
         usualPartySize: partySize,
       },
     });
@@ -219,44 +200,31 @@ export class QueueService {
     });
     const estimatedWaitMin = waitingBefore * avgWait;
 
-    // Atomic Daily Token Generation
-    const todayDateStr = new Date().toISOString().slice(0, 10);
-    const targetQueueId = queue.id;
-
-    const token = await this.prisma.$transaction(async (tx) => {
-      const qRec = await tx.queue.findUnique({
-        where: { id: targetQueueId },
-      });
-      if (!qRec) throw new NotFoundException('Queue not found');
-
-      const isNewDay = qRec.lastSequenceDate !== todayDateStr;
-      const nextSequence = isNewDay ? 1 : (qRec.dailySequence || 0) + 1;
-
-      await tx.queue.update({
-        where: { id: targetQueueId },
-        data: {
-          dailySequence: nextSequence,
-          lastSequenceDate: todayDateStr,
-        },
-      });
-
-      return tx.queueToken.create({
-        data: {
-          queueId: targetQueueId,
+    const guestSecret = randomBytes(24).toString('base64url');
+    let token: Awaited<ReturnType<QueueService['insertQueueToken']>> | undefined;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        token = await this.insertQueueToken({
+          queueId: queue.id,
+          timeZone: business.timezone,
           customerId: customer.id,
           customerName: dto.customerName,
           customerPhone,
+          guestSecretHash: hashGuestSecret(guestSecret),
           partySize,
           notes: dto.notes,
-          tokenNumber: nextSequence,
-          doctorName: dto.doctorName || qRec.doctorName,
-          serviceName: dto.serviceName || qRec.serviceName,
-          status: QueueTokenStatus.WAITING,
+          doctorName: dto.doctorName,
+          serviceName: dto.serviceName,
           source,
           estimatedWaitMin,
-        },
-      });
-    });
+        });
+        break;
+      } catch (error) {
+        if (attempt < 2 && isUniqueConflict(error)) continue;
+        throw error;
+      }
+    }
+    if (!token) throw new ConflictException('Could not reserve a queue token. Please try again.');
 
     // Emit live update to dashboard
     this.events.emitQueueUpdate(business.id, queue.id, {
@@ -265,7 +233,8 @@ export class QueueService {
     });
 
     return {
-      ...token,
+      ...publicToken(token),
+      guestSecret,
       position: waitingBefore + 1,
       estimatedWaitMin,
       businessName: business.name,
@@ -276,7 +245,8 @@ export class QueueService {
     };
   }
 
-  async getToken(tokenId: string) {
+  async getToken(tokenId: string, secret?: string) {
+    await this.assertGuest(tokenId, secret);
     await this.expireOverdueRemoteTokens(undefined, tokenId);
     const token = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
@@ -328,7 +298,7 @@ export class QueueService {
       : null;
 
     return {
-      ...token,
+      ...publicToken(token),
       position: token.status === QueueTokenStatus.WAITING ? position : 0,
       estimatedWaitMin:
         token.status === QueueTokenStatus.WAITING
@@ -339,7 +309,8 @@ export class QueueService {
     };
   }
 
-  async markOnTheWay(tokenId: string) {
+  async markOnTheWay(tokenId: string, secret?: string) {
+    await this.assertGuest(tokenId, secret);
     await this.expireOverdueRemoteTokens(undefined, tokenId);
     const token = await this.prisma.queueToken.findUnique({
       where: { id: tokenId },
@@ -363,7 +334,7 @@ export class QueueService {
       type: 'TOKEN_ON_THE_WAY',
       token: updated,
     });
-    return updated;
+    return publicToken(updated);
   }
 
   async markArrived(tokenId: string, userId: string, userRole?: string) {
@@ -392,12 +363,22 @@ export class QueueService {
     return updated;
   }
 
-  async cancelToken(tokenId: string) {
+  async cancelToken(tokenId: string, secret?: string) {
+    await this.assertGuest(tokenId, secret);
+    const current = await this.prisma.queueToken.findUnique({
+      where: { id: tokenId },
+      select: { status: true },
+    });
+    if (!current) throw new UnauthorizedException('This queue link is not valid');
+    if (current.status !== QueueTokenStatus.WAITING && current.status !== QueueTokenStatus.CALLED) {
+      throw new ConflictException('This place in line can no longer be cancelled.');
+    }
     const token = await this.prisma.queueToken.update({
       where: { id: tokenId },
       data: {
         status: QueueTokenStatus.CANCELLED,
         cancelledAt: new Date(),
+        activePhoneKey: null,
       },
       include: {
         queue: true,
@@ -409,7 +390,7 @@ export class QueueService {
       tokenId,
     });
 
-    return token;
+    return publicToken(token);
   }
 
   async getBusinessTokens(businessId: string, userId: string, userRole?: string, queueId?: string) {
@@ -418,7 +399,7 @@ export class QueueService {
       where: { id: businessId },
       select: { timezone: true },
     });
-    const todayStart = startOfDayInTimeZone(business?.timezone || 'Asia/Kolkata');
+    const todayStart = businessDayRange(business?.timezone).start;
     const queues = await this.prisma.queue.findMany({
       where: { businessId, isArchived: false },
       orderBy: { createdAt: 'asc' },
@@ -457,7 +438,7 @@ export class QueueService {
       take: 20,
     });
 
-    return { queues, queue: selectedQueue, tokens, alerts };
+    return { queues, queue: selectedQueue, tokens: tokens.map((token) => publicToken(token)), alerts };
   }
 
   async getQueuesForBusiness(businessId: string, userId: string, userRole?: string) {
@@ -637,8 +618,15 @@ export class QueueService {
       }
     }
 
+    let phoneForKey = currentToken.customerPhone;
+    try {
+      phoneForKey = normalizePhone(currentToken.customerPhone);
+    } catch {
+      phoneForKey = currentToken.customerPhone;
+    }
     const data: {
       status: QueueTokenStatus;
+      activePhoneKey: string | null;
       calledAt?: Date | null;
       arrivalDeadlineAt?: Date | null;
       seatedAt?: Date | null;
@@ -646,7 +634,10 @@ export class QueueService {
       completedAt?: Date | null;
       cancelledAt?: Date | null;
       tableId?: string | null;
-    } = { status };
+    } = {
+      status,
+      activePhoneKey: queuePhoneKey(currentToken.queueId, phoneForKey, status),
+    };
 
     const foodBusiness =
       currentToken.queue.business.type === BusinessType.RESTAURANT ||
@@ -699,7 +690,7 @@ export class QueueService {
         select: { id: true },
       });
       for (const order of readyOrders) {
-        await this.orders.updateOrderStatus(order.id, OrderStatus.COMPLETED);
+        await this.orders.completeFromQueue(order.id);
       }
     }
 
@@ -834,22 +825,17 @@ export class QueueService {
       select: { slug: true },
     });
     if (!business) throw new NotFoundException('Business not found');
-    return this.joinQueue(business.slug, { ...dto, source: QueueEntrySource.WALK_IN });
-  }
-
-  private normalizePhone(phone: string) {
-    return phone.trim().replace(/[^\d+]/g, '');
+    return this.joinQueue(business.slug, dto, { source: QueueEntrySource.WALK_IN });
   }
 
   private async getAverageWaitMinutes(queueId: string): Promise<number> {
     const queue = await this.prisma.queue.findUnique({
       where: { id: queueId },
-      select: { averageWaitMinutes: true },
+      select: { averageWaitMinutes: true, business: { select: { timezone: true } } },
     });
     if (!queue) return 8;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = businessDayRange(queue.business.timezone).start;
 
     const completedToday = await this.prisma.queueToken.findMany({
       where: {
@@ -963,6 +949,9 @@ export class QueueService {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
+        if (isUniqueConflict(error)) {
+          throw new ConflictException('There is already an active queue entry for this phone number.');
+        }
         if (attempt === 0 && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
           continue;
         }
@@ -1012,45 +1001,89 @@ export class QueueService {
     const ids = overdue.map((token) => token.id);
     await this.prisma.queueToken.updateMany({
       where: { id: { in: ids } },
-      data: { status: QueueTokenStatus.NO_SHOW, tableId: null },
+      data: { status: QueueTokenStatus.NO_SHOW, tableId: null, activePhoneKey: null },
     });
     for (const id of ids) await this.releasePartyTable(id);
     return ids.length;
   }
 
-  private async assertBusinessAccess(businessId: string, userId: string, userRole?: string) {
-    if (userRole === 'SUPER_ADMIN') return;
-    const staff = await this.prisma.staff.findFirst({
-      where: { businessId, userId, isActive: true },
-      select: { id: true },
+  private async insertQueueToken(input: {
+    queueId: string;
+    timeZone: string | null;
+    customerId: string;
+    customerName: string;
+    customerPhone: string;
+    guestSecretHash: string;
+    partySize: number;
+    notes?: string;
+    doctorName?: string;
+    serviceName?: string;
+    source: QueueEntrySource;
+    estimatedWaitMin: number;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Queue" WHERE id = ${input.queueId} FOR UPDATE`;
+      const existingToken = await tx.queueToken.findFirst({
+        where: {
+          queueId: input.queueId,
+          customerPhone: { in: phoneLookupVariants(input.customerPhone) },
+          status: { in: [...ACTIVE_QUEUE_STATUSES] },
+        },
+      });
+      if (existingToken) {
+        throw new ConflictException(
+          `There is already an active queue entry for this phone number (token #${existingToken.tokenNumber}).`,
+        );
+      }
+      const qRec = await tx.queue.findUnique({ where: { id: input.queueId } });
+      if (!qRec) throw new NotFoundException('Queue not found');
+      const sequenceDate = localDate(new Date(), safeTimeZone(input.timeZone));
+      const tokenNumber = allocateDailyToken(
+        { lastSequenceDate: qRec.lastSequenceDate, dailySequence: qRec.dailySequence || 0 },
+        sequenceDate,
+      );
+      await tx.queue.update({
+        where: { id: input.queueId },
+        data: { dailySequence: tokenNumber, lastSequenceDate: sequenceDate },
+      });
+      return tx.queueToken.create({
+        data: {
+          queueId: input.queueId,
+          customerId: input.customerId,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          guestSecretHash: input.guestSecretHash,
+          partySize: input.partySize,
+          notes: input.notes,
+          tokenNumber,
+          sequenceDate,
+          activePhoneKey: queuePhoneKey(input.queueId, input.customerPhone, QueueTokenStatus.WAITING),
+          doctorName: input.doctorName || qRec.doctorName,
+          serviceName: input.serviceName || qRec.serviceName,
+          status: QueueTokenStatus.WAITING,
+          source: input.source,
+          estimatedWaitMin: input.estimatedWaitMin,
+        },
+      });
     });
-    if (!staff) throw new ForbiddenException('You do not have access to this business queue');
+  }
+
+  private async assertBusinessAccess(businessId: string, userId: string, _userRole?: string) {
+    await this.access.requireStaff(userId, businessId);
+  }
+
+  private async assertGuest(tokenId: string, secret?: string) {
+    const token = await this.prisma.queueToken.findUnique({
+      where: { id: tokenId },
+      select: { guestSecretHash: true },
+    });
+    if (!token || !guestSecretMatches(token.guestSecretHash, secret)) {
+      throw new UnauthorizedException('This queue link is not valid');
+    }
   }
 }
 
-function startOfDayInTimeZone(timeZone: string, date = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-      .formatToParts(date)
-      .map((part) => [part.type, part.value]),
-  );
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  const offset = asUtc - date.getTime();
-  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) - offset);
+function publicToken<T extends { guestSecretHash?: string | null }>(token: T) {
+  const { guestSecretHash: _hash, ...safe } = token;
+  return safe;
 }

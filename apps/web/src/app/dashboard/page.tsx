@@ -25,6 +25,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { lineName } from '@/lib/order-line';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';
 import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { describePayments } from '@/lib/payment';
@@ -714,7 +715,7 @@ export default function DashboardPage() {
                 downloadName={`invoice-${selectedOrderDetails.id.slice(-6)}`}
                 lines={(selectedOrderDetails.items || []).map((item: any) => ({
                   id: item.id,
-                  name: item.menuItem?.name || 'Item',
+                  name: lineName(item.menuItem?.name, item.addons),
                   quantity: item.quantity,
                   amount: Number(item.totalPrice || item.unitPrice * item.quantity || 0),
                   note: item.specialNote,

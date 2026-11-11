@@ -6,6 +6,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { sanitizeRealtimePayload } from '../access/access.rules';
 
 @WebSocketGateway({
   cors: {
@@ -25,40 +26,39 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join:business')
-  handleJoinBusiness(client: Socket, businessId: string) {
-    client.join(`business_${businessId}`);
-    return { status: 'joined', room: `business_${businessId}` };
+  handleJoinBusiness() {
+    return { status: 'rejected' };
   }
 
   @SubscribeMessage('join:queue')
-  handleJoinQueue(client: Socket, queueId: string) {
-    client.join(`queue_${queueId}`);
-    return { status: 'joined', room: `queue_${queueId}` };
+  handleJoinQueue() {
+    return { status: 'rejected' };
   }
 
   @SubscribeMessage('join:order')
-  handleJoinOrder(client: Socket, orderId: string) {
-    client.join(`order_${orderId}`);
-    return { status: 'joined', room: `order_${orderId}` };
+  handleJoinOrder() {
+    return { status: 'rejected' };
   }
 
   emitQueueUpdate(businessId: string, queueId: string, data: any) {
     if (this.server) {
-      this.server.to(`business_${businessId}`).emit('queue:updated', data);
-      this.server.to(`queue_${queueId}`).emit('queue:updated', data);
+      const safe = sanitizeRealtimePayload(data);
+      this.server.to(`business_${businessId}`).emit('queue:updated', safe);
+      this.server.to(`queue_${queueId}`).emit('queue:updated', safe);
     }
   }
 
   emitOrderUpdate(businessId: string, orderId: string, data: any) {
     if (this.server) {
-      this.server.to(`business_${businessId}`).emit('order:updated', data);
-      this.server.to(`order_${orderId}`).emit('order:updated', data);
+      const safe = sanitizeRealtimePayload(data);
+      this.server.to(`business_${businessId}`).emit('order:updated', safe);
+      this.server.to(`order_${orderId}`).emit('order:updated', safe);
     }
   }
 
   emitNewOrder(businessId: string, data: any) {
     if (this.server) {
-      this.server.to(`business_${businessId}`).emit('order:new', data);
+      this.server.to(`business_${businessId}`).emit('order:new', sanitizeRealtimePayload(data));
     }
   }
 }

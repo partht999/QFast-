@@ -14,10 +14,10 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 export default function ReviewsManagementPage() {
   const [business, setBusiness] = useState<any>(null);
   const [feedbackData, setFeedbackData] = useState<{
-    averageRating: number;
+    averageRating: number | null;
     totalCount: number;
     items: any[];
-  }>({ averageRating: 5.0, totalCount: 0, items: [] });
+  }>({ averageRating: null, totalCount: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [googlePlaceId, setGooglePlaceId] = useState('');
   const [savedReviewUrl, setSavedReviewUrl] = useState('');
@@ -194,7 +194,7 @@ export default function ReviewsManagementPage() {
                 Private rating
               </span>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-amber-500">★ {feedbackData.averageRating.toFixed(1)}</span>
+                <span className="text-4xl font-black text-amber-500">★ {feedbackData.totalCount && feedbackData.averageRating != null ? feedbackData.averageRating.toFixed(1) : '—'}</span>
                 <span className="text-xs text-gray-400 font-semibold">/ 5.0</span>
               </div>
               <p className="text-xs text-gray-500 mt-2">

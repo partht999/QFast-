@@ -12,6 +12,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { lineName } from '@/lib/order-line';
 import { reviewHref } from '@/lib/google-place';
 import { BrandMark } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
@@ -334,7 +335,7 @@ export default function OrderTrackingPage() {
             downloadName={`bill-${order.id.slice(-6)}`}
             lines={(order.items || []).map((item: any) => ({
               id: item.id,
-              name: item.menuItem?.name || 'Item',
+              name: lineName(item.menuItem?.name, item.addons),
               quantity: item.quantity,
               amount: Number(item.totalPrice || 0),
               note: item.specialNote,

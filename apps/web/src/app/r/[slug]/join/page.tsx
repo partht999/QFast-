@@ -29,6 +29,7 @@ import { isIndianMobile, localMobile } from '@/lib/phone';
 import { ReviewPrompt } from '@/components/review-prompt';
 import { reviewHref } from '@/lib/google-place';
 import { GuestVisitActions } from '@/components/guest-visit-actions';
+import { clearGuestToken, guestTokenUrl, readGuestToken, saveGuestToken } from '@/lib/guest-token';
 import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
@@ -94,10 +95,9 @@ export default function JoinQueuePage() {
     if (!activeToken) return;
     setError('');
     try {
-      const response = await fetch(
-        `${apiUrl}/api/v1/queue/public/token/${activeToken.id}/on-the-way`,
-        { method: 'POST' },
-      );
+      const response = await fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret, 'on-the-way'), {
+        method: 'POST',
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Could not update your arrival status');
       setActiveToken((current: any) => ({ ...current, ...data }));
@@ -117,14 +117,19 @@ export default function JoinQueuePage() {
 
   const checkExistingToken = async () => {
     if (new URLSearchParams(window.location.search).get('fresh')) {
-      localStorage.removeItem(`qfast_token_${slug}`);
+      clearGuestToken(slug);
       setActiveToken(null);
       return;
     }
-    const savedTokenId = localStorage.getItem(`qfast_token_${slug}`);
-    if (savedTokenId) {
+    const saved = readGuestToken(slug);
+    if (!saved.id || !saved.secret) {
+      if (saved.id || saved.secret) clearGuestToken(slug);
+      setActiveToken(null);
+      return;
+    }
+    if (saved.id) {
       try {
-        const res = await fetch(`${apiUrl}/api/v1/queue/public/token/${savedTokenId}`);
+        const res = await fetch(guestTokenUrl(apiUrl, saved.id, saved.secret));
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED' || data.status === 'COMPLETED') {
@@ -134,8 +139,10 @@ export default function JoinQueuePage() {
               navigator.vibrate([300, 100, 300]);
             }
           } else {
-            localStorage.removeItem(`qfast_token_${slug}`);
+            clearGuestToken(slug);
           }
+        } else {
+          clearGuestToken(slug);
         }
       } catch (err) {
         console.error(err);
@@ -169,7 +176,7 @@ export default function JoinQueuePage() {
     const interval = setInterval(() => {
       fetchStatus();
       if (activeToken?.id) {
-        fetch(`${apiUrl}/api/v1/queue/public/token/${activeToken.id}`)
+        fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret))
           .then((r) => r.json())
           .then((data) => {
             if (data.id) {
@@ -205,7 +212,7 @@ export default function JoinQueuePage() {
                 setReviewOpen(true);
               }
               if (data.status === 'NO_SHOW') {
-                localStorage.removeItem(`qfast_token_${slug}`);
+                clearGuestToken(slug);
                 setActiveToken(null);
                 setError('Your arrival window expired and your place in the queue was released.');
               } else {
@@ -245,7 +252,7 @@ export default function JoinQueuePage() {
       if (!res.ok) throw new Error(data.message || 'Failed to join queue');
 
       setActiveToken(data);
-      localStorage.setItem(`qfast_token_${slug}`, data.id);
+      saveGuestToken(slug, data.id, data.guestSecret);
       setError('');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -257,10 +264,10 @@ export default function JoinQueuePage() {
   const handleCancelToken = async () => {
     if (!activeToken) return;
     try {
-      await fetch(`${apiUrl}/api/v1/queue/public/token/${activeToken.id}/cancel`, {
+      await fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret, 'cancel'), {
         method: 'POST',
       });
-      localStorage.removeItem(`qfast_token_${slug}`);
+      clearGuestToken(slug);
       setActiveToken(null);
       setShowCancelModal(false);
       fetchStatus();
@@ -565,7 +572,7 @@ export default function JoinQueuePage() {
                   reviewUrl={reviewHref(activeToken.business?.googleReviewUrl, activeToken.business?.googlePlaceId)}
                   stampsHref={`${publicPath}/loyalty?phone=${encodeURIComponent(activeToken.customerPhone || '')}`}
                   onStartAgain={() => {
-                    localStorage.removeItem(`qfast_token_${slug}`);
+                    clearGuestToken(slug);
                     setActiveToken(null);
                     setReviewOpen(false);
                   }}
@@ -674,7 +681,7 @@ export default function JoinQueuePage() {
                       orders={activeToken.orders}
                       canClose={false}
                       onChanged={() => {
-                        void fetch(`${apiUrl}/api/v1/queue/public/token/${activeToken.id}`)
+                        void fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret))
                           .then((response) => response.json())
                           .then((data) => {
                             if (data?.id) setActiveToken(data);

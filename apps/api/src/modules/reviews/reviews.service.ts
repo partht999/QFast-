@@ -1,12 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFeedbackDto, UpdateGoogleSettingsDto } from './dto/create-feedback.dto';
 import { FeedbackStatus } from '@prisma/client';
 import { reviewFieldsFromInputResolved } from './google-place';
+import { AccessService } from '../access/access.service';
+import { STAFF_ROLES } from '../access/access.rules';
+import { isUniqueConflict } from '../../common/customer-identity';
+import { normalizePhone } from '../../common/phone';
+import { assertFeedbackEligible, feedbackSummary } from './feedback-rules';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: AccessService,
+  ) {}
 
   async submitFeedback(dto: CreateFeedbackDto) {
     const business = await this.prisma.business.findUnique({
@@ -14,26 +22,52 @@ export class ReviewsService {
     });
     if (!business) throw new NotFoundException('Restaurant not found');
 
-    let customerId: string | undefined;
-    if (dto.customerPhone) {
-      const customer = await this.prisma.customer.findUnique({
-        where: { phone: dto.customerPhone },
-      });
-      if (customer) customerId = customer.id;
+    if (!dto.orderId) throw new BadRequestException('Feedback has to be about a completed order.');
+    const order = await this.prisma.order.findUnique({ where: { id: dto.orderId } });
+    let phone: string | undefined;
+    let orderPhone: string | undefined;
+    try {
+      if (dto.customerPhone) phone = normalizePhone(dto.customerPhone);
+      if (order?.customerPhone) orderPhone = normalizePhone(order.customerPhone);
+    } catch {
+      throw new BadRequestException('Enter a valid phone number');
     }
-
-    const feedback = await this.prisma.feedback.create({
-      data: {
+    let dedupeKey: string;
+    try {
+      dedupeKey = assertFeedbackEligible({
+        order: order
+          ? { id: order.id, businessId: order.businessId, status: order.status, customerPhone: order.customerPhone }
+          : null,
         businessId: business.id,
-        customerId,
-        orderId: dto.orderId,
-        rating: dto.rating,
-        tags: dto.tags || [],
-        comment: dto.comment,
-        wantsContact: dto.wantsContact ?? false,
-        status: FeedbackStatus.NEW,
-      },
-    });
+        phone,
+        orderPhone,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Feedback was not accepted.';
+      if (message.includes('not from this business')) throw new NotFoundException(message);
+      throw new BadRequestException(message);
+    }
+    const customer = phone ? await this.prisma.customer.findFirst({ where: { phone: { in: [phone, orderPhone].filter(Boolean) as string[] } } }) : null;
+
+    let feedback;
+    try {
+      feedback = await this.prisma.feedback.create({
+        data: {
+          businessId: business.id,
+          customerId: customer?.id,
+          orderId: dto.orderId,
+          rating: dto.rating,
+          tags: (dto.tags || []).slice(0, 8),
+          comment: dto.comment?.slice(0, 1000),
+          wantsContact: dto.wantsContact ?? false,
+          status: FeedbackStatus.NEW,
+          dedupeKey,
+        },
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) throw new ConflictException('Feedback was already submitted for this order.');
+      throw error;
+    }
 
     return {
       success: true,
@@ -42,7 +76,8 @@ export class ReviewsService {
     };
   }
 
-  async getBusinessFeedback(businessId: string) {
+  async getBusinessFeedback(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.manager);
     const [items, stats] = await Promise.all([
       this.prisma.feedback.findMany({
         where: { businessId },
@@ -57,13 +92,13 @@ export class ReviewsService {
     ]);
 
     return {
-      averageRating: stats._avg.rating ? Math.round(stats._avg.rating * 10) / 10 : 5.0,
-      totalCount: stats._count.rating,
+      ...feedbackSummary(stats._count.rating, stats._avg.rating),
       items,
     };
   }
 
-  async updateFeedbackStatus(id: string, status: FeedbackStatus) {
+  async updateFeedbackStatus(id: string, status: FeedbackStatus, userId: string) {
+    await this.access.requireFeedback(userId, id, STAFF_ROLES.manager);
     return this.prisma.feedback.update({
       where: { id },
       data: {
@@ -73,7 +108,8 @@ export class ReviewsService {
     });
   }
 
-  async updateGoogleSettings(businessId: string, dto: UpdateGoogleSettingsDto) {
+  async updateGoogleSettings(businessId: string, dto: UpdateGoogleSettingsDto, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.manager);
     const fields = await reviewFieldsFromInputResolved(dto.googlePlaceId);
     if (!fields) {
       return this.prisma.business.findUnique({ where: { id: businessId } });

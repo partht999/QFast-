@@ -35,25 +35,24 @@ export function GuestVisitActions({
   const cooking = openOrders.some((order) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status));
   const readyToClose = canClose && openOrders.length > 0 && payment.paid && !cooking;
 
-  const pay = async (method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER') => {
-    const due = openOrders.filter((order) => !describePayments(order.payments).paid);
-    if (!due.length) return;
-    setBusy(method);
+  const askForBill = async () => {
+    if (!openOrders.length) return;
+    setBusy('bill');
     setMessage('');
     try {
-      for (const order of due) {
-        const response = await fetch(`${apiUrl}/api/v1/orders/public/${order.id}/pay`, {
+      for (const order of openOrders) {
+        const response = await fetch(`${apiUrl}/api/v1/orders/public/${order.id}/help`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ method }),
+          body: JSON.stringify({ kind: 'bill' }),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(readApiError(data, 'Could not record this payment'));
+        if (!response.ok) throw new Error(readApiError(data, 'Could not ask for the bill'));
       }
-      setMessage(method === 'CASH' ? 'Cash payment recorded.' : method === 'CARD_AT_COUNTER' ? 'Card payment recorded.' : 'UPI payment recorded.');
+      setMessage('The counter has been asked to take payment.');
       onChanged();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not record this payment');
+      setMessage(error instanceof Error ? error.message : 'Could not ask for the bill');
     } finally {
       setBusy('');
     }
@@ -87,32 +86,14 @@ export function GuestVisitActions({
         </p>
       </div>
       {!payment.paid && (
-        <div className="grid gap-2 sm:grid-cols-3">
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void pay('UPI_AT_COUNTER')}
-            className="min-h-11 rounded-xl bg-orange-500 text-sm font-bold text-white disabled:opacity-60"
-          >
-            {busy === 'UPI_AT_COUNTER' ? 'Saving…' : 'Paid by UPI'}
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void pay('CASH')}
-            className="min-h-11 rounded-xl border border-neutral-200 text-sm font-bold text-neutral-800 disabled:opacity-60"
-          >
-            {busy === 'CASH' ? 'Saving…' : 'Paid by cash'}
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void pay('CARD_AT_COUNTER')}
-            className="min-h-11 rounded-xl border border-neutral-200 text-sm font-bold text-neutral-800 disabled:opacity-60"
-          >
-            {busy === 'CARD_AT_COUNTER' ? 'Saving…' : 'Paid by card'}
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => void askForBill()}
+          className="min-h-11 w-full rounded-xl bg-orange-500 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {busy === 'bill' ? 'Sending…' : 'Ask the counter to take payment'}
+        </button>
       )}
       <div className="flex flex-wrap gap-2">
         {onWaiter && (
@@ -132,14 +113,15 @@ export function GuestVisitActions({
           </button>
         )}
       </div>
-      {canClose && !readyToClose && (
-        <p className="text-xs leading-5 text-neutral-500">
-          {cooking ? 'The kitchen is still working. You can pay now and close the bill when the food is ready.' : 'Pay the bill, then close it.'}
-        </p>
-      )}
-      {!canClose && (
-        <p className="text-xs leading-5 text-neutral-500">You can pay here. The restaurant closes the bill when the visit is finished.</p>
-      )}
+      <p className="text-xs leading-5 text-neutral-500">
+        {payment.paid
+          ? canClose
+            ? cooking
+              ? 'The kitchen is still working. Close the bill when the food is ready.'
+              : 'The counter confirmed payment. You can close the bill.'
+            : 'The counter confirmed payment. The restaurant closes the visit.'
+          : 'The counter confirms payment. This page cannot mark the bill paid.'}
+      </p>
       {message && <p className="text-sm font-semibold text-neutral-800">{message}</p>}
     </div>
   );

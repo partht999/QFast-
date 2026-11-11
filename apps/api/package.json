@@ -5,7 +5,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
-    "test": "ts-node --transpile-only src/modules/analytics/analytics.metrics.test.ts"
+    "test": "ts-node --transpile-only src/modules/analytics/analytics.metrics.test.ts && ts-node --transpile-only src/modules/access/access.rules.test.ts && ts-node --transpile-only src/integrity.test.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.8",

@@ -6,7 +6,9 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsInt,
   Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -19,8 +21,9 @@ export class OrderItemDto {
   menuItemId: string;
 
   @ApiProperty({ example: 2 })
-  @IsNumber()
+  @IsInt()
   @Min(1)
+  @Max(50)
   quantity: number;
 
   @ApiProperty({ example: 280 })
@@ -32,6 +35,12 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   variantId?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  addonIds?: string[];
 
   @ApiProperty({ example: 'Less spicy please', required: false })
   @IsString()

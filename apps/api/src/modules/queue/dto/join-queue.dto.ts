@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { QueueEntrySource } from '@prisma/client';
 
@@ -16,6 +16,7 @@ export class JoinQueueDto {
   @ApiProperty({ example: 2, default: 1 })
   @IsNumber()
   @Min(1)
+  @Max(20)
   partySize: number;
 
   @ApiProperty({ example: 'Window seating preferred', required: false })

@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '@qfast/shared';
 import { UserRole } from '@prisma/client';
+import { readJwtSecret } from './jwt-secret';
 
 @Injectable()
 export class AuthService {
@@ -28,7 +29,7 @@ export class AuthService {
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET') || 'default-refresh-secret',
+      secret: readJwtSecret(this.config, 'JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
 
@@ -57,7 +58,18 @@ export class AuthService {
     return this.login(user);
   }
 
-  async refreshTokens(userId: string, refreshToken: string) {
+  async refreshTokens(refreshToken: string) {
+    let userId = '';
+    try {
+      const payload = this.jwtService.verify<{ sub?: string }>(refreshToken, {
+        secret: readJwtSecret(this.config, 'JWT_REFRESH_SECRET'),
+      });
+      userId = payload?.sub || '';
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (!userId) throw new UnauthorizedException('Invalid refresh token');
+
     const tokens = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
@@ -79,7 +91,8 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.isActive) throw new UnauthorizedException('Invalid refresh token');
     return this.login(user);
   }
 

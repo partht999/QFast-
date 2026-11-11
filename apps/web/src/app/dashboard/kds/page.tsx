@@ -22,6 +22,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { lineName } from '@/lib/order-line';
 import { describePayments } from '@/lib/payment';
 import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -443,7 +444,7 @@ export default function KDSPage() {
                                   {item.quantity}×
                                 </span>
                                 <span className={`text-base font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
-                                  {item.menuItem?.name}
+                                  {lineName(item.menuItem?.name, item.addons)}
                                 </span>
                                 {item.specialNote && (
                                   <p className="text-[11px] text-neutral-400 italic mt-0.5">
@@ -557,7 +558,7 @@ export default function KDSPage() {
                                   {item.quantity}×
                                 </span>
                                 <span className={`text-base font-bold ${isChecked ? 'line-through text-neutral-500' : 'text-neutral-100'}`}>
-                                  {item.menuItem?.name}
+                                  {lineName(item.menuItem?.name, item.addons)}
                                 </span>
                               </div>
                             </div>
@@ -625,7 +626,7 @@ export default function KDSPage() {
                   <div className="space-y-1.5 py-1 text-xs text-neutral-200">
                     {order.items?.map((item: any) => (
                       <div key={item.id} className="flex justify-between">
-                        <span>{item.quantity}× {item.menuItem?.name}</span>
+                        <span>{item.quantity}× {lineName(item.menuItem?.name, item.addons)}</span>
                       </div>
                     ))}
                   </div>

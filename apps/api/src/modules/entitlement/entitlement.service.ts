@@ -55,7 +55,7 @@ export class EntitlementService {
     const feature = entitlements.features[featureKey];
     if (!feature?.enabled) {
       throw new ForbiddenException(
-        `Feature '${featureKey}' is not available on your current plan. Move to Plus or Pro to unlock it.`,
+        `Feature '${featureKey}' is not included in the current subscription.`,
       );
     }
   }

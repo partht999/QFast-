@@ -1,25 +1,31 @@
 import { ForbiddenException, Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
-import { BusinessType, PlanTier, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
+import { BusinessType, UserRole, SubscriptionStatus, BusinessStatus, QueueTokenStatus } from '@prisma/client';
 import { reviewFieldsFromInputResolved } from '../reviews/google-place';
 import { visitsAreOpen } from './subscription-access';
+import { CURRENT_SIGNUP_PLAN_TIER, trialEndsAt } from './subscription-policy';
+import { businessDayRange } from '../../common/time';
+import { AccessService } from '../access/access.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class BusinessService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: AccessService,
+  ) {}
 
   async create(userId: string, dto: CreateBusinessDto) {
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
 
-    const selectedPlan = await this.prisma.plan.findUnique({ where: { tier: PlanTier.ADVANCED } });
+    const selectedPlan = await this.prisma.plan.findUnique({ where: { tier: CURRENT_SIGNUP_PLAN_TIER } });
     if (!selectedPlan) {
       throw new BadRequestException('The Advanced plan is not ready yet. Run the database seed and try again.');
     }
 
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const trialEndsAtDate = trialEndsAt();
     const foodBusiness = !dto.type || dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE;
     const queueLimit = 20;
     const tableLimit = 40;
@@ -65,8 +71,8 @@ export class BusinessService {
             planId: selectedPlan.id,
             status: SubscriptionStatus.TRIALING,
             currentPeriodStart: new Date(),
-            currentPeriodEnd: trialEndsAt,
-            trialEndsAt,
+            currentPeriodEnd: trialEndsAtDate,
+            trialEndsAt: trialEndsAtDate,
           },
         },
         queues: {
@@ -193,7 +199,8 @@ export class BusinessService {
     }));
   }
 
-  async findById(id: string) {
+  async findById(id: string, userId: string) {
+    await this.access.requireStaff(userId, id);
     await visitsAreOpen(this.prisma, id);
     const business = await this.prisma.business.findUnique({
       where: { id },
@@ -343,9 +350,14 @@ export class BusinessService {
         .slice(0, 3)
         .map((row) => row.id),
     );
+    const { queues, ...rest } = business;
     return {
-      ...business,
+      ...rest,
       visitsOpen: access.open,
+      queues: queues.map(({ tokens, ...queue }) => ({
+        ...queue,
+        waitingCount: tokens.length,
+      })),
       menus: business.menus.map((menu) => ({
         ...menu,
         categories: menu.categories.map((category) => ({
@@ -366,9 +378,7 @@ export class BusinessService {
     });
     if (!business) throw new ForbiddenException('You do not have access to this workspace');
 
-    const timeZone = business.timezone || 'Asia/Kolkata';
-    const start = startOfDayInTimeZone(timeZone);
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const { start, end, timeZone } = businessDayRange(business.timezone);
 
     const [tokens, waitingNow, calledNow, orders] = await Promise.all([
       this.prisma.queueToken.findMany({
@@ -557,20 +567,28 @@ export class BusinessService {
       throw new BadRequestException('Choose a staff role');
     }
     const email = input.username.trim().toLowerCase();
-    const passwordHash = await bcrypt.hash(input.password, 12);
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    const user = existing
-      ? existing
-      : await this.prisma.user.create({
-          data: { email, passwordHash, role: input.role },
-        });
     if (existing) {
-      await this.prisma.user.update({ where: { id: existing.id }, data: { passwordHash, isActive: true, role: input.role } });
+      const alreadyHere = await this.prisma.staff.findFirst({
+        where: { userId: existing.id, businessId },
+        select: { id: true },
+      });
+      if (!alreadyHere) {
+        throw new ConflictException('That username already has an account. They should sign in with their own password.');
+      }
+      const staff = await this.prisma.staff.update({
+        where: { id: alreadyHere.id },
+        data: { role: input.role, isActive: true },
+      });
+      return { id: staff.id, username: email, role: staff.role, isActive: staff.isActive };
     }
-    const staff = await this.prisma.staff.upsert({
-      where: { userId_businessId: { userId: user.id, businessId } },
-      update: { role: input.role, isActive: true },
-      create: { userId: user.id, businessId, role: input.role },
+
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    const user = await this.prisma.user.create({
+      data: { email, passwordHash, role: input.role },
+    });
+    const staff = await this.prisma.staff.create({
+      data: { userId: user.id, businessId, role: input.role },
     });
     return { id: staff.id, username: email, role: staff.role, isActive: staff.isActive };
   }
@@ -632,31 +650,4 @@ function hourLabel(hour: number) {
   const suffix = hour < 12 ? 'am' : 'pm';
   const value = hour % 12 || 12;
   return `${value}${suffix}`;
-}
-
-function startOfDayInTimeZone(timeZone: string, date = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-      .formatToParts(date)
-      .map((part) => [part.type, part.value]),
-  );
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  const offset = asUtc - date.getTime();
-  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) - offset);
 }

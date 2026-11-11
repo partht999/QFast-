@@ -1,21 +1,28 @@
 import {
   BadRequestException,
-  ForbiddenException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BusinessType, LoyaltyProgramType } from '@prisma/client';
+import { BusinessType, LoyaltyProgramType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { findCustomerByPhone, isUniqueConflict, resolveCustomer } from '../../common/customer-identity';
+import { normalizePhone } from '../../common/phone';
 import { CreateLoyaltyRewardDto } from './dto/create-loyalty-reward.dto';
 import { UpdateLoyaltyProgramDto } from './dto/update-loyalty-program.dto';
 import { UpdateLoyaltyRewardDto } from './dto/update-loyalty-reward.dto';
+import { AccessService } from '../access/access.service';
+import { loyaltyAward, loyaltySourceKey } from './award';
 
 @Injectable()
 export class LoyaltyService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: AccessService,
+  ) {}
 
   async getCustomerBalance(slug: string, phone: string) {
-    phone = normalizePhone(phone);
+    phone = canonicalPhone(phone);
     const business = await this.prisma.business.findUnique({
       where: { slug },
       include: { loyaltyProgram: true },
@@ -33,8 +40,13 @@ export class LoyaltyService {
       };
     }
 
-    const customer = await this.prisma.customer.findUnique({
-      where: { phone },
+    const matched = phone ? await findCustomerByPhone(this.prisma, phone).catch((error) => {
+      if (error instanceof ConflictException) return null;
+      throw error;
+    }) : null;
+    const customer = matched
+      ? await this.prisma.customer.findUnique({
+      where: { id: matched.id },
       include: {
         loyaltyAccounts: {
           where: { programId: business.loyaltyProgram.id },
@@ -47,7 +59,8 @@ export class LoyaltyService {
           },
         },
       },
-    });
+    })
+      : null;
     const account = customer?.loyaltyAccounts[0];
 
     const reward = await this.prisma.loyaltyReward.findFirst({
@@ -197,6 +210,10 @@ export class LoyaltyService {
 
   async addStamp(businessId: string, userId: string, userRole: string | undefined, phone: string, name?: string) {
     await this.assertRestaurantAccess(businessId, userId, userRole);
+    const program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId } });
+    if (!program || program.type !== LoyaltyProgramType.VISIT_STAMPS) {
+      throw new BadRequestException('Save the stamp card before adding a stamp.');
+    }
     const account = await this.awardVisit({
       businessId,
       phone,
@@ -217,7 +234,9 @@ export class LoyaltyService {
       throw new BadRequestException('Save the stamp card before redeeming.');
     }
     const goal = program.stampsForReward || program.rewards[0]?.pointsCost || 8;
-    const customer = await this.prisma.customer.findUnique({ where: { phone: normalizePhone(phone) } });
+    const customer = canonicalPhone(phone)
+      ? await findCustomerByPhone(this.prisma, phone)
+      : null;
     const account = customer
       ? await this.prisma.loyaltyAccount.findUnique({
           where: { programId_customerId: { programId: program.id, customerId: customer.id } },
@@ -250,61 +269,124 @@ export class LoyaltyService {
     name?: string | null;
     sourceKey: string;
     orderId?: string | null;
+    subtotal?: number;
+    spend?: number;
   }) {
-    const phone = normalizePhone(input.phone);
+    return this.applyCompletion(this.prisma, {
+      businessId: input.businessId,
+      phone: input.phone,
+      name: input.name,
+      visitKey: input.sourceKey,
+      orderId: input.orderId,
+      subtotal: input.subtotal,
+      spend: input.spend,
+    });
+  }
+
+  async applyCompletion(db: Prisma.TransactionClient | PrismaService, input: {
+    businessId: string;
+    phone?: string | null;
+    name?: string | null;
+    visitKey: string;
+    orderId?: string | null;
+    subtotal?: number;
+    spend?: number;
+  }) {
+    const phone = canonicalPhone(input.phone);
     if (!phone) return null;
-    const business = await this.prisma.business.findUnique({
+    const customer = await resolveCustomer(db, phone, input.name);
+    await this.noteOnce(db, {
+      businessId: input.businessId,
+      customerId: customer.id,
+      sourceKey: `visit:${input.visitKey}`,
+      visit: true,
+    });
+    if (input.orderId && input.spend != null) {
+      await this.noteOnce(db, {
+        businessId: input.businessId,
+        customerId: customer.id,
+        sourceKey: `spend:${input.orderId}`,
+        spend: input.spend,
+      });
+    }
+
+    const business = await db.business.findUnique({
       where: { id: input.businessId },
       select: { type: true },
     });
     if (!business || !isRestaurant(business.type)) return null;
-    let program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId: input.businessId } });
-    if (!program) {
-      program = await this.prisma.loyaltyProgram.create({
-        data: { businessId: input.businessId, type: LoyaltyProgramType.VISIT_STAMPS, stampsPerVisit: 1, stampsForReward: 8 },
-      });
-    } else if (program.type !== LoyaltyProgramType.VISIT_STAMPS) {
-      program = await this.prisma.loyaltyProgram.update({
-        where: { id: program.id },
-        data: { type: LoyaltyProgramType.VISIT_STAMPS, stampsPerVisit: 1, stampsForReward: program.stampsForReward || 8 },
-      });
-    }
+    const program = await db.loyaltyProgram.findUnique({ where: { businessId: input.businessId } });
+    if (!program) return null;
+    const award = loyaltyAward(
+      {
+        type: program.type,
+        stampsPerVisit: program.stampsPerVisit,
+        pointsPerRupee: program.pointsPerRupee == null ? null : Number(program.pointsPerRupee),
+      },
+      input.subtotal || 0,
+    );
+    if (!award) return null;
 
-    const customer = await this.prisma.customer.upsert({
-      where: { phone },
-      update: input.name ? { name: input.name } : {},
-      create: { phone, name: input.name || undefined },
-    });
-    const account = await this.prisma.loyaltyAccount.upsert({
+    const account = await db.loyaltyAccount.upsert({
       where: { programId_customerId: { programId: program.id, customerId: customer.id } },
       update: {},
       create: { programId: program.id, customerId: customer.id },
     });
-    const existing = await this.prisma.loyaltyTransaction.findFirst({
-      where: { accountId: account.id, type: 'STAMP', reason: input.sourceKey },
-      select: { id: true },
-    });
-    if (existing) return account;
-
-    await this.prisma.loyaltyTransaction.create({
-      data: {
-        accountId: account.id,
-        orderId: input.orderId || undefined,
-        type: 'STAMP',
-        points: 1,
-        reason: input.sourceKey,
-      },
-    });
-    return this.prisma.loyaltyAccount.update({
+    try {
+      await db.loyaltyTransaction.create({
+        data: {
+          accountId: account.id,
+          orderId: input.orderId || undefined,
+          type: award.kind === 'stamps' ? 'STAMP' : 'EARN',
+          points: award.amount,
+          reason: award.kind === 'stamps' ? 'Completed visit' : 'Completed order',
+          sourceKey: loyaltySourceKey(program.type, input.visitKey, input.orderId),
+        },
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) return account;
+      throw error;
+    }
+    return db.loyaltyAccount.update({
       where: { id: account.id },
-      data: { stamps: { increment: 1 } },
+      data: award.kind === 'stamps'
+        ? { stamps: { increment: award.amount } }
+        : { points: { increment: award.amount } },
+    });
+  }
+
+  private async noteOnce(
+    db: Prisma.TransactionClient | PrismaService,
+    input: { businessId: string; customerId: string; sourceKey: string; visit?: boolean; spend?: number },
+  ) {
+    try {
+      await db.customerVisit.create({
+        data: { businessId: input.businessId, customerId: input.customerId, sourceKey: input.sourceKey },
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) return;
+      throw error;
+    }
+    await db.customerBusiness.upsert({
+      where: { customerId_businessId: { customerId: input.customerId, businessId: input.businessId } },
+      update: {
+        ...(input.visit ? { visitCount: { increment: 1 }, lastVisitAt: new Date() } : {}),
+        ...(input.spend != null ? { totalSpend: { increment: input.spend } } : {}),
+      },
+      create: {
+        customerId: input.customerId,
+        businessId: input.businessId,
+        visitCount: input.visit ? 1 : 0,
+        totalSpend: input.spend || 0,
+        lastVisitAt: input.visit ? new Date() : undefined,
+      },
     });
   }
 
   private async balanceForPhone(businessId: string, phone: string) {
     const business = await this.prisma.business.findUnique({ where: { id: businessId }, select: { slug: true } });
     if (!business) throw new NotFoundException('Business not found');
-    return this.getCustomerBalance(business.slug, normalizePhone(phone));
+    return this.getCustomerBalance(business.slug, canonicalPhone(phone));
   }
 
   async createReward(
@@ -369,22 +451,18 @@ export class LoyaltyService {
     }
   }
 
-  private async assertBusinessAccess(
-    businessId: string,
-    userId: string,
-    userRole?: string,
-  ) {
-    if (userRole === 'SUPER_ADMIN') return;
-    const staff = await this.prisma.staff.findFirst({
-      where: { businessId, userId, isActive: true },
-      select: { id: true },
-    });
-    if (!staff) throw new ForbiddenException('You do not have access to this restaurant loyalty program');
+  private async assertBusinessAccess(businessId: string, userId: string, _userRole?: string) {
+    await this.access.requireStaff(userId, businessId);
   }
 }
 
-function normalizePhone(phone?: string | null) {
-  return (phone || '').replace(/[^\d+]/g, '');
+function canonicalPhone(phone?: string | null) {
+  if (!phone) return '';
+  try {
+    return normalizePhone(phone);
+  } catch {
+    return '';
+  }
 }
 
 function isRestaurant(type?: BusinessType | null) {

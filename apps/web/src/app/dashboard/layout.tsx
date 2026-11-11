@@ -169,8 +169,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname]);
 
   const handleLogout = () => {
-    localStorage.clear();
-    router.push('/auth/login');
+    const token = localStorage.getItem('accessToken');
+    const finish = () => {
+      localStorage.clear();
+      router.push('/auth/login');
+    };
+    if (!token) {
+      finish();
+      return;
+    }
+    void fetch(`${getApiUrl()}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).finally(finish);
   };
 
   if (planStatus === 'LAPSED') {

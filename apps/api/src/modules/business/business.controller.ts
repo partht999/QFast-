@@ -102,8 +102,8 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get business details by ID' })
-  async findOne(@Param('id') id: string) {
-    return this.businessService.findById(id);
+    async findOne(@Param('id') id: string, @Req() req: any) {
+    return this.businessService.findById(id, req.user.sub);
   }
 
   @Get(':id/staff')

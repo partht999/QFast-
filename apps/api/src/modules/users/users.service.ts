@@ -45,7 +45,13 @@ export class UsersService {
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) throw new BadRequestException('Current password is incorrect');
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
     return { ok: true };
   }
 }

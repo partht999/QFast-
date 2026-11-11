@@ -14,7 +14,7 @@ import { QueueService } from './queue.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { QueueTokenStatus } from '@prisma/client';
+import { QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('queue')
@@ -41,27 +41,37 @@ export class QueueController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Customer joins queue via entrance QR' })
   async joinQueue(@Param('slug') slug: string, @Body() dto: JoinQueueDto) {
-    return this.queueService.joinQueue(slug, dto);
+    return this.queueService.joinQueue(slug, { ...dto, source: QueueEntrySource.REMOTE });
   }
 
   @Get('public/token/:tokenId')
   @ApiOperation({ summary: 'Track a specific queue token in real-time' })
-  async getToken(@Param('tokenId') tokenId: string) {
-    return this.queueService.getToken(tokenId);
+  async getToken(@Param('tokenId') tokenId: string, @Query('secret') secret?: string) {
+    return this.queueService.getToken(tokenId, secret);
   }
 
   @Post('public/token/:tokenId/on-the-way')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Remote guest confirms they are on the way' })
-  async markOnTheWay(@Param('tokenId') tokenId: string) {
-    return this.queueService.markOnTheWay(tokenId);
+  async markOnTheWay(
+    @Param('tokenId') tokenId: string,
+    @Query('secret') querySecret?: string,
+    @Body('secret') bodySecret?: string,
+  ) {
+    return this.queueService.markOnTheWay(tokenId, bodySecret || querySecret);
   }
 
   @Post('public/token/:tokenId/cancel')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Customer cancels their queue token' })
-  async cancelToken(@Param('tokenId') tokenId: string) {
-    return this.queueService.cancelToken(tokenId);
+  async cancelToken(
+    @Param('tokenId') tokenId: string,
+    @Query('secret') querySecret?: string,
+    @Body('secret') bodySecret?: string,
+  ) {
+    return this.queueService.cancelToken(tokenId, bodySecret || querySecret);
   }
 
   // ── Staff & Management Endpoints ───────────────────────────────────────────

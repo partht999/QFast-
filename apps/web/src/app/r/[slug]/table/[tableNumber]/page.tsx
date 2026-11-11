@@ -21,12 +21,14 @@ import {
 } from 'lucide-react';
 import { BackLink, releaseOverlayHistory, useOverlayHistory } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
+import { guestTokenUrl, readGuestToken } from '@/lib/guest-token';
 import { isIndianMobile, localMobile } from '@/lib/phone';
 
 interface CartItem {
   id: string;
   name: string;
   price: number;
+  taxRate: number;
   quantity: number;
   isVeg: boolean;
   specialNote?: string;
@@ -76,9 +78,11 @@ export default function TableOrderPage() {
 
   useEffect(() => {
     if (isFixedTable) return;
-    const tokenId = tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : null);
-    if (tokenId) {
-      fetch(`${apiUrl}/api/v1/queue/public/token/${tokenId}`)
+    const stored = typeof window !== 'undefined' ? readGuestToken(slug) : { id: '', secret: '' };
+    const tokenId = tokenParam || stored.id || null;
+    const secret = stored.secret;
+    if (tokenId && secret) {
+      fetch(guestTokenUrl(apiUrl, tokenId, secret))
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED')) {
@@ -128,6 +132,7 @@ export default function TableOrderPage() {
           id: item.id,
           name: item.name,
           price: Number(item.price),
+          taxRate: Number(item.taxRate || 0),
           quantity: 1,
           isVeg: item.isVeg,
         },
@@ -157,9 +162,11 @@ export default function TableOrderPage() {
   };
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const gstAmount = Math.round(subtotal * 0.05 * 100) / 100;
+  const taxAmount = Math.round(
+    cart.reduce((acc, item) => acc + Math.round(item.price * item.quantity * (item.taxRate / 100) * 100) / 100, 0) * 100,
+  ) / 100;
   const tipAmount = tipPercentage > 0 ? Math.round((subtotal * tipPercentage) / 100) : 0;
-  const total = subtotal + gstAmount + tipAmount;
+  const total = subtotal + taxAmount + tipAmount;
   const totalCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -553,7 +560,7 @@ export default function TableOrderPage() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-black text-neutral-900">₹{total.toFixed(2)}</span>
-                <span className="text-[10px] text-neutral-400 font-medium">(incl. GST)</span>
+                {taxAmount > 0 && <span className="text-[10px] text-neutral-400 font-medium">(incl. tax)</span>}
               </div>
             </div>
 
@@ -758,8 +765,8 @@ export default function TableOrderPage() {
                     <span>₹{subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-neutral-500">
-                    <span>GST (5%)</span>
-                    <span>₹{gstAmount.toFixed(2)}</span>
+                    <span>Tax</span>
+                    <span>₹{taxAmount.toFixed(2)}</span>
                   </div>
                   {tipAmount > 0 && (
                     <div className="flex justify-between text-neutral-500">

@@ -6,15 +6,11 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { JwtService } from '@nestjs/jwt';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new owner account' })
@@ -34,11 +30,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using a refresh token' })
   async refresh(@Body() dto: RefreshDto) {
-    const payload = this.jwtService.decode(dto.refreshToken) as any;
-    if (!payload?.sub) {
-      throw new Error('Invalid refresh token');
-    }
-    return this.authService.refreshTokens(payload.sub, dto.refreshToken);
+    return this.authService.refreshTokens(dto.refreshToken);
   }
 
   @Post('logout')

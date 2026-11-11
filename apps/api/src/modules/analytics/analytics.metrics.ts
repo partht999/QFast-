@@ -17,6 +17,26 @@
  * Peak hours: hour-of-day with the most joins, in the restaurant timezone.
  */
 
+import {
+  addCalendarDays,
+  inclusiveDays,
+  isIsoDate,
+  localDate,
+  safeTimeZone,
+  zonedStartUtc,
+} from '../../common/time';
+
+export {
+  addCalendarDays,
+  businessDayRange,
+  inclusiveDays,
+  isIsoDate,
+  localDate,
+  safeTimeZone,
+  timeZoneOffsetMs,
+  zonedStartUtc,
+} from '../../common/time';
+
 export const MAX_DURATION_SECONDS = 12 * 60 * 60;
 export const MAX_RANGE_DAYS = 366;
 
@@ -112,67 +132,6 @@ export function average(sum: number, samples: number): number | null {
   const value = sum / samples;
   if (!Number.isFinite(value)) return null;
   return Math.round(value);
-}
-
-export function isIsoDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
-export function addCalendarDays(isoDate: string, days: number) {
-  const [year, month, day] = isoDate.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
-}
-
-export function inclusiveDays(from: string, to: string) {
-  const start = Date.parse(`${from}T00:00:00Z`);
-  const end = Date.parse(`${to}T00:00:00Z`);
-  return Math.round((end - start) / 86_400_000) + 1;
-}
-
-export function localDate(instant: Date, timeZone: string) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
-}
-
-export function timeZoneOffsetMs(instant: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(instant);
-  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
-  const hour = read('hour') === 24 ? 0 : read('hour');
-  const asUtc = Date.UTC(read('year'), read('month') - 1, read('day'), hour, read('minute'), read('second'));
-  return asUtc - instant.getTime();
-}
-
-/** UTC instant of local midnight on isoDate. DST-safe for the tested zones. */
-export function zonedStartUtc(isoDate: string, timeZone: string) {
-  const [year, month, day] = isoDate.split('-').map(Number);
-  const utcMidnight = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-  let offset = timeZoneOffsetMs(utcMidnight, timeZone);
-  let result = new Date(utcMidnight.getTime() - offset);
-  offset = timeZoneOffsetMs(result, timeZone);
-  result = new Date(utcMidnight.getTime() - offset);
-  return result;
-}
-
-export function safeTimeZone(value: string | null | undefined) {
-  const candidate = value?.trim() || 'Asia/Kolkata';
-  try {
-    Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date());
-    return candidate;
-  } catch {
-    return 'Asia/Kolkata';
-  }
 }
 
 export function resolveRange(input: { from?: string; to?: string; timeZone: string; now?: Date }) {

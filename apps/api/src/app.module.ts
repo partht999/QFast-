@@ -14,12 +14,17 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { AccessModule } from './modules/access/access.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '../.env', '../../.env'],
+    }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
+    AccessModule,
     EventsModule,
     AuthModule,
     UsersModule,

@@ -2,12 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { OrderStatus, QueueTokenStatus } from '@prisma/client';
+import { AccessService } from '../access/access.service';
+import { STAFF_ROLES } from '../access/access.rules';
 
 @Injectable()
 export class TablesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: AccessService,
+  ) {}
 
-  async getTables(businessId: string) {
+  async getTables(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.floor);
     return this.prisma.table.findMany({
       where: { businessId, isActive: true },
       include: {
@@ -39,7 +45,8 @@ export class TablesService {
     });
   }
 
-  async createTable(businessId: string, dto: CreateTableDto) {
+  async createTable(businessId: string, dto: CreateTableDto, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.floor);
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
     });
@@ -66,7 +73,8 @@ export class TablesService {
     });
   }
 
-  async updateTable(id: string, dto: Partial<CreateTableDto>) {
+  async updateTable(id: string, dto: Partial<CreateTableDto>, userId: string) {
+    await this.access.requireTable(userId, id, STAFF_ROLES.floor);
     const table = await this.prisma.table.findUnique({
       where: { id },
       include: { business: { select: { slug: true } }, qrCode: true },
@@ -90,7 +98,8 @@ export class TablesService {
     return updated;
   }
 
-  async deleteTable(id: string) {
+  async deleteTable(id: string, userId: string) {
+    await this.access.requireTable(userId, id, STAFF_ROLES.floor);
     return this.prisma.table.update({
       where: { id },
       data: { isActive: false },
@@ -130,10 +139,24 @@ export class TablesService {
 
     if (!table) throw new NotFoundException(`Table '${tableName}' not found`);
 
+    const active = table.orders[0];
     return {
-      business,
-      table,
-      activeOrder: table.orders[0] || null,
+      business: {
+        id: business.id,
+        name: business.name,
+        slug: business.slug,
+        currencyCode: business.currencyCode,
+        logoUrl: business.logoUrl,
+      },
+      table: { id: table.id, name: table.name, capacity: table.capacity },
+      activeOrder: active
+        ? {
+            id: active.id,
+            status: active.status,
+            totalAmount: active.totalAmount,
+            items: active.items,
+          }
+        : null,
     };
   }
 }

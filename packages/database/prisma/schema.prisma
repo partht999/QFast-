@@ -286,6 +286,7 @@ model Business {
   messageCreditLedger  MessageCreditLedger[]
   payments             Payment[]
   media                MediaAsset[]
+  visits               CustomerVisit[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 }
@@ -362,6 +363,7 @@ model Customer {
   businesses      CustomerBusiness[]
   consents        CustomerConsent[]
   loyaltyAccounts LoyaltyAccount[]
+  visits          CustomerVisit[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 }
@@ -384,6 +386,19 @@ model CustomerBusiness {
 
   @@unique([customerId, businessId])
   @@index([businessId])
+}
+
+model CustomerVisit {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  sourceKey  String
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, sourceKey])
+  @@index([customerId])
 }
 
 model CustomerConsent {
@@ -542,6 +557,7 @@ model QueueToken {
   customerId       String?
   customerName     String
   customerPhone    String
+  guestSecretHash  String?
   partySize        Int              @default(1)
   tokenNumber      Int
   status           QueueTokenStatus @default(WAITING)
@@ -561,11 +577,14 @@ model QueueToken {
   notes            String?
   tableId          String?
   table            Table?           @relation(fields: [tableId], references: [id])
+  sequenceDate     String?
+  activePhoneKey   String?          @unique
   orders           Order[]
   reviewRequests   ReviewRequest[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  @@unique([queueId, sequenceDate, tokenNumber])
   @@index([queueId, status])
   @@index([queueId, createdAt])
   @@index([queueId, status, createdAt])
@@ -856,6 +875,7 @@ model Feedback {
   status      FeedbackStatus       @default(NEW)
   assignedTo  String?
   resolvedAt  DateTime?
+  dedupeKey   String?              @unique
   itemRatings FeedbackItemRating[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
@@ -945,12 +965,14 @@ model LoyaltyTransaction {
   type      String
   points    Int
   reason    String?
+  sourceKey String?
   adminNote String?
   expiresAt DateTime?
   createdAt DateTime       @default(now())
 
   @@index([accountId])
   @@unique([accountId, orderId, type])
+  @@unique([accountId, sourceKey])
 }
 
 // ─── Offers & Campaigns ──────────────────────────────────────────────────────

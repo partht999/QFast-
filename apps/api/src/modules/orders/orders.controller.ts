@@ -6,13 +6,15 @@ import {
   Body,
   Param,
   UseGuards,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrderStatus } from '@prisma/client';
-import { BadRequestException } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -22,25 +24,15 @@ export class OrdersController {
   // ── Public Customer Endpoints ──────────────────────────────────────────────
 
   @Post('public/partner/:slug')
-  @ApiOperation({ summary: 'Accept a Swiggy or Zomato order into the kitchen' })
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Accept a partner order webhook. This is not a live Swiggy or Zomato connection.' })
   async partnerOrder(
     @Param('slug') slug: string,
-    @Body()
-    body: {
-      provider?: 'SWIGGY' | 'ZOMATO';
-      secret?: string;
-      externalId?: string;
-      customerName?: string;
-      items?: Array<{ name: string; quantity: number; price: number }>;
-    },
+    @Body() body: { secret?: string },
   ) {
-    return this.ordersService.ingestPartnerOrder(slug, {
-      provider: body.provider === 'ZOMATO' ? 'ZOMATO' : 'SWIGGY',
-      secret: body.secret || '',
-      externalId: body.externalId || '',
-      customerName: body.customerName,
-      items: body.items || [],
-    });
+    const { secret, ...payload } = body || {};
+    return this.ordersService.ingestPartnerOrder(slug, { secret: secret || '', body: payload });
   }
 
   @Post('public')
@@ -77,8 +69,8 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mark one order paid after the kitchen is finished' })
-  async markPaid(@Param('id') id: string) {
-    return this.ordersService.markOrderPaid(id);
+  async markPaid(@Param('id') id: string, @Req() req: any) {
+    return this.ordersService.markOrderPaid(id, req.user.sub);
   }
 
   @Get('public/:orderId')
@@ -93,16 +85,16 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get active orders for Kitchen Display System (KDS)' })
-  async getActiveOrders(@Param('businessId') businessId: string) {
-    return this.ordersService.getActiveOrders(businessId);
+  async getActiveOrders(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.ordersService.getActiveOrders(businessId, req.user.sub);
   }
 
   @Get('recent-completed/:businessId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get recently completed orders for KDS ticket recall' })
-  async getRecentCompletedOrders(@Param('businessId') businessId: string) {
-    return this.ordersService.getRecentCompletedOrders(businessId);
+  async getRecentCompletedOrders(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.ordersService.getRecentCompletedOrders(businessId, req.user.sub);
   }
 
   @Patch(':id/status')
@@ -112,16 +104,17 @@ export class OrdersController {
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: OrderStatus,
+    @Req() req: any,
   ) {
-    return this.ordersService.updateOrderStatus(id, status);
+    return this.ordersService.updateOrderStatus(id, status, req.user.sub);
   }
 
   @Get('overview/:businessId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get overview metrics & today sales for restaurant dashboard' })
-  async getOverview(@Param('businessId') businessId: string) {
-    return this.ordersService.getOverviewStats(businessId);
+  async getOverview(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.ordersService.getOverviewStats(businessId, req.user.sub);
   }
 }
 

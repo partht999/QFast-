@@ -145,7 +145,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error(readApiError(data, 'Could not change password'));
       setCurrentPassword('');
       setNewPassword('');
-      toast.success('Password updated');
+      toast.success('Password updated', 'Other signed-in sessions on this account were signed out.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not change password');
     } finally {
@@ -265,9 +265,9 @@ export default function SettingsPage() {
           }}
           className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5"
         >
-          <h2 className="text-lg font-black text-neutral-950">Swiggy and Zomato</h2>
+          <h2 className="text-lg font-black text-neutral-950">Order webhooks</h2>
           <p className="text-sm text-neutral-500">
-            Paste a secret, then send orders to <span className="font-mono text-xs">/api/v1/orders/public/partner/your-slug</span> with that secret. They show on the kitchen screen and stay off the QR menu.
+            These secrets accept orders you forward yourself. This is not a live Swiggy or Zomato connection. Each item name and price has to match a dish already on your menu. Send them to <span className="font-mono text-xs">/api/v1/orders/public/partner/your-slug</span>.
           </p>
           <label className="block text-sm font-semibold text-neutral-800">
             Swiggy webhook secret

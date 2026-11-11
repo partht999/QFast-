@@ -2,10 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateMenuItemDto, UpdateMenuItemDto } from './dto/create-item.dto';
+import { AccessService } from '../access/access.service';
+import { STAFF_ROLES } from '../access/access.rules';
 
 @Injectable()
 export class MenuService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: AccessService,
+  ) {}
 
   async getPublicMenuBySlug(slug: string) {
     const business = await this.prisma.business.findUnique({
@@ -43,7 +48,8 @@ export class MenuService {
     };
   }
 
-  async getBusinessMenu(businessId: string) {
+  async getBusinessMenu(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.manager);
     let menu = await this.prisma.menu.findFirst({
       where: { businessId, isDefault: true },
       include: {
@@ -80,8 +86,9 @@ export class MenuService {
     return menu;
   }
 
-  async createCategory(businessId: string, dto: CreateCategoryDto) {
-    const menu = await this.getBusinessMenu(businessId);
+  async createCategory(businessId: string, dto: CreateCategoryDto, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.manager);
+    const menu = await this.getBusinessMenu(businessId, userId);
     return this.prisma.menuCategory.create({
       data: {
         menuId: menu.id,
@@ -92,20 +99,23 @@ export class MenuService {
     });
   }
 
-  async updateCategory(id: string, dto: Partial<CreateCategoryDto>) {
+  async updateCategory(id: string, dto: Partial<CreateCategoryDto>, userId: string) {
+    await this.access.requireMenuCategory(userId, id, STAFF_ROLES.manager);
     return this.prisma.menuCategory.update({
       where: { id },
       data: dto,
     });
   }
 
-  async deleteCategory(id: string) {
+  async deleteCategory(id: string, userId: string) {
+    await this.access.requireMenuCategory(userId, id, STAFF_ROLES.manager);
     return this.prisma.menuCategory.delete({
       where: { id },
     });
   }
 
-  async createItem(dto: CreateMenuItemDto) {
+  async createItem(dto: CreateMenuItemDto, userId: string) {
+    await this.access.requireMenuCategory(userId, dto.categoryId, STAFF_ROLES.manager);
     return this.prisma.menuItem.create({
       data: {
         categoryId: dto.categoryId,
@@ -121,7 +131,8 @@ export class MenuService {
     });
   }
 
-  async updateItem(id: string, dto: UpdateMenuItemDto) {
+  async updateItem(id: string, dto: UpdateMenuItemDto, userId: string) {
+    await this.access.requireMenuItem(userId, id, STAFF_ROLES.manager);
     return this.prisma.menuItem.update({
       where: { id },
       data: {
@@ -131,7 +142,8 @@ export class MenuService {
     });
   }
 
-  async toggleItemAvailability(id: string) {
+  async toggleItemAvailability(id: string, userId: string) {
+    await this.access.requireMenuItem(userId, id, STAFF_ROLES.manager);
     const item = await this.prisma.menuItem.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Item not found');
 
@@ -141,7 +153,8 @@ export class MenuService {
     });
   }
 
-  async deleteItem(id: string) {
+  async deleteItem(id: string, userId: string) {
+    await this.access.requireMenuItem(userId, id, STAFF_ROLES.manager);
     return this.prisma.menuItem.delete({
       where: { id },
     });
