@@ -86,8 +86,8 @@ export default function OnboardingPage() {
     setForm((f) => ({ ...f, name, slug }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: { preventDefault?: () => void }) => {
+    e?.preventDefault?.();
     setLoading(true);
     setError('');
 
@@ -302,10 +302,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 disabled={!form.name.trim() || form.slug.trim().length < 3 || loading}
-                onClick={(event) => {
-                  event.preventDefault();
-                  void handleSubmit(event as unknown as React.FormEvent);
-                }}
+                onClick={() => void handleSubmit()}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md text-sm flex items-center justify-center gap-2"
               >
                 {loading ? 'Opening your queue…' : 'Open my queue'} <ArrowRight className="h-4 w-4" />

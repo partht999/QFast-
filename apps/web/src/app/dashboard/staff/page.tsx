@@ -80,7 +80,11 @@ export default function StaffPage() {
             <span className="text-neutral-500">{roles.find((item) => item.id === person.role)?.label || person.role}</span>
           </li>
         ))}
-        {staff.length === 0 && <li className="px-4 py-6 text-sm text-neutral-500">No one else yet.</li>}
+        {staff.length === 0 && (
+          <li className="px-4 py-8 text-sm leading-6 text-neutral-500">
+            No staff yet. Add a username for the front desk, kitchen, or cashier. They sign in with that username and password.
+          </li>
+        )}
       </ul>
       <form onSubmit={submit} className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-5">
         <label className="block text-sm font-semibold">
@@ -89,7 +93,7 @@ export default function StaffPage() {
         </label>
         <label className="block text-sm font-semibold">
           Password
-          <input required minLength={8} type="text" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5" />
         </label>
         <label className="block text-sm font-semibold">
           Mode

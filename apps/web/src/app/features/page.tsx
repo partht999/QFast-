@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Check, Ticket, CalendarDays, QrCode, Bell, ShieldCheck, Users, Sparkles } from 'lucide-react';
+import { ArrowRight, Ticket, QrCode, Bell, ShieldCheck, Users, Sparkles, UtensilsCrossed, Gift, Receipt } from 'lucide-react';
 import { MarketingHeader } from '@/components/marketing-header';
 import { MarketingFooter } from '@/components/marketing-footer';
 
@@ -21,9 +21,19 @@ export default function FeaturesPage() {
       desc: 'While the join page stays open, the customer sees their place, the wait, and when they are called.',
     },
     {
-      icon: CalendarDays,
-      title: 'One queue, then the table',
-      desc: 'Everyone waits in one line. Restaurants can add food while waiting, get a table when it is their turn, and see the bill at the end.',
+      icon: UtensilsCrossed,
+      title: 'Table QR ordering',
+      desc: 'A table code opens the menu for that table. Guests order without joining the entrance queue, then see the bill for that visit.',
+    },
+    {
+      icon: Receipt,
+      title: 'A bill the guest can read',
+      desc: 'The running bill shows the business, table or token, items, GST, and the total. After it closes, the visit ends.',
+    },
+    {
+      icon: Gift,
+      title: 'Stamp cards',
+      desc: 'The phone number collected at the visit earns a stamp. A full card tells the guest to show the phone at the counter.',
     },
     {
       icon: ShieldCheck,
@@ -71,9 +81,9 @@ export default function FeaturesPage() {
         </div>
 
         <div className="mt-16 rounded-3xl bg-slate-50 p-8 sm:p-12 border border-slate-200 text-center">
-          <h2 className="text-2xl font-black sm:text-3xl">Ready to streamline your queues?</h2>
+          <h2 className="text-2xl font-black sm:text-3xl">Open a queue in one sitting.</h2>
           <p className="mt-3 text-slate-600 max-w-xl mx-auto text-sm leading-6">
-            Join hundreds of forward-thinking businesses using Qfast to eliminate chaos, respect customer time, and boost operational throughput.
+            Create the workspace, print the entrance QR, and call the next person from the staff board. The full product is free for 30 days.
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Link

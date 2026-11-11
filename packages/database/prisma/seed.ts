@@ -100,7 +100,7 @@ async function main() {
     PlanTier.ADVANCED,
     {
       name: 'Advanced',
-      description: 'The full workspace. Free to use right now.',
+      description: 'The full workspace. Free for 30 days, then a subscription.',
       priceMonthly: 3999,
       priceYearly: 39990,
     },

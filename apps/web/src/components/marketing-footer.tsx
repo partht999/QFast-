@@ -11,7 +11,7 @@ const industryLinks = [
 ];
 
 export function MarketingFooter() {
-  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@qfast.in';
 
   return (
     <footer className="border-t border-slate-200 bg-slate-50 px-5 py-12 sm:px-8">
@@ -28,7 +28,7 @@ export function MarketingFooter() {
           <ul className="mt-4 space-y-3 text-sm text-slate-600">
             <li><Link href="/#how-it-works" className="hover:text-orange-600">How it works</Link></li>
             <li><Link href="/features" className="hover:text-orange-600">Features</Link></li>
-            <li><Link href="/#advanced" className="hover:text-orange-600">Advanced plan</Link></li>
+            <li><Link href="/#advanced" className="hover:text-orange-600">Pricing</Link></li>
             <li><Link href="/auth/login" className="hover:text-orange-600">Log in</Link></li>
           </ul>
         </div>
@@ -45,9 +45,8 @@ export function MarketingFooter() {
           <ul className="mt-4 space-y-3 text-sm text-slate-600">
             <li><Link href="/about" className="hover:text-orange-600">About</Link></li>
             <li><Link href="/contact" className="hover:text-orange-600">Contact & support</Link></li>
-            {supportEmail && <li><a href={`mailto:${supportEmail}`} className="hover:text-orange-600">{supportEmail}</a></li>}
+            <li><a href={`mailto:${supportEmail}`} className="hover:text-orange-600">{supportEmail}</a></li>
           </ul>
-          {!supportEmail && <p className="mt-3 text-xs leading-5 text-slate-400">Support contact details will be published here.</p>}
         </div>
       </div>
       <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">

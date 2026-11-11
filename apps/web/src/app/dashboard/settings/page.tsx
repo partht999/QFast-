@@ -157,7 +157,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6">
       <div>
         <h1 className="text-2xl font-black text-neutral-950">Settings</h1>
         <p className="mt-1 text-sm text-neutral-500">

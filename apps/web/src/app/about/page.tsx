@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Zap, Target, Users, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { ArrowRight, Target, Users, ShieldCheck } from 'lucide-react';
 import { MarketingHeader } from '@/components/marketing-header';
 import { MarketingFooter } from '@/components/marketing-footer';
 

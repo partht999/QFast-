@@ -96,7 +96,7 @@ export default function HomePage() {
                 href="/#advanced"
                 className="inline-flex items-center rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white/15"
               >
-                Advanced plan
+                Pricing
               </Link>
             </div>
             <p className="mt-4 text-xs text-slate-400">The full product is free for 30 days. After that, a subscription keeps the queue open.</p>

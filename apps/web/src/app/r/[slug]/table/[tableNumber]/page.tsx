@@ -358,7 +358,7 @@ export default function TableOrderPage() {
         <div className="max-w-2xl mx-auto px-4 overflow-x-auto no-scrollbar flex items-center gap-2 py-2 border-t border-neutral-100">
           <button
             onClick={() => setSelectedCategory('ALL')}
-            className={`px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === 'ALL'
+            className={`min-h-11 shrink-0 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === 'ALL'
                 ? 'bg-orange-500 text-white shadow-xs'
                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'
               }`}
@@ -369,7 +369,7 @@ export default function TableOrderPage() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.name)}
-              className={`px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === cat.name
+              className={`min-h-11 shrink-0 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === cat.name
                   ? 'bg-orange-500 text-white shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'
                 }`}

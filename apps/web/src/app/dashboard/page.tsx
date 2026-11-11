@@ -315,7 +315,7 @@ export default function DashboardPage() {
               <div className="relative z-10 max-w-xl">
                 <div className="flex items-center gap-2.5 mb-2">
                   <span className="text-[11px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                    {`Active ${BUSINESS_TYPES.find((type) => type.value === selectedBusiness?.type)?.label || 'business'}`}
+                    {BUSINESS_TYPES.find((type) => type.value === selectedBusiness?.type)?.label || 'Business'}
                   </span>
                   <span className="text-xs text-neutral-400">
                     Plan: <strong className="text-white uppercase font-bold">{selectedBusiness?.subscriptions?.[0]?.plan?.name || 'Free'}</strong>

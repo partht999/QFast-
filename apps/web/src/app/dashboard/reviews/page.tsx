@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   Star,
   ShieldCheck,
@@ -11,7 +10,6 @@ import {
   MessageSquare,
   HelpCircle,
   Save,
-  ArrowLeft,
   Filter,
   AlertTriangle,
   Sparkles,
@@ -161,31 +159,23 @@ export default function ReviewsManagementPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       {/* Top Header */}
       <header className="bg-white border-b border-gray-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-xs font-bold transition-colors bg-gray-100 px-3 py-1.5 rounded-xl"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Dashboard</span>
-          </Link>
-          <span className="text-gray-300">/</span>
-          <div className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Star className="h-5 w-5 shrink-0 fill-amber-400 text-amber-500" />
             <h1 className="text-base font-extrabold text-gray-900">
               {isFoodBusiness(business?.type) ? 'Reviews' : 'Google review'}
             </h1>
-            {!isFoodBusiness(business?.type) && (
-              <p className="mt-1 text-xs text-gray-500">
-                {isClinicalBusiness(business?.type)
-                  ? 'When a visit is marked complete, the patient is asked to leave a Google review. Paste the Place ID below.'
-                  : 'When a visit is marked complete, the customer is asked to leave a Google review. Paste the Place ID below.'}
-              </p>
-            )}
-            <span className="text-xs bg-amber-50 text-amber-800 font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
-              ★ {feedbackData.averageRating.toFixed(1)} Average
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+              ★ {items.length > 0 ? feedbackData.averageRating.toFixed(1) : '—'} average
             </span>
           </div>
+          {!isFoodBusiness(business?.type) && (
+            <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500">
+              {isClinicalBusiness(business?.type)
+                ? 'When a visit is marked complete, the patient is asked to leave a Google review. Paste the Place ID below.'
+                : 'When a visit is marked complete, the customer is asked to leave a Google review. Paste the Place ID below.'}
+            </p>
+          )}
         </div>
       </header>
 
@@ -209,10 +199,10 @@ export default function ReviewsManagementPage() {
               Google Funnel Stats
             </span>
             <div className="text-3xl font-black text-white">
-              {items.length > 0 ? Math.round((positiveCount / items.length) * 100) : 100}%
+              {items.length > 0 ? `${Math.round((positiveCount / items.length) * 100)}%` : '—'}
             </div>
             <p className="text-[11px] text-emerald-100">
-              {positiveCount} happy customers guided to Google
+              {items.length > 0 ? `${positiveCount} of ${items.length} rated 4 or 5` : 'No reviews yet'}
             </p>
           </div>
         </div>

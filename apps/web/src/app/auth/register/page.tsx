@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { BrandMark } from '@/components/brand-mark';
+import { AuthShell } from '@/components/auth-shell';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { AVAILABLE_BUSINESS_TYPES, BUSINESS_TYPES, BusinessTypeValue } from '@/lib/business-types';
@@ -76,17 +76,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <BrandMark href="/" tone="light" size="lg" label="Qfast home" />
-        <h1 className="mt-6 text-3xl font-black tracking-tight text-white">Create your workspace</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          The full product is free for 30 days. Create your account, then open a live queue.
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100">
+    <AuthShell title="Create your workspace" subtitle="The full product is free for 30 days. Create your account, then open a live queue.">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="business-type" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
@@ -191,8 +181,6 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </div>
-        </div>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

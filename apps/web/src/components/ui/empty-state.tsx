@@ -36,7 +36,7 @@ export function EmptyState({
       className={`text-center py-12 px-6 rounded-3xl border border-dashed border-gray-200 bg-white/70 backdrop-blur-xs flex flex-col items-center justify-center ${className}`}
     >
       <div className="w-16 h-16 rounded-3xl bg-orange-50 border border-orange-100 flex items-center justify-center mb-4 shadow-xs text-2xl">
-        {Icon ? <Icon className="w-8 h-8 text-orange-500" strokeWidth={1.8} /> : emoji || '✨'}
+        {Icon ? <Icon className="w-8 h-8 text-orange-500" strokeWidth={1.8} /> : emoji || null}
       </div>
 
       <h3 className="text-base font-extrabold text-gray-900 mb-1">{title}</h3>
@@ -44,7 +44,6 @@ export function EmptyState({
 
       {tip && (
         <div className="bg-amber-50/80 border border-amber-200/60 rounded-xl px-3.5 py-2 text-[11px] text-amber-900 max-w-xs mb-5 font-medium flex items-center gap-2">
-          <span>💡</span>
           <span>{tip}</span>
         </div>
       )}
