@@ -9,6 +9,7 @@ import {
   CreditCard,
   ChevronRight,
   Gift,
+  BarChart3,
   LayoutDashboard,
   ListOrdered,
   LogOut,
@@ -29,6 +30,7 @@ import { isFoodBusiness } from '@/lib/business-links';
 
 const navigation = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
   { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
   { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
@@ -42,6 +44,7 @@ const navigation = [
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
+  '/dashboard/analytics': 'Analytics',
   '/dashboard/queue': 'Live Queue',
   '/dashboard/kds': 'Kitchen Display',
   '/dashboard/menu': 'Menu Editor',
@@ -80,9 +83,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return true;
   });
   const visibleNavigation = !businessType
-    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
+    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
+      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
       : roleNavigation;
   const primaryNavigation = visibleNavigation.slice(0, 4);
   const moreNavigation = visibleNavigation.slice(4);

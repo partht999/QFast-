@@ -567,6 +567,9 @@ model QueueToken {
   updatedAt        DateTime         @updatedAt
 
   @@index([queueId, status])
+  @@index([queueId, createdAt])
+  @@index([queueId, status, createdAt])
+  @@index([customerPhone, createdAt])
 }
 
 // ─── Reservations ────────────────────────────────────────────────────────────
