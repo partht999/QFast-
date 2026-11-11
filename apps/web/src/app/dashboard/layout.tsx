@@ -32,7 +32,7 @@ const navigation = [
   { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
   { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
   { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
-  { label: 'QR codes', href: '/dashboard/tables', icon: Utensils },
+  { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
   { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
   { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
   { label: 'Staff', href: '/dashboard/staff', icon: Users },

@@ -7,11 +7,10 @@ import {
   Plus,
   Printer,
   Download,
-  ExternalLink,
   Edit2,
   Trash2,
+  Users,
   X,
-  Sparkles,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { downloadQrCode, generateQrDataUrl } from '@/lib/qr';

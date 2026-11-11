@@ -30,6 +30,7 @@ import { getBusinessPublicPath, isFoodBusiness } from '@/lib/business-links';
 import { describePayments } from '@/lib/payment';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { useOverlayHistory } from '@/components/navigation-memory';
+import { VisitBill } from '@/components/visit-bill';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TodayReport, TodayReportData } from '@/components/today-report';
@@ -284,7 +285,7 @@ export default function DashboardPage() {
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
                   >
                     <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>QR codes</span>
+                    <span>Tables</span>
                   </Link>
                   <Link
                     href="/dashboard/menu"
@@ -663,83 +664,76 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <div className="flex items-center justify-between text-xs bg-gray-50 rounded-2xl p-3">
-              <div>
-                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Dining Option</span>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-2xl bg-gray-50 p-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Where</span>
                 <span className="font-bold text-gray-900">
                   {selectedOrderDetails.table?.name
-                    ? `🍽️ Table ${selectedOrderDetails.table.name}`
+                    ? `Table ${selectedOrderDetails.table.name}`
                     : selectedOrderDetails.source === 'QUEUE_PREORDER'
-                    ? `⏳ Queue Pre-order #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
-                    : '🛍️ Takeaway'}
+                    ? `Queue #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
+                    : 'Takeaway'}
                 </span>
               </div>
-              <div>
-                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Guest Info</span>
+              <div className="rounded-2xl bg-gray-50 p-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Guest</span>
                 <span className="font-bold text-gray-900">
-                  {selectedOrderDetails.customerName || 'Diner'}{' '}
-                  {selectedOrderDetails.customerPhone ? `(${selectedOrderDetails.customerPhone})` : ''}
+                  {selectedOrderDetails.customerName || 'Guest'}
+                  {selectedOrderDetails.customerPhone ? ` · ${selectedOrderDetails.customerPhone}` : ''}
                 </span>
               </div>
-              <div>
-                <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Status</span>
+              <div className="rounded-2xl bg-gray-50 p-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Kitchen</span>
                 <span className="font-bold text-orange-600">{selectedOrderDetails.status}</span>
               </div>
             </div>
 
             {selectedOrderDetails.specialInstructions && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                <span className="font-bold">Customer Cooking Request:</span> {selectedOrderDetails.specialInstructions}
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <span className="font-bold">Note: </span>
+                {selectedOrderDetails.specialInstructions}
               </div>
             )}
 
-            {/* Order Items List */}
-            <div className="space-y-2 max-h-56 overflow-y-auto">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block mb-1">Items</span>
-              {selectedOrderDetails.items?.map((item: any) => (
-                <div key={item.id} className="flex justify-between items-start text-xs border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="font-black text-orange-600 text-sm mr-2">{item.quantity}×</span>
-                    <span className="font-bold text-gray-900">{item.menuItem?.name || 'Dish'}</span>
-                    {item.specialNote && <p className="text-[11px] text-gray-500 italic ml-6">• {item.specialNote}</p>}
-                  </div>
-                  <span className="font-bold text-gray-800">
-                    ₹{Number(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
-                  </span>
-                </div>
-              ))}
+            <div className="max-h-[60vh] overflow-y-auto">
+              <VisitBill
+                title="Invoice"
+                businessName={selectedBusiness?.name}
+                address={selectedBusiness?.address}
+                phone={selectedBusiness?.phone}
+                gstin={selectedBusiness?.gstin}
+                logoUrl={selectedBusiness?.logoUrl}
+                billNo={selectedOrderDetails.id.slice(-6).toUpperCase()}
+                detail={
+                  selectedOrderDetails.table?.name
+                    ? `Table ${selectedOrderDetails.table.name}`
+                    : selectedOrderDetails.source === 'QUEUE_PREORDER'
+                    ? `Queue #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
+                    : 'Takeaway'
+                }
+                downloadName={`invoice-${selectedOrderDetails.id.slice(-6)}`}
+                lines={(selectedOrderDetails.items || []).map((item: any) => ({
+                  id: item.id,
+                  name: item.menuItem?.name || 'Item',
+                  quantity: item.quantity,
+                  amount: Number(item.totalPrice || item.unitPrice * item.quantity || 0),
+                  note: item.specialNote,
+                }))}
+                subtotal={Number(selectedOrderDetails.subtotal || 0)}
+                tax={Number(selectedOrderDetails.taxAmount || 0)}
+                total={Number(selectedOrderDetails.totalAmount || 0)}
+                payments={selectedOrderDetails.payments || []}
+              />
             </div>
 
-            {/* Total Footer */}
-            <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-gray-400">
-                  {describePayments(selectedOrderDetails.payments, Number(selectedOrderDetails.totalAmount || 0)).paid
-                    ? 'Paid'
-                    : 'Due at the counter'}
-                </span>
-                <p className="text-lg font-black text-gray-900">
-                  ₹{Number(selectedOrderDetails.totalAmount).toFixed(2)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={`/r/${selectedBusiness?.slug}/order/${selectedOrderDetails.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors inline-flex items-center gap-1.5"
-                >
-                  <span>Customer View</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setSelectedOrderDetails(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="rounded-xl bg-gray-100 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-200"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
