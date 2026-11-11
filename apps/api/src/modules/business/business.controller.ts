@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessSettingsDto } from './dto/update-business-settings.dto';
-import { IsIn, IsString, MinLength } from 'class-validator';
+import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 class CreateStaffBody {
@@ -18,6 +18,12 @@ class CreateStaffBody {
 
   @IsIn([UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER])
   role!: UserRole;
+}
+
+class UploadPhotoBody {
+  @IsString()
+  @MaxLength(700000)
+  image!: string;
 }
 
 class IntegrationBody {
@@ -57,6 +63,15 @@ export class BusinessController {
   ) {
     const { category, search, location } = req.query;
     return this.businessService.explore(category, search, location);
+  }
+
+  @Post(':id/media')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Store a restaurant or dish photo' })
+  async uploadPhoto(@Param('id') id: string, @Body() body: UploadPhotoBody, @Req() req: any) {
+    const saved = await this.businessService.storePhoto(id, req.user.sub, body.image);
+    return { id: saved.id, url: `${publicOrigin(req)}/api/v1/media/${saved.id}` };
   }
 
   @Patch(':id')
@@ -109,4 +124,12 @@ export class BusinessController {
   async getPublicBySlug(@Param('slug') slug: string) {
     return this.businessService.findBySlug(slug);
   }
+}
+
+function publicOrigin(req: { protocol?: string; get?: (name: string) => string | undefined; headers: Record<string, string | string[] | undefined> }) {
+  const configured = process.env.PUBLIC_API_URL || process.env.RENDER_EXTERNAL_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  const forwarded = req.headers['x-forwarded-proto'];
+  const proto = String(Array.isArray(forwarded) ? forwarded[0] : forwarded || req.protocol || 'http').split(',')[0];
+  return `${proto}://${req.get?.('host') || 'localhost:3001'}`;
 }

@@ -750,9 +750,10 @@ export default function MenuManagementPage() {
               </div>
               <PhotoUpload
                 label="Photo"
+                businessId={business?.id}
                 value={itemForm.imageUrl}
                 onChange={(imageUrl) => setItemForm({ ...itemForm, imageUrl })}
-                hint="Guests see this when they open the dish. JPG, PNG, or WebP."
+                hint="Stored with this dish. Guests see it when they open the item."
               />
 
               <div className="flex justify-end gap-2 pt-2">

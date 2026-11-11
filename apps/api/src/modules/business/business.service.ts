@@ -502,6 +502,30 @@ export class BusinessService {
     return { id: staff.id, username: email, role: staff.role, isActive: staff.isActive };
   }
 
+  async storePhoto(businessId: string, userId: string, image: string) {
+    await this.assertManager(businessId, userId);
+    const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/);
+    if (!match) throw new BadRequestException('Upload a JPG, PNG, or WebP photo');
+    const bytes = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (bytes.length < 32 || bytes.length > 1_500_000) {
+      throw new BadRequestException('Choose a smaller photo');
+    }
+    const asset = await this.prisma.mediaAsset.create({
+      data: { businessId, mimeType: match[1].toLowerCase(), data: bytes },
+      select: { id: true },
+    });
+    return { id: asset.id };
+  }
+
+  async readPhoto(id: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({
+      where: { id },
+      select: { mimeType: true, data: true },
+    });
+    if (!asset) throw new NotFoundException('Photo not found');
+    return { mimeType: asset.mimeType, data: Buffer.from(asset.data) };
+  }
+
   async saveIntegration(businessId: string, userId: string, provider: 'SWIGGY' | 'ZOMATO', webhookSecret: string) {
     await this.assertManager(businessId, userId);
     const secret = webhookSecret.trim();

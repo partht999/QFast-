@@ -2,6 +2,8 @@
 
 import { useId, useState } from 'react';
 import { ImagePlus } from 'lucide-react';
+import { getApiUrl } from '@/lib/api';
+import { readApiError } from '@/lib/read-api-error';
 
 const maxCharacters = 450_000;
 
@@ -51,16 +53,31 @@ export async function readPhotoFile(file: File) {
   throw new Error('This photo is still too large. Try another one.');
 }
 
+export async function uploadStoredPhoto(businessId: string, image: string) {
+  const token = localStorage.getItem('accessToken');
+  if (!token || !businessId) throw new Error('Sign in again before uploading a photo');
+  const response = await fetch(`${getApiUrl()}/api/v1/business/${businessId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.url) throw new Error(readApiError(data, 'Could not store this photo'));
+  return String(data.url);
+}
+
 export function PhotoUpload({
   label,
   value,
   onChange,
   hint,
+  businessId,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   hint?: string;
+  businessId?: string;
 }) {
   const inputId = useId();
   const [error, setError] = useState('');
@@ -82,7 +99,7 @@ export function PhotoUpload({
             htmlFor={inputId}
             className="inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-neutral-900 px-3 text-sm font-semibold text-white"
           >
-            {reading ? 'Reading photo…' : value ? 'Change photo' : 'Upload photo'}
+            {reading ? 'Uploading photo…' : value ? 'Change photo' : 'Upload photo'}
           </label>
           {value && (
             <button
@@ -110,6 +127,7 @@ export function PhotoUpload({
           setReading(true);
           setError('');
           void readPhotoFile(file)
+            .then((image) => (businessId ? uploadStoredPhoto(businessId, image) : Promise.reject(new Error('Save the restaurant before adding a photo'))))
             .then(onChange)
             .catch((err) => setError(err instanceof Error ? err.message : 'Could not use this photo'))
             .finally(() => setReading(false));

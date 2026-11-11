@@ -193,9 +193,10 @@ export default function SettingsPage() {
         </label>
         <PhotoUpload
           label="Logo"
+          businessId={businessId}
           value={logoUrl}
           onChange={setLogoUrl}
-          hint="Shown on the guest page and the bill. JPG, PNG, or WebP."
+          hint="Stored with your restaurant. Guests see it on the page and the bill."
         />
         <label className="block text-sm font-semibold text-neutral-800">
           Instagram
