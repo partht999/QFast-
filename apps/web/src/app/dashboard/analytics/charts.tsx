@@ -11,7 +11,6 @@ import {
   ComposedChart,
   Legend,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -19,26 +18,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Download } from 'lucide-react';
-
-type Point = { label: string; bucket?: string; joined?: number; served?: number; previousJoined?: number | null; previousServed?: number | null; cancelled?: number; noShow?: number };
-
-function csvCell(value: unknown) {
-  const text = value == null ? '' : String(value);
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
-
-function downloadCsv(filename: string, header: string[], rows: unknown[][]) {
-  const body = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
-  const blob = new Blob([`\uFEFF${body}\n`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+type Point = { label: string; bucket?: string; joined?: number; served?: number; previousJoined?: number | null; previousServed?: number | null; cancelled?: number; noShow?: number; revenue?: number };
 
 function useMotion() {
   const [allowed, setAllowed] = useState(true);
@@ -96,67 +76,52 @@ const COLORS = { joined: '#f97316', served: '#059669', previous: '#9ca3af', canc
 
 export function TrafficChart({ points, compare, timeZone, onDrillDay }: { points: Point[]; compare: boolean; timeZone: string; onDrillDay: (day: string) => void }) {
   const motion = useMotion();
-  const [kind, setKind] = useState<'line' | 'bar' | 'area'>('line');
-  const [hidden, setHidden] = useState<Record<string, boolean>>({});
-  const toggle = (entry: { dataKey?: string }) => {
-    if (!entry.dataKey) return;
-    setHidden((current) => ({ ...current, [entry.dataKey as string]: !current[entry.dataKey as string] }));
-  };
-  const common = {
-    data: points,
-    onClick: (state: any) => {
-      const bucket = state?.activePayload?.[0]?.payload?.bucket || '';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) onDrillDay(bucket);
-    },
-  };
-  const series = (
-    <>
-      <CartesianGrid stroke="#f3f4f6" vertical={false} />
-      <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={36} />
-      <Tooltip content={<Tip timeZone={timeZone} />} />
-      <Legend onClick={toggle as never} />
-      {kind === 'bar' ? (
-        <>
-          <Bar dataKey="joined" name="Joined" fill={COLORS.joined} hide={hidden.joined} isAnimationActive={motion} />
-          <Bar dataKey="served" name="Served" fill={COLORS.served} hide={hidden.served} isAnimationActive={motion} />
-        </>
-      ) : kind === 'area' ? (
-        <>
-          <Area dataKey="joined" name="Joined" stroke={COLORS.joined} fill="#ffedd5" hide={hidden.joined} isAnimationActive={motion} />
-          <Area dataKey="served" name="Served" stroke={COLORS.served} fill="#d1fae5" hide={hidden.served} isAnimationActive={motion} />
-        </>
-      ) : (
-        <>
-          <Line dataKey="joined" name="Joined" stroke={COLORS.joined} strokeWidth={2} dot={false} hide={hidden.joined} isAnimationActive={motion} />
-          <Line dataKey="served" name="Served" stroke={COLORS.served} strokeWidth={2} dot={false} hide={hidden.served} isAnimationActive={motion} />
-        </>
-      )}
-      {compare && <Line dataKey="previousJoined" name="Joined, previous period" stroke={COLORS.previous} strokeDasharray="4 4" dot={false} hide={hidden.previousJoined} isAnimationActive={motion} />}
-    </>
-  );
-  const Frame = kind === 'bar' ? BarChart : kind === 'area' ? AreaChart : LineChart;
   return (
     <ChartBoundary title="Customer traffic">
-      <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-label="Customer traffic, joined and served">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-black text-gray-950">Customer traffic</h2>
-          <div className="flex gap-2">
-            {(['line', 'bar', 'area'] as const).map((option) => (
-              <button key={option} type="button" onClick={() => setKind(option)} className={`min-h-11 rounded-lg px-3 text-xs font-bold capitalize ${kind === option ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>{option}</button>
-            ))}
-            <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-gray-200 px-3 text-xs font-bold" onClick={() => downloadCsv('traffic.csv', ['Period', 'Joined', 'Served', 'Previous joined', 'Previous served'], points.map((point) => [point.label, point.joined, point.served, point.previousJoined, point.previousServed]))}>
-              <Download className="h-3.5 w-3.5" /> CSV
-            </button>
-          </div>
-        </div>
-        <div className="h-72">
+      <section className="ui-card p-4 sm:p-5" aria-label="Customer traffic, joined and served">
+        <h2 className="text-base font-semibold text-neutral-950">Who joined and who was served</h2>
+        <p className="mt-1 text-sm text-neutral-500">Click a day to open that day by hour.</p>
+        <div className="mt-4 h-72">
           <ResponsiveContainer>
-            <Frame {...common}>{series}</Frame>
+            <AreaChart
+              data={points}
+              onClick={(state: any) => {
+                const bucket = state?.activePayload?.[0]?.payload?.bucket || '';
+                if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) onDrillDay(bucket);
+              }}
+            >
+              <CartesianGrid stroke="#f5f5f4" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#78716c' }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#78716c' }} width={36} />
+              <Tooltip content={<Tip timeZone={timeZone} />} />
+              <Legend />
+              <Area dataKey="joined" name="Joined" stroke={COLORS.joined} fill="#ffedd5" isAnimationActive={motion} />
+              <Area dataKey="served" name="Served" stroke={COLORS.served} fill="#d1fae5" isAnimationActive={motion} />
+              {compare && <Line dataKey="previousJoined" name="Joined last period" stroke={COLORS.previous} strokeDasharray="4 4" dot={false} isAnimationActive={motion} />}
+            </AreaChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-2 text-xs text-gray-500">Click a day to see that day by hour.</p>
       </section>
+    </ChartBoundary>
+  );
+}
+
+export function SalesChart({ points }: { points: { label: string; revenue: number; placed: number }[] }) {
+  const motion = useMotion();
+  if (!points.length) return null;
+  return (
+    <ChartBoundary title="Closed bills">
+      <div className="h-56">
+        <ResponsiveContainer>
+          <BarChart data={points}>
+            <CartesianGrid stroke="#f5f5f4" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#78716c' }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 11, fill: '#78716c' }} width={48} />
+            <Tooltip />
+            <Bar dataKey="revenue" name="Closed bills, ₹" fill={COLORS.joined} radius={[6, 6, 0, 0]} isAnimationActive={motion} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </ChartBoundary>
   );
 }
@@ -167,13 +132,9 @@ export function QueueCharts({ byHour, outcomes, abandonmentReason, timeZone }: {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ChartBoundary title="Queue performance">
-        <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-label="Average waiting and service time by hour">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-black text-gray-950">Waiting and service by hour</h2>
-            <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-gray-200 px-3 text-xs font-bold" onClick={() => downloadCsv('queue-hours.csv', ['Hour', 'Joined', 'Avg wait seconds', 'Avg service seconds'], byHour.map((hour) => [hour.label, hour.joined, hour.avgWaitSeconds, hour.avgServiceSeconds]))}>
-              <Download className="h-3.5 w-3.5" /> CSV
-            </button>
-          </div>
+        <section className="ui-card p-4 sm:p-5" aria-label="Average waiting and service time by hour">
+          <h2 className="text-base font-semibold text-neutral-950">Wait and service by hour</h2>
+          <p className="mt-1 text-sm text-neutral-500">Average minutes, only for visits that were seated.</p>
           <div className="h-64">
             <ResponsiveContainer>
               <ComposedChart data={hours}>
@@ -190,8 +151,8 @@ export function QueueCharts({ byHour, outcomes, abandonmentReason, timeZone }: {
         </section>
       </ChartBoundary>
       <ChartBoundary title="Cancellations and no-shows">
-        <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-label="Cancellations and no-shows over time">
-          <h2 className="text-sm font-black text-gray-950">Cancellations and no-shows</h2>
+        <section className="ui-card p-4 sm:p-5" aria-label="Cancellations and no-shows over time">
+          <h2 className="text-base font-semibold text-neutral-950">Cancellations and no-shows</h2>
           <p className="mt-1 text-xs text-gray-500">{abandonmentReason}</p>
           <div className="mt-3 h-64">
             <ResponsiveContainer>
@@ -217,9 +178,9 @@ export function Heatmap({ cells, onSelect }: { cells: { dow: number; hour: numbe
   const max = Math.max(...cells.map((cell) => cell.joined), 1);
   const [selected, setSelected] = useState<(typeof cells)[number] | null>(null);
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-label="Peak hours heatmap">
-      <h2 className="text-sm font-black text-gray-950">Peak hours</h2>
-      <p className="mt-1 text-xs text-gray-500">Each square is guests who joined. Darker orange is busier. Empty squares had no joins.</p>
+    <section className="ui-card p-4 sm:p-5" aria-label="Peak hours heatmap">
+      <h2 className="text-base font-semibold text-neutral-950">When people join</h2>
+      <p className="mt-1 text-sm text-neutral-500">Darker squares are busier hours. Select one to see the wait.</p>
       <div className="mt-3 overflow-x-auto">
         <div className="min-w-[760px]">
           <div className="grid grid-cols-[3rem_repeat(24,minmax(0,1fr))] gap-1 text-[10px] text-gray-500">
@@ -250,12 +211,11 @@ export function Heatmap({ cells, onSelect }: { cells: { dow: number; hour: numbe
         </div>
       </div>
       {selected && (
-        <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-800">
-          <p className="font-bold">{selected.label}</p>
+        <div className="mt-3 rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">
+          <p className="font-semibold text-neutral-950">{selected.label}</p>
           <p>{selected.joined.toLocaleString('en-IN')} joined</p>
-          <p>Average wait: {selected.avgWaitSeconds == null ? 'Not available' : `${Math.round(selected.avgWaitSeconds / 60)} min`}</p>
-          <p>Cancellations: {selected.cancellationRate == null ? 'Not available' : `${selected.cancellationRate}%`}</p>
-          <p>Abandonment: Not available</p>
+          <p>Average wait: {selected.avgWaitSeconds == null ? 'No seated visits' : `${Math.round(selected.avgWaitSeconds / 60)} min`}</p>
+          <p>Cancellations: {selected.cancellationRate == null ? 'None' : `${selected.cancellationRate}%`}</p>
         </div>
       )}
     </section>
@@ -270,7 +230,7 @@ export function OutcomeDonut({ slices }: { slices: { name: string; value: number
     <div className="h-64">
       <ResponsiveContainer>
         <PieChart>
-          <Pie data={shown} dataKey="value" nameKey="name" innerRadius={52} outerRadius={80} isAnimationActive={motion} label={({ name, value }) => `${name} ${value}`}>
+          <Pie data={shown} dataKey="value" nameKey="name" innerRadius={52} outerRadius={80} isAnimationActive={motion}>
             {shown.map((slice) => <Cell key={slice.name} fill={slice.color} />)}
           </Pie>
           <Tooltip />

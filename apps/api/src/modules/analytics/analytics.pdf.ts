@@ -17,6 +17,17 @@ type PdfReport = {
   performance: { completed: number; cancelled: number; noShow: number; skipped: number; inProgress: number; abandoned: null };
   peakHours: { topHours: { label: string; joined: number }[]; topDays: { name: string; joined: number }[] };
   insights: { severity: string; message: string }[];
+  orders?: {
+    placed: number;
+    completed: number;
+    cancelled: number;
+    revenue: number;
+    averageBill: number | null;
+    previousPlaced: number;
+    previousRevenue: number;
+    bySource: { label: string; placed: number; revenue: number }[];
+    byDay: { bucket: string; placed: number; revenue: number }[];
+  };
 };
 
 export function reportToPdf(report: PdfReport) {
@@ -50,6 +61,21 @@ export function reportToPdf(report: PdfReport) {
     const change = item.changePercent == null ? '—' : `${item.changePercent > 0 ? '+' : ''}${item.changePercent}%`;
     doc.fontSize(10).fillColor('#111827').text(`${item.label}: ${value}   previous ${item.previous ?? '—'}   change ${change}`);
     if (item.unavailableReason) doc.fontSize(8).fillColor('#6b7280').text(item.unavailableReason);
+  }
+
+  if (report.orders) {
+    doc.moveDown();
+    doc.fontSize(13).fillColor('#111827').text('Bills');
+    doc.moveDown(0.3);
+    doc.fontSize(10).text(`Orders placed ${report.orders.placed} · previous ${report.orders.previousPlaced}`);
+    doc.text(`Completed ${report.orders.completed} · cancelled ${report.orders.cancelled}`);
+    doc.text(`Closed-bill total ${report.orders.revenue} · previous ${report.orders.previousRevenue}`);
+    doc.text(`Average closed bill ${report.orders.averageBill ?? 'Not available'}`);
+    doc.moveDown(0.3);
+    for (const source of report.orders.bySource) {
+      ensureSpace(14);
+      doc.fontSize(9).text(`${source.label}: ${source.placed} orders, closed-bill total ${source.revenue}`);
+    }
   }
 
   doc.moveDown();

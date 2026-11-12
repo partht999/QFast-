@@ -54,7 +54,7 @@ export class AnalyticsService {
     if (cached && Date.now() - cached.at < CACHE_MS && closedPeriod) return cached.value;
 
     const filters = this.filters(branchId, serviceType);
-    const [counts, series, daily, heatmap, operating, branches, serviceTypes] = await Promise.all([
+    const [counts, series, daily, heatmap, operating, branches, serviceTypes, orders] = await Promise.all([
       this.countPeriods(scope.businessId, range, filters),
       this.series(scope.businessId, range, filters, groupBy),
       this.series(scope.businessId, range, filters, 'day'),
@@ -67,6 +67,7 @@ export class AnalyticsService {
         select: { serviceName: true },
         take: 40,
       }),
+      this.orderSummary(scope.businessId, range, branchId),
     ]);
 
     if (counts.current.excludedDurations > 0) {
@@ -96,7 +97,12 @@ export class AnalyticsService {
       serviceTypes: serviceTypes.map((row) => row.serviceName).filter((name): name is string => Boolean(name)),
       fullMonth: isFullMonth(range.from, range.to),
     });
-    const value = { ...built, insights: buildInsights(built) };
+    const value = {
+      ...built,
+      insights: buildInsights(built),
+      orders,
+      meta: { ...built.meta, businessType: scope.businessType },
+    };
     if (closedPeriod) {
       this.cache.set(cacheKey, { at: Date.now(), value });
       if (this.cache.size > 100) {
@@ -127,10 +133,10 @@ export class AnalyticsService {
     const staff = await this.prisma.staff.findFirst({
       where: { userId, isActive: true, role: { in: [UserRole.OWNER, UserRole.MANAGER] } },
       orderBy: { createdAt: 'asc' },
-      select: { businessId: true, business: { select: { timezone: true } } },
+      select: { businessId: true, business: { select: { timezone: true, type: true } } },
     });
     if (!staff) throw new ForbiddenException('Analytics is available to the restaurant owner or manager.');
-    return { businessId: staff.businessId, timeZone: safeTimeZone(staff.business.timezone) };
+    return { businessId: staff.businessId, timeZone: safeTimeZone(staff.business.timezone), businessType: staff.business.type };
   }
 
   private filters(branchId: string | null, serviceType: string | null) {
@@ -255,6 +261,83 @@ export class AnalyticsService {
     return {
       current: rows.filter((row) => row.period === 'current').map(mapRow),
       previous: rows.filter((row) => row.period === 'previous').map(mapRow),
+    };
+  }
+
+  private async orderSummary(businessId: string, range: ReturnType<typeof resolveRange>, branchId: string | null) {
+    const branch = branchId ? Prisma.sql`AND o."branchId" = ${branchId}` : Prisma.empty;
+    const [periods, sources, days] = await Promise.all([
+      this.prisma.$queryRaw<Record<string, unknown>[]>`
+        SELECT
+          CASE WHEN o."createdAt" >= ${range.currentFrom} THEN 'current' ELSE 'previous' END AS period,
+          COUNT(*)::int AS placed,
+          COUNT(*) FILTER (WHERE o.status = 'COMPLETED')::int AS completed,
+          COUNT(*) FILTER (WHERE o.status IN ('CANCELLED', 'REJECTED'))::int AS cancelled,
+          COALESCE(SUM(o."totalAmount") FILTER (WHERE o.status = 'COMPLETED'), 0)::float AS revenue
+        FROM "Order" o
+        WHERE o."businessId" = ${businessId}
+          AND o."createdAt" >= ${range.previousFrom}
+          AND o."createdAt" < ${range.currentTo}
+          ${branch}
+        GROUP BY 1
+      `,
+      this.prisma.$queryRaw<Record<string, unknown>[]>`
+        SELECT
+          o.source AS source,
+          COUNT(*)::int AS placed,
+          COALESCE(SUM(o."totalAmount") FILTER (WHERE o.status = 'COMPLETED'), 0)::float AS revenue
+        FROM "Order" o
+        WHERE o."businessId" = ${businessId}
+          AND o."createdAt" >= ${range.currentFrom}
+          AND o."createdAt" < ${range.currentTo}
+          ${branch}
+        GROUP BY 1
+        ORDER BY placed DESC
+      `,
+      this.prisma.$queryRaw<Record<string, unknown>[]>`
+        SELECT
+          to_char(date_trunc('day', o."createdAt" AT TIME ZONE ${range.timeZone}), 'YYYY-MM-DD') AS bucket,
+          COUNT(*)::int AS placed,
+          COALESCE(SUM(o."totalAmount") FILTER (WHERE o.status = 'COMPLETED'), 0)::float AS revenue
+        FROM "Order" o
+        WHERE o."businessId" = ${businessId}
+          AND o."createdAt" >= ${range.currentFrom}
+          AND o."createdAt" < ${range.currentTo}
+          ${branch}
+        GROUP BY 1
+        ORDER BY 1
+      `,
+    ]);
+    const current = periods.find((row) => row.period === 'current');
+    const previous = periods.find((row) => row.period === 'previous');
+    const completed = num(current?.completed);
+    const revenue = num(current?.revenue);
+    const sourceLabel: Record<string, string> = {
+      TABLE_QR: 'Table',
+      TAKEAWAY: 'Takeaway',
+      QUEUE_PREORDER: 'While waiting',
+      RESERVATION_PREORDER: 'Reservation',
+      INTEGRATION: 'Partner',
+    };
+    return {
+      placed: num(current?.placed),
+      completed,
+      cancelled: num(current?.cancelled),
+      revenue,
+      averageBill: completed > 0 ? Math.round(revenue / completed) : null,
+      previousPlaced: num(previous?.placed),
+      previousRevenue: num(previous?.revenue),
+      bySource: sources.map((row) => ({
+        source: String(row.source || ''),
+        label: sourceLabel[String(row.source || '')] || String(row.source || 'Order'),
+        placed: num(row.placed),
+        revenue: num(row.revenue),
+      })),
+      byDay: days.map((row) => ({
+        bucket: String(row.bucket),
+        placed: num(row.placed),
+        revenue: num(row.revenue),
+      })),
     };
   }
 

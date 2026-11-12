@@ -25,6 +25,17 @@ export function reportToCsv(report: {
   queuePerformance: { byHour: { label: string; avgWaitSeconds: number | null; avgServiceSeconds: number | null; cancelled: number; noShow: number }[] };
   behaviour: { remote: number; physical: number; newCustomers: number; returning: number; cancelled: number; noShow: number; abandoned: null; avgPartySize: number | null };
   insights: { severity: string; message: string }[];
+  orders?: {
+    placed: number;
+    completed: number;
+    cancelled: number;
+    revenue: number;
+    averageBill: number | null;
+    previousPlaced: number;
+    previousRevenue: number;
+    bySource: { label: string; placed: number; revenue: number }[];
+    byDay: { bucket: string; placed: number; revenue: number }[];
+  };
 }) {
   const lines = [
     csvLine(['Qfast analytics']),
@@ -54,6 +65,22 @@ export function reportToCsv(report: {
     csvLine(['No-shows', report.behaviour.noShow]),
     csvLine(['Abandoned', 'Not available']),
     csvLine(['Average group size', report.behaviour.avgPartySize]),
+    ...(report.orders ? [
+      '',
+      csvLine(['Orders placed', report.orders.placed]),
+      csvLine(['Orders completed', report.orders.completed]),
+      csvLine(['Orders cancelled or rejected', report.orders.cancelled]),
+      csvLine(['Closed-bill total', report.orders.revenue]),
+      csvLine(['Average closed bill', report.orders.averageBill]),
+      csvLine(['Previous orders placed', report.orders.previousPlaced]),
+      csvLine(['Previous closed-bill total', report.orders.previousRevenue]),
+      '',
+      csvLine(['Order source', 'Placed', 'Closed-bill total']),
+      ...report.orders.bySource.map((source) => csvLine([source.label, source.placed, source.revenue])),
+      '',
+      csvLine(['Order day', 'Placed', 'Closed-bill total']),
+      ...report.orders.byDay.map((day) => csvLine([day.bucket, day.placed, day.revenue])),
+    ] : []),
     '',
     csvLine(['Insight severity', 'Insight']),
     ...report.insights.map((insight) => csvLine([insight.severity, insight.message])),
