@@ -68,12 +68,12 @@ export default function StaffPage() {
   };
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6 p-4">
+    <section className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-neutral-950">Staff</h1>
-        <p className="mt-1 text-sm text-neutral-500">Front desk runs the line. Kitchen sees tickets. Cashier closes bills.</p>
+        <h1 className="ui-title">Staff</h1>
+        <p className="ui-copy">Front desk runs the line. Kitchen sees tickets. Cashier closes bills.</p>
       </div>
-      <ul className="divide-y divide-neutral-100 rounded-2xl border border-neutral-200 bg-white">
+      <ul className="ui-card divide-y divide-neutral-100">
         {staff.map((person) => (
           <li key={person.id} className="flex items-center justify-between px-4 py-3 text-sm">
             <span className="font-semibold">{person.user.email}</span>
@@ -86,24 +86,24 @@ export default function StaffPage() {
           </li>
         )}
       </ul>
-      <form onSubmit={submit} className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-5">
+      <form onSubmit={submit} className="ui-card space-y-3 p-5">
         <label className="block text-sm font-semibold">
           Username
-          <input required value={username} onChange={(event) => setUsername(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input required value={username} onChange={(event) => setUsername(event.target.value)} className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold">
           Password
-          <input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5" />
+          <input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold">
           Mode
-          <select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm">
+          <select value={role} onChange={(event) => setRole(event.target.value)} className="ui-field mt-1">
             {roles.map((item) => (
               <option key={item.id} value={item.id}>{item.label} — {item.detail}</option>
             ))}
           </select>
         </label>
-        <button type="submit" disabled={saving} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+        <button type="submit" disabled={saving} className="ui-btn-primary">
           {saving ? 'Adding…' : 'Add staff'}
         </button>
       </form>

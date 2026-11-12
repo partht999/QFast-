@@ -5,5 +5,5 @@ export const metadata: Metadata = {
 };
 
 export default function BusinessPublicLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <div className="min-h-screen bg-neutral-50 text-neutral-950">{children}</div>;
 }

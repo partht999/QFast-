@@ -373,9 +373,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top header bar */}
         <header className="hidden h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-6 md:flex">
-          <Link href="/dashboard" className="text-sm font-semibold text-neutral-700 hover:text-neutral-950">
-            Workspace
-          </Link>
+          <p className="text-sm font-semibold text-neutral-950">{getPageTitle(pathname)}</p>
           <div className="flex items-center gap-3">
             {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
             {businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>}
@@ -392,7 +390,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex min-w-0 items-center gap-2">
             <BrandMark href="/dashboard" size="sm" label="Qfast dashboard" />
             {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />}
-            <span className="truncate text-sm font-bold text-gray-900">{businessName || getPageTitle(pathname)}</span>
+            <span className="truncate text-sm font-semibold text-neutral-950">{getPageTitle(pathname)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-gray-500">
@@ -404,7 +402,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Scrollable page content */}
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-neutral-50 pb-24 md:pb-0">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-neutral-50 px-4 py-6 pb-24 sm:px-6 lg:px-8 md:pb-8">
           {children}
         </main>
       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Star, CheckCircle2, ExternalLink, MessageSquare, Save } from 'lucide-react';
+import { CheckCircle2, ExternalLink, MessageSquare, Save } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
 import { directReviewUrl, googleReviewTarget } from '@/lib/google-place';
@@ -138,23 +138,21 @@ export default function ReviewsManagementPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Loading reviews &amp; ratings...</p>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <p className="text-sm text-neutral-500">Loading reviews…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      {/* Top Header */}
-      <header className="bg-white border-b border-gray-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      <header>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Star className="h-5 w-5 shrink-0 fill-amber-400 text-amber-500" />
-            <h1 className="text-base font-extrabold text-gray-900">
+            <h1 className="ui-title">
               {isFoodBusiness(business?.type) ? 'Reviews' : 'Google review'}
             </h1>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
@@ -170,7 +168,7 @@ export default function ReviewsManagementPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="space-y-6">
         <div className="grid grid-cols-3 gap-3">
           {[
             ['Average', items.length ? feedbackData.averageRating.toFixed(1) : '—', 'Private notes'],

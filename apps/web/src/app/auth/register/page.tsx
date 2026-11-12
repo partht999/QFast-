@@ -79,14 +79,14 @@ export default function RegisterPage() {
     <AuthShell title="Create your workspace" subtitle="The full product is free for 30 days. Create your account, then open a live queue.">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="business-type" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="business-type" className="ui-label">
                 Select your industry
               </label>
               <select
                 id="business-type"
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value as BusinessTypeValue)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                className="ui-field"
               >
                 {BUSINESS_TYPES.map((type) => (
                   <option
@@ -101,7 +101,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="register-username" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="register-username" className="ui-label">
                 Username
               </label>
               <input
@@ -112,13 +112,13 @@ export default function RegisterPage() {
                 autoComplete="username"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                className="ui-field"
                 placeholder="yourname"
               />
             </div>
 
             <div>
-              <label htmlFor="register-password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="register-password" className="ui-label">
                 Password
               </label>
               <div className="relative">
@@ -130,7 +130,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-slate-200 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                  className="ui-field pr-11"
                   placeholder="At least 8 characters"
                 />
                 <button
@@ -144,7 +144,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="register-confirm" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="register-confirm" className="ui-label">
                 Confirm Password
               </label>
               <input
@@ -155,7 +155,7 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={form.confirm}
                 onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                className="ui-field"
                 placeholder="Repeat password"
               />
             </div>
@@ -169,7 +169,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2 mt-2"
+              className="ui-btn-primary mt-2 w-full"
             >
               {loading ? 'Creating workspace…' : 'Start Free Trial'} <ArrowRight className="h-4 w-4" />
             </button>

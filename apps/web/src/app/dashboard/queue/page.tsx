@@ -447,11 +447,11 @@ export default function DashboardQueuePage() {
     : filteredTokens.filter((token) => token.id !== featuredId);
 
   return (
-    <section className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+    <section className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{copy.pageTitle}</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="ui-title">{copy.pageTitle}</h1>
+          <p className="ui-copy">
             {waitingTokens.length} waiting
             <span className="mx-1.5 text-gray-300">·</span>
             {servedTokens.length} done today
@@ -461,7 +461,7 @@ export default function DashboardQueuePage() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+          className="ui-btn-primary"
         >
           <UserPlus className="h-4 w-4" />
           {copy.addButton}

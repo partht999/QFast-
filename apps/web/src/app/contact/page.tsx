@@ -69,7 +69,7 @@ export default function ContactPage() {
               <label htmlFor="contact-message" className="mb-1 block text-xs font-bold uppercase text-slate-600">Message</label>
               <textarea id="contact-message" name="message" required rows={4} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
-            <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 font-bold text-white hover:bg-orange-600">
+            <button type="submit" className="ui-btn-primary w-full">
               Open email <Send className="h-4 w-4" />
             </button>
             {sent && (

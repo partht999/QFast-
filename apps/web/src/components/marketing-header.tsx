@@ -34,10 +34,10 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link href={secondaryCta.href} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex">
+          <Link href={secondaryCta.href} className="ui-btn-secondary hidden px-3 sm:inline-flex">
             {secondaryCta.label}
           </Link>
-          <Link href={primaryCta.href} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-orange-500 px-3.5 text-sm font-bold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600">
+          <Link href={primaryCta.href} className="ui-btn-primary px-3.5">
             {primaryCta.label} <ArrowRight className="h-4 w-4" />
           </Link>
           <button

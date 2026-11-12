@@ -205,8 +205,8 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 py-12">
-      <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-2xl border border-slate-100">
+    <div className="mx-auto w-full max-w-2xl">
+      <div className="ui-card p-6 sm:p-10">
         {/* Header with Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -216,7 +216,7 @@ export default function OnboardingPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl font-black text-slate-900 mt-4">
+          <h1 className="ui-title mt-4">
             {step === 1 && 'Select your business category'}
             {step === 2 && 'Essential business details'}
           </h1>

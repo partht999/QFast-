@@ -47,7 +47,7 @@ export default function LoginPage() {
     <AuthShell title="Welcome back" subtitle="Sign in to the queue, kitchen, and settings for your business.">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="login-username" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="login-username" className="ui-label">
                 Username
               </label>
               <input
@@ -58,13 +58,13 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                className="ui-field"
                 placeholder="yourname"
               />
             </div>
 
             <div>
-              <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label htmlFor="login-password" className="ui-label">
                 Password
               </label>
               <div className="relative">
@@ -75,7 +75,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-slate-200 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+                  className="ui-field pr-11"
                   placeholder="Your account password"
                 />
                 <button
@@ -97,7 +97,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-orange-500/20 text-sm flex items-center justify-center gap-2 mt-2"
+              className="ui-btn-primary mt-2 w-full"
             >
               {loading ? 'Signing in…' : 'Sign In to Workspace'} <ArrowRight className="h-4 w-4" />
             </button>

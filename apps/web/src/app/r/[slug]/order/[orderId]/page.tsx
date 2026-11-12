@@ -164,7 +164,7 @@ export default function OrderTrackingPage() {
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 pb-20">
       {/* Top Bar */}
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur-md">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <BackLink
             fallback={

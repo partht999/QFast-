@@ -406,6 +406,47 @@ body {
   animation: progress-fill 0.8s ease-out forwards;
 }
 
+@layer components {
+  .ui-title {
+    @apply text-2xl font-semibold tracking-tight text-neutral-950;
+  }
+
+  .ui-copy {
+    @apply mt-1 text-sm leading-6 text-neutral-500;
+  }
+
+  .ui-card {
+    @apply rounded-2xl border border-neutral-200 bg-white;
+  }
+
+  .ui-btn,
+  .ui-btn-primary,
+  .ui-btn-secondary,
+  .ui-btn-dark {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .ui-btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700;
+  }
+
+  .ui-btn-secondary {
+    @apply border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50;
+  }
+
+  .ui-btn-dark {
+    @apply border border-white/15 bg-white/10 text-white hover:bg-white/15;
+  }
+
+  .ui-field {
+    @apply w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-950 transition placeholder:text-neutral-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20;
+  }
+
+  .ui-label {
+    @apply mb-1.5 block text-sm font-semibold text-neutral-800;
+  }
+}
+
 @media (max-width: 640px) {
   input,
   select,

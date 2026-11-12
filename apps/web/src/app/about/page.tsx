@@ -69,7 +69,7 @@ export default function AboutPage() {
           <div className="mt-8">
             <Link
               href="/auth/register"
-              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-md hover:bg-orange-600"
+              className="ui-btn-primary px-5"
             >
               Get started with Qfast <ArrowRight className="h-4 w-4" />
             </Link>

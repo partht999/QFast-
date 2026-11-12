@@ -287,7 +287,7 @@ export default function TableOrderPage() {
       )}
 
       {/* Top Navigation Bar */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-neutral-200 sticky top-0 z-20 shadow-xs">
+      <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}

@@ -305,31 +305,30 @@ export default function MenuManagementPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Loading digital menu...</p>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <p className="text-sm text-neutral-500">Loading menu…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-30 border-b border-gray-200/80 bg-white px-4 py-3 shadow-xs sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
-            <UtensilsCrossed className="h-5 w-5 shrink-0 text-orange-600" />
-            <h1 className="text-base font-extrabold text-gray-900">Menu</h1>
-            <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-700">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      <header>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="ui-title">Menu</h1>
+            <p className="ui-copy">Categories, dishes, and what guests can order.</p>
+            <span className="mt-3 inline-flex rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">
               {totalItemsCount} dishes
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCategoryModal(true)}
-              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gray-100 px-3.5 text-xs font-bold text-gray-800 transition-colors hover:bg-gray-200 sm:flex-none"
+              className="ui-btn-secondary flex-1 sm:flex-none"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New category</span>
@@ -343,7 +342,7 @@ export default function MenuManagementPage() {
                 }
                 openAddItemModal();
               }}
-              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-orange-700 sm:flex-none"
+              className="ui-btn-primary flex-1 sm:flex-none"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add dish</span>
@@ -353,7 +352,7 @@ export default function MenuManagementPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="space-y-6">
         {/* Search & Filter Bar */}
         {categories.length > 0 && (
           <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">

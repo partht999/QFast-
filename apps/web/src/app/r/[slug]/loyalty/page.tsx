@@ -77,21 +77,21 @@ export default function CustomerLoyaltyPage() {
   const prize = card?.rewardName || rewardName;
 
   return (
-    <main className="min-h-screen bg-orange-50 px-4 py-8 text-slate-950">
+    <main className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-md">
         <BrandLockup venueName={card?.businessName || businessName} venueLogoUrl={logoUrl} />
         <div className="mt-4">
           <BackLink fallback={publicPath} />
         </div>
         {!available ? (
-          <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-black">No stamp card here</h1>
+          <section className="ui-card mt-5 p-6">
+            <h1 className="ui-title">No stamp card here</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">Stamp cards are for restaurants. After a clinic or service visit, you are asked for a Google review instead.</p>
           </section>
         ) : (
-        <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold text-orange-700">{card?.businessName || businessName || 'Stamp card'}</p>
-          <h1 className="mt-1 text-3xl font-black">Collect {target} stamps</h1>
+        <section className="ui-card mt-5 p-6">
+          <p className="text-sm font-semibold text-brand-700">{card?.businessName || businessName || 'Stamp card'}</p>
+          <h1 className="ui-title mt-1">Collect {target} stamps</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">Each visit adds one stamp. A full card is {prize}.</p>
 
           <div className="mt-6 grid grid-cols-4 gap-3">

@@ -295,8 +295,8 @@ export default function JoinQueuePage() {
 
   if (!loading && queueStatus && queueStatus.visitsOpen === false) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
-        <div className="max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm">
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="ui-card max-w-sm p-6 text-center">
           <div className="mb-4 flex justify-center">
             <BrandLockup venueLogoUrl={queueStatus.logoUrl} />
           </div>
@@ -309,7 +309,7 @@ export default function JoinQueuePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-orange-50/60 via-white to-neutral-50 flex items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center">
           <div className="w-14 h-14 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Loading queue status...</p>
@@ -319,7 +319,7 @@ export default function JoinQueuePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50/60 via-white to-neutral-50 text-neutral-900 flex flex-col justify-between">
+    <div className="flex min-h-screen flex-col justify-between text-neutral-900">
       {/* Confetti overlay */}
       {showConfetti && (
         <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -342,7 +342,7 @@ export default function JoinQueuePage() {
       )}
 
       {/* Top Header */}
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-orange-100/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <BrandLockup href="/" size="sm" venueLogoUrl={queueStatus?.logoUrl || activeToken?.business?.logoUrl} />
           <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
@@ -385,7 +385,7 @@ export default function JoinQueuePage() {
               className="mx-auto mb-3 h-16 w-16 rounded-2xl object-cover"
             />
           )}
-          <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
+          <h1 className="ui-title">
             {queueStatus?.businessName || 'Customer Queue'}
           </h1>
           {queueStatus?.address && <p className="mt-1 text-xs text-neutral-500">{queueStatus.address}</p>}
@@ -1046,7 +1046,7 @@ function VisitFinished({
           Rate on Google
         </a>
       )}
-      <button type="button" onClick={onStartAgain} className="mt-3 block w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white">
+      <button type="button" onClick={onStartAgain} className="ui-btn-primary mt-3 w-full">
         Join the queue again
       </button>
     </div>

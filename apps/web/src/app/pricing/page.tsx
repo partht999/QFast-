@@ -142,7 +142,7 @@ export default function PricingPage() {
             Every workspace comes with live queue management, a customer-facing join experience, and a staff board for calling the next person. When the trial ends, you stay in control of your subscription before customers can join again.
           </p>
           <div className="mt-8 flex justify-center gap-4">
-            <Link href="/auth/register" className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
+            <Link href="/auth/register" className="ui-btn-primary px-5">
               Open your queue <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

@@ -101,7 +101,7 @@ export function IndustryLandingPage({ type }: { type: string }) {
             )}
             <div className="mt-8 flex flex-wrap gap-3">
               {available ? (
-                <Link href={`/auth/register?type=${type}`} className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 font-bold text-white hover:bg-orange-400">
+                <Link href={`/auth/register?type=${type}`} className="ui-btn-primary px-5">
                   Start for your business <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : (

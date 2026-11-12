@@ -191,7 +191,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7">
+    <div className="mx-auto w-full max-w-6xl">
       {error && (
         <div
           role="alert"
@@ -212,10 +212,10 @@ export default function DashboardPage() {
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+          <h1 className="ui-title">
             {foodBusiness ? 'Restaurant overview' : 'Business overview'}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="ui-copy">
             {foodBusiness
               ? "Your service status, today's activity, and recent orders."
               : "Your organization’s queue status and customer flow."}
@@ -231,7 +231,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => void fetchDashboardData()}
             disabled={refreshing}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+            className="ui-btn-secondary"
           >
             <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
             Refresh

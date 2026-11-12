@@ -53,7 +53,7 @@ export function EmptyState({
           actionHref ? (
             <Link
               href={actionHref}
-              className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-orange-500/20 transition-all active:scale-98"
+              className="ui-btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>{actionLabel}</span>
@@ -62,7 +62,7 @@ export function EmptyState({
             <button
               type="button"
               onClick={onAction}
-              className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-orange-500/20 transition-all active:scale-98"
+              className="ui-btn-primary"
             >
               <Plus className="w-4 h-4" />
               <span>{actionLabel}</span>
@@ -74,7 +74,7 @@ export function EmptyState({
           <button
             type="button"
             onClick={onSecondaryAction}
-            className="inline-flex items-center text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-2.5 rounded-xl transition-colors"
+            className="ui-btn-secondary"
           >
             {secondaryActionLabel}
           </button>

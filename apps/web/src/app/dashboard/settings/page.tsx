@@ -158,30 +158,30 @@ export default function SettingsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6">
+    <section className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-neutral-950">Settings</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="ui-title">Settings</h1>
+        <p className="ui-copy">
           The name guests see, the queue, the Google review link{food ? ', the stamp card,' : ''} and your password.
         </p>
       </div>
 
-      <form onSubmit={save} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
+      <form onSubmit={save} className="ui-card space-y-4 p-5">
         <label className="block text-sm font-semibold text-neutral-800">
           Business name
-          <input value={name} onChange={(event) => setName(event.target.value)} required className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input value={name} onChange={(event) => setName(event.target.value)} required className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
           Phone
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
           Address
-          <input value={address} onChange={(event) => setAddress(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input value={address} onChange={(event) => setAddress(event.target.value)} className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
           Usual wait, in minutes
-          <input type="number" min={1} max={180} value={averageWaitMinutes} onChange={(event) => setAverageWaitMinutes(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input type="number" min={1} max={180} value={averageWaitMinutes} onChange={(event) => setAverageWaitMinutes(Number(event.target.value))} className="ui-field mt-1" />
         </label>
         <label className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
           <input type="checkbox" checked={isOpen} onChange={(event) => setIsOpen(event.target.checked)} />
@@ -200,18 +200,18 @@ export default function SettingsPage() {
         />
         <label className="block text-sm font-semibold text-neutral-800">
           Instagram
-          <input value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} placeholder="yourplace" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input value={instagramHandle} onChange={(event) => setInstagramHandle(event.target.value)} placeholder="yourplace" className="ui-field mt-1" />
         </label>
         {food && (
           <label className="block text-sm font-semibold text-neutral-800">
             GSTIN
-            <input value={gstin} onChange={(event) => setGstin(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+            <input value={gstin} onChange={(event) => setGstin(event.target.value)} className="ui-field mt-1" />
           </label>
         )}
         <label className="block text-sm font-semibold text-neutral-800">
           Google Maps link
           <span className="mt-1 block text-xs font-medium text-neutral-500">Guests open Google’s page to rate the restaurant.</span>
-          <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Paste the listing link from Google Maps" className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input value={googlePlaceId} onChange={(event) => setGooglePlaceId(event.target.value)} placeholder="Paste the listing link from Google Maps" className="ui-field mt-1" />
           {googleReviewTarget(googlePlaceId) && (
             <a href={googleReviewTarget(googlePlaceId)?.reviewUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs font-medium text-emerald-700 hover:underline">
               Open the rating page
@@ -222,15 +222,15 @@ export default function SettingsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-semibold text-neutral-800">
               Stamps for a reward
-              <input type="number" min={2} max={20} value={stampsForReward} onChange={(event) => setStampsForReward(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+              <input type="number" min={2} max={20} value={stampsForReward} onChange={(event) => setStampsForReward(Number(event.target.value))} className="ui-field mt-1" />
             </label>
             <label className="block text-sm font-semibold text-neutral-800">
               Reward
-              <input value={rewardName} onChange={(event) => setRewardName(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+              <input value={rewardName} onChange={(event) => setRewardName(event.target.value)} className="ui-field mt-1" />
             </label>
           </div>
         )}
-        <button type="submit" disabled={saving} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+        <button type="submit" disabled={saving} className="ui-btn-primary">
           {saving ? 'Saving…' : 'Save settings'}
         </button>
       </form>
@@ -263,7 +263,7 @@ export default function SettingsPage() {
               setSaving(false);
             }
           }}
-          className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5"
+          className="ui-card space-y-4 p-5"
         >
           <h2 className="text-lg font-black text-neutral-950">Order webhooks</h2>
           <p className="text-sm text-neutral-500">
@@ -271,29 +271,29 @@ export default function SettingsPage() {
           </p>
           <label className="block text-sm font-semibold text-neutral-800">
             Swiggy webhook secret
-            <input value={swiggySecret} onChange={(event) => setSwiggySecret(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+            <input value={swiggySecret} onChange={(event) => setSwiggySecret(event.target.value)} className="ui-field mt-1" />
           </label>
           <label className="block text-sm font-semibold text-neutral-800">
             Zomato webhook secret
-            <input value={zomatoSecret} onChange={(event) => setZomatoSecret(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+            <input value={zomatoSecret} onChange={(event) => setZomatoSecret(event.target.value)} className="ui-field mt-1" />
           </label>
-          <button type="submit" disabled={saving} className="rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+          <button type="submit" disabled={saving} className="ui-btn-primary">
             Save delivery partners
           </button>
         </form>
       )}
 
-      <form onSubmit={changePassword} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
+      <form onSubmit={changePassword} className="ui-card space-y-4 p-5">
         <h2 className="text-lg font-black text-neutral-950">Password</h2>
         <label className="block text-sm font-semibold text-neutral-800">
           Current password
-          <input type="password" required minLength={8} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input type="password" required minLength={8} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="ui-field mt-1" />
         </label>
         <label className="block text-sm font-semibold text-neutral-800">
           New password
-          <input type="password" required minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm" />
+          <input type="password" required minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="ui-field mt-1" />
         </label>
-        <button type="submit" disabled={changingPassword} className="rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+        <button type="submit" disabled={changingPassword} className="ui-btn-primary">
           {changingPassword ? 'Updating…' : 'Change password'}
         </button>
       </form>

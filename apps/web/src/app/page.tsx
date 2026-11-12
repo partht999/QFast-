@@ -94,13 +94,13 @@ export default function HomePage() {
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 href="/auth/register"
-                className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-600"
+                className="ui-btn-primary px-5"
               >
                 Open your queue <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/contact"
-                className="inline-flex items-center rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white/15"
+                className="ui-btn-dark px-5"
               >
                 Book a demo
               </Link>
@@ -227,7 +227,7 @@ export default function HomePage() {
           <p className="mt-4 text-slate-600 leading-7">
             Restaurants and cafes get the queue, table QR ordering, the kitchen, bills, and stamp cards. Clinics, salons, labs, and service desks get a live queue and a Google review after the visit. When the 30 days end, the workspace asks you to subscribe before customers can join again.
           </p>
-          <Link href="/auth/register" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
+          <Link href="/auth/register" className="ui-btn-primary mt-8 px-5">
             Get started <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -239,7 +239,7 @@ export default function HomePage() {
             <h2 className="text-3xl font-black">Open your queue today.</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">Create the workspace, print the entrance QR, and call the next person from one board.</p>
           </div>
-          <Link href="/auth/register" className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white hover:bg-orange-600">
+          <Link href="/auth/register" className="ui-btn-primary px-5">
             Get started <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

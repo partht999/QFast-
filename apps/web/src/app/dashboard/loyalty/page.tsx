@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Gift, Search, Stamp } from 'lucide-react';
+import { Search, Stamp } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { isFoodBusiness } from '@/lib/business-links';
 import { readApiError } from '@/lib/read-api-error';
@@ -141,18 +141,12 @@ export default function LoyaltyManagementPage() {
   const previewCount = Math.min(Math.max(stampsForReward || 8, 2), 20);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
-      <section className="overflow-hidden rounded-3xl border border-orange-200 bg-white">
-        <div className="bg-orange-600 px-5 py-4 text-white sm:px-6">
-          <div className="flex items-center gap-3">
-            <Gift className="h-5 w-5" />
-            <div>
-              <h2 className="text-lg font-black">Stamp card</h2>
-              <p className="text-sm text-orange-100">One stamp each visit. A full card is the reward.</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-5 sm:p-6">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div>
+        <h1 className="ui-title">Stamp card</h1>
+        <p className="ui-copy">One stamp each visit. A full card is the reward.</p>
+      </div>
+      <section className="ui-card p-5 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What guests collect</p>
           <div className="mt-3 flex flex-wrap gap-2" aria-hidden="true">
             {Array.from({ length: previewCount }).map((_, index) => (
@@ -171,7 +165,7 @@ export default function LoyaltyManagementPage() {
                 max={20}
                 value={stampsForReward}
                 onChange={(event) => setStampsForReward(Number(event.target.value))}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+                className="ui-field mt-1"
               />
             </label>
             <label className="block text-sm font-semibold text-slate-700">
@@ -180,20 +174,19 @@ export default function LoyaltyManagementPage() {
                 value={rewardName}
                 onChange={(event) => setRewardName(event.target.value)}
                 maxLength={80}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+                className="ui-field mt-1"
               />
             </label>
-            <button type="submit" disabled={saving} className="min-h-11 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+            <button type="submit" disabled={saving} className="ui-btn-primary">
               {saving ? 'Saving…' : 'Save card'}
             </button>
           </form>
-        </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
+      <section className="ui-card p-5 sm:p-6">
         <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-orange-600" />
-          <h2 className="text-lg font-black text-slate-950">Look up a guest</h2>
+          <Search className="h-4 w-4 text-brand-700" />
+          <h2 className="text-lg font-semibold text-neutral-950">Look up a guest</h2>
         </div>
         <p className="mt-1 text-sm text-slate-500">Enter the mobile number from the bill. Add a stamp, or give the reward when the card is full.</p>
         <form onSubmit={lookup} className="mt-4 flex gap-2">
@@ -204,9 +197,9 @@ export default function LoyaltyManagementPage() {
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             placeholder="10-digit mobile"
-            className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-orange-400"
+            className="ui-field min-w-0 flex-1"
           />
-          <button type="submit" disabled={working} className="min-h-11 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={working} className="ui-btn-primary shrink-0">
             Find
           </button>
         </form>

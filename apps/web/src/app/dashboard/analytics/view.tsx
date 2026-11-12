@@ -234,8 +234,12 @@ export default function AnalyticsView() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:px-6">
-      <div className="sticky top-0 z-20 space-y-3 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div>
+        <h1 className="ui-title">Analytics</h1>
+        <p className="ui-copy">Orders, waits, and how the line moved in this period.</p>
+      </div>
+      <div className="sticky top-0 z-20 space-y-3 rounded-2xl border border-neutral-200 bg-white p-3">
         <div className="flex gap-2 overflow-x-auto">
           {PRESETS.map(([id, label]) => (
             <button key={id} type="button" onClick={() => {

@@ -90,14 +90,14 @@ export function GuestVisitActions({
           type="button"
           disabled={!!busy}
           onClick={() => void askForBill()}
-          className="min-h-11 w-full rounded-xl bg-orange-500 text-sm font-bold text-white disabled:opacity-60"
+          className="ui-btn-primary w-full"
         >
           {busy === 'bill' ? 'Sending…' : 'Ask the counter to take payment'}
         </button>
       )}
       <div className="flex flex-wrap gap-2">
         {onWaiter && (
-          <button type="button" onClick={onWaiter} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-neutral-200 px-3 text-sm font-bold text-neutral-800">
+          <button type="button" onClick={onWaiter} className="ui-btn-secondary">
             <Bell className="h-4 w-4 text-orange-600" />
             Call waiter
           </button>
@@ -107,7 +107,7 @@ export function GuestVisitActions({
             type="button"
             disabled={!readyToClose || !!busy}
             onClick={() => void closeBill()}
-            className="inline-flex min-h-11 items-center rounded-xl bg-neutral-950 px-3 text-sm font-bold text-white disabled:opacity-40"
+            className="ui-btn bg-neutral-950 text-white hover:bg-neutral-800"
           >
             {busy === 'close' ? 'Closing…' : 'Close bill'}
           </button>

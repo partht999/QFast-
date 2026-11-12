@@ -88,7 +88,7 @@ export default function FeaturesPage() {
           <div className="mt-8 flex justify-center gap-4">
             <Link
               href="/auth/register"
-              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-orange-200 hover:bg-orange-600"
+              className="ui-btn-primary px-5"
             >
               Get started <ArrowRight className="h-4 w-4" />
             </Link>
