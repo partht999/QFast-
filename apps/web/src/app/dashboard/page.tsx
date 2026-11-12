@@ -14,12 +14,7 @@ import {
   UtensilsCrossed,
   DollarSign,
   ArrowRight,
-  Sparkles,
   QrCode,
-  ListOrdered,
-  Menu as MenuIcon,
-  Star,
-  Gift,
   X,
   Receipt,
   Clock,
@@ -259,62 +254,6 @@ export default function DashboardPage() {
         ) : (
           /* Full Operations Hub */
           <div className="space-y-6">
-            {/* Quick Action Operations Bar */}
-            <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 px-3 shrink-0 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                Quick Launch
-              </span>
-              <Link
-                href="/dashboard/queue"
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-              >
-                <ListOrdered className="w-3.5 h-3.5 text-orange-500" />
-                <span>Live Waitlist</span>
-              </Link>
-              {foodBusiness && (
-                <>
-                  <Link
-                    href="/dashboard/kds"
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-                  >
-                    <ChefHat className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Kitchen Display</span>
-                  </Link>
-                  <Link
-                    href="/dashboard/tables"
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-                  >
-                    <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Tables</span>
-                  </Link>
-                  <Link
-                    href="/dashboard/menu"
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-                  >
-                    <MenuIcon className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Menu Catalog</span>
-                  </Link>
-                </>
-              )}
-              <Link
-                href="/dashboard/reviews"
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-              >
-                <Star className="w-3.5 h-3.5 text-yellow-500" />
-                <span>Google Reviews</span>
-              </Link>
-              {foodBusiness && (
-                <Link
-                  href="/dashboard/loyalty"
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200/60 transition-all shrink-0 active:scale-98"
-                >
-                  <Gift className="w-3.5 h-3.5 text-pink-500" />
-                  <span>Stamp card</span>
-                </Link>
-              )}
-            </div>
-
             {/* Business Status & QR Standee Hero Card */}
             <div className="bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-neutral-800 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
               <div className="relative z-10 max-w-xl">

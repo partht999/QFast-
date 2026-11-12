@@ -61,9 +61,11 @@ export default function TableOrderPage() {
   const [queueToken, setQueueToken] = useState<any>(null);
   const [tipPercentage, setTipPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [menuLoadAttempt, setMenuLoadAttempt] = useState(0);
   const [placingOrder, setPlacingOrder] = useState(false);
   const orderKey = useRef('');
   const [error, setError] = useState('');
+  const [menuError, setMenuError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<any | null>(null);
   useOverlayHistory(Boolean(detailItem), () => setDetailItem(null));
@@ -99,6 +101,8 @@ export default function TableOrderPage() {
   }, [slug, tokenParam, isQueueParam, isFixedTable, apiUrl]);
 
   useEffect(() => {
+    setLoading(true);
+    setMenuError('');
     fetch(`${apiUrl}/api/v1/business/public/${slug}`)
       .then((res) => {
         if (!res.ok) throw new Error('Restaurant not found');
@@ -113,10 +117,10 @@ export default function TableOrderPage() {
       })
       .catch((err) => {
         console.error(err);
-        setError('Could not load restaurant menu');
+        setMenuError(err instanceof Error ? err.message : 'Could not load restaurant menu');
       })
       .finally(() => setLoading(false));
-  }, [slug, apiUrl]);
+  }, [slug, apiUrl, menuLoadAttempt]);
 
   const addToCart = (item: any) => {
     setCart((prev) => {
@@ -168,6 +172,13 @@ export default function TableOrderPage() {
   const tipAmount = tipPercentage > 0 ? Math.round((subtotal * tipPercentage) / 100) : 0;
   const total = subtotal + taxAmount + tipAmount;
   const totalCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const orderContext = orderSource === 'TABLE_QR'
+    ? `Table ${tableNumber}`
+    : orderSource === 'TAKEAWAY'
+      ? 'Takeaway pickup'
+      : queueToken?.tokenNumber
+        ? `Queue #${queueToken.tokenNumber}`
+        : 'Dine-in pre-order';
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -422,11 +433,30 @@ export default function TableOrderPage() {
 
       {/* Menu Item Cards */}
       <main className="max-w-2xl mx-auto space-y-3 p-4 pb-28">
-        {filteredItems.length === 0 ? (
+        {menuError ? (
+          <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+            <p className="font-bold">We couldn’t load this menu.</p>
+            <p className="mt-1">{menuError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuError('');
+                setMenuLoadAttempt((attempt) => attempt + 1);
+              }}
+              className="mt-3 min-h-10 rounded-xl border border-red-200 bg-white px-4 font-bold text-red-800 hover:bg-red-100"
+            >
+              Try again
+            </button>
+          </div>
+        ) : filteredItems.length === 0 ? (
           <div className="bg-white rounded-3xl p-10 text-center text-neutral-400 border border-neutral-100 shadow-xs mt-4">
             <UtensilsCrossed className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
-            <p className="font-bold text-neutral-700 text-sm">No dishes match your search</p>
-            <p className="text-xs text-neutral-400 mt-1">Try clearing your filters or search terms.</p>
+            <p className="font-bold text-neutral-700 text-sm">
+              {allItems.length === 0 ? 'The menu is being updated' : 'No dishes match these filters'}
+            </p>
+            <p className="text-xs text-neutral-400 mt-1">
+              {allItems.length === 0 ? 'Please check back soon or ask the restaurant for today’s menu.' : 'Try a different search or clear your filters.'}
+            </p>
             {(searchQuery || vegOnly || selectedCategory !== 'ALL') && (
               <button
                 onClick={() => {
@@ -495,7 +525,7 @@ export default function TableOrderPage() {
                     )}
                     {item.servedAs && <p className="mt-1 text-xs font-semibold text-neutral-700">Served: {item.servedAs}</p>}
                     <button type="button" onClick={() => setDetailItem(item)} className="mt-2 text-xs font-bold text-orange-700">
-                      See how it’s served
+                      View dish details
                     </button>
 
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-neutral-400">
@@ -525,7 +555,7 @@ export default function TableOrderPage() {
                         <button
                           onClick={() => removeFromCart(item.id)}
                           className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
-                          aria-label="Decrease quantity"
+                          aria-label={`Decrease ${item.name} quantity`}
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
@@ -533,7 +563,7 @@ export default function TableOrderPage() {
                         <button
                           onClick={() => addToCart(item)}
                           className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
-                          aria-label="Increase quantity"
+                          aria-label={`Increase ${item.name} quantity`}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -557,7 +587,7 @@ export default function TableOrderPage() {
                   {totalCount} {totalCount === 1 ? 'item' : 'items'}
                 </span>
                 <span className="text-neutral-300">•</span>
-                <span className="text-xs text-orange-600 font-bold">Table {tableNumber}</span>
+                <span className="text-xs text-orange-600 font-bold">{orderContext}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-black text-neutral-900">₹{total.toFixed(2)}</span>
@@ -588,9 +618,9 @@ export default function TableOrderPage() {
                   <ShoppingBag className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-neutral-900 text-sm">Table Order Review</h3>
+                  <h3 className="font-extrabold text-neutral-900 text-sm">Review your order</h3>
                   <p className="text-xs text-neutral-400">
-                    {restaurant?.name} • <span className="font-semibold text-neutral-700">{tableNumber}</span>
+                    {restaurant?.name} • <span className="font-semibold text-neutral-700">{orderContext}</span>
                   </p>
                 </div>
               </div>
@@ -689,13 +719,16 @@ export default function TableOrderPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                      Your Name
+                    <label htmlFor="order-customer-name" className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                      Your name{orderSource === 'TABLE_QR' ? ' *' : ''}
                     </label>
                     <input
+                      id="order-customer-name"
                       type="text"
+                      autoComplete="name"
+                      required={orderSource === 'TABLE_QR'}
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="e.g. Priya Sharma"
@@ -703,30 +736,35 @@ export default function TableOrderPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                      Mobile Number
+                    <label htmlFor="order-customer-phone" className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                      Mobile number{orderSource === 'TABLE_QR' ? ' *' : ''}
                     </label>
                     <input
+                      id="order-customer-phone"
                       type="tel"
+                      autoComplete="tel"
+                      required={orderSource === 'TABLE_QR'}
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="10-digit mobile"
                       inputMode="numeric"
+                      maxLength={14}
                       className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                    Special Cooking Request / Allergies
+                  <label htmlFor="order-instructions" className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                    Special instructions or allergies
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    id="order-instructions"
+                    rows={2}
                     value={specialInstructions}
                     onChange={(e) => setSpecialInstructions(e.target.value)}
                     placeholder="e.g. Medium spicy, no garlic, extra napkins"
-                    className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
+                    className="w-full resize-y border border-neutral-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden"
                   />
                 </div>
 

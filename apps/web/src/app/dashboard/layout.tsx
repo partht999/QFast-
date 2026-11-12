@@ -27,19 +27,41 @@ import { getApiUrl } from '@/lib/api';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { isFoodBusiness } from '@/lib/business-links';
 
-const navigation = [
-  { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-  { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
-  { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
-  { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
-  { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
-  { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
-  { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
-  { label: 'Staff', href: '/dashboard/staff', icon: Users },
-  { label: 'Plan', href: '/dashboard/billing', icon: CreditCard },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+const navigationGroups = [
+  {
+    label: 'Workspace',
+    items: [
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Live service',
+    items: [
+      { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
+      { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
+    ],
+  },
+  {
+    label: 'Restaurant',
+    items: [
+      { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
+      { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
+      { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
+      { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
+    ],
+  },
+  {
+    label: 'Team & account',
+    items: [
+      { label: 'Staff', href: '/dashboard/staff', icon: Users },
+      { label: 'Plan', href: '/dashboard/billing', icon: CreditCard },
+      { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+    ],
+  },
 ];
+
+const navigation = navigationGroups.flatMap((group) => group.items);
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
@@ -88,8 +110,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : !isFoodBusiness(businessType)
       ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
       : roleNavigation;
-  const primaryNavigation = visibleNavigation.slice(0, 4);
-  const moreNavigation = visibleNavigation.slice(4);
+  const visibleNavigationGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => visibleNavigation.some((visibleItem) => visibleItem.href === item.href)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const primaryNavigationOrder = staffRole === 'KITCHEN_STAFF'
+    ? ['/dashboard/kds']
+    : staffRole === 'WAITER'
+      ? ['/dashboard/queue', '/dashboard/tables']
+      : staffRole === 'CASHIER'
+        ? ['/dashboard', '/dashboard/queue', '/dashboard/tables']
+        : isFoodBusiness(businessType)
+          ? ['/dashboard', '/dashboard/queue', '/dashboard/kds', '/dashboard/menu']
+          : ['/dashboard', '/dashboard/queue', '/dashboard/analytics', '/dashboard/settings'];
+  const primaryNavigation = [
+    ...primaryNavigationOrder
+      .map((href) => visibleNavigation.find((item) => item.href === href))
+      .filter((item): item is (typeof visibleNavigation)[number] => Boolean(item)),
+    ...visibleNavigation.filter((item) => !primaryNavigationOrder.includes(item.href)),
+  ].slice(0, 4);
+  const moreNavigation = visibleNavigation.filter(
+    (item) => !primaryNavigation.some((primaryItem) => primaryItem.href === item.href),
+  );
+  const moreNavigationGroups = visibleNavigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => moreNavigation.some((moreItem) => moreItem.href === item.href)),
+    }))
+    .filter((group) => group.items.length > 0);
   const moreIsActive = moreNavigation.some((item) => isActive(pathname, item.href));
   const businessLabel = BUSINESS_TYPES.find((type) => type.value === businessType)?.label;
 
@@ -217,13 +267,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* ─── Desktop Sidebar ─── */}
       <aside
-        className={`hidden md:flex flex-col border-r border-neutral-800 bg-neutral-900 transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex flex-col border-r border-neutral-200 bg-white transition-all duration-200 ease-in-out ${
           sidebarCollapsed ? 'w-[68px]' : 'w-60'
         }`}
       >
         {/* Logo area */}
-        <div className="flex h-16 items-center gap-2 border-b border-neutral-800 px-3">
-          <BrandMark href="/dashboard" tone="light" size="sm" showWordmark={!sidebarCollapsed} label="Qfast dashboard" />
+        <div className="flex h-16 items-center gap-2 border-b border-neutral-100 px-3">
+          <BrandMark href="/dashboard" size="sm" showWordmark={!sidebarCollapsed} label="Qfast dashboard" />
           {businessLogoUrl && !sidebarCollapsed && (
             <img src={businessLogoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
           )}
@@ -231,43 +281,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Navigation items */}
         <nav aria-label="Dashboard sections" className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="space-y-1">
-            {visibleNavigation.map(({ label, href, icon: Icon }) => {
-              const active = isActive(pathname, href);
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    aria-current={active ? 'page' : undefined}
-                    title={sidebarCollapsed ? label : undefined}
-                    className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                      active
-                        ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
-                        : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-                    } ${sidebarCollapsed ? 'justify-center' : ''}`}
-                  >
-                    <Icon
-                      aria-hidden="true"
-                      size={18}
-                      strokeWidth={active ? 2.2 : 1.8}
-                      className={`shrink-0 transition-transform duration-150 group-hover:scale-110 ${
-                        active ? '' : 'group-hover:text-brand-400'
-                      }`}
-                    />
-                    {!sidebarCollapsed && <span>{label}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-5">
+            {visibleNavigationGroups.map((group) => (
+              <section key={group.label} aria-label={group.label}>
+                {!sidebarCollapsed && (
+                  <h2 className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500">
+                    {group.label}
+                  </h2>
+                )}
+                <ul className="space-y-0.5">
+                  {group.items.map(({ label, href, icon: Icon }) => {
+                    const active = isActive(pathname, href);
+                    return (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          aria-current={active ? 'page' : undefined}
+                          title={sidebarCollapsed ? label : undefined}
+                          className={`group flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
+                            active
+                              ? 'bg-brand-50 text-brand-700'
+                              : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950'
+                          } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                        >
+                          <Icon aria-hidden="true" size={18} strokeWidth={active ? 2.2 : 1.8} className="shrink-0" />
+                          {!sidebarCollapsed && <span>{label}</span>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         </nav>
 
         {/* Collapse toggle */}
-        <div className="border-t border-neutral-800 px-3 py-2">
+        <div className="border-t border-neutral-100 px-3 py-2">
           <button
             type="button"
             onClick={() => setSidebarCollapsed((c) => !c)}
-            className="flex w-full items-center justify-center rounded-lg p-2 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+            className="flex w-full items-center justify-center rounded-lg p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
@@ -279,12 +333,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* User profile */}
-        <div className="border-t border-neutral-800 p-3">
+        <div className="border-t border-neutral-100 p-3">
           {sidebarCollapsed ? (
             <button
               type="button"
               onClick={handleLogout}
-              className="flex w-full items-center justify-center rounded-lg p-2 text-neutral-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+              className="flex w-full items-center justify-center rounded-lg p-2 text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-600"
               title="Sign out"
               aria-label="Sign out"
             >
@@ -292,11 +346,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           ) : (
             <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-700 text-xs font-bold uppercase text-neutral-300">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold uppercase text-brand-700">
                 {userEmail ? userEmail[0] : '?'}
               </div>
               <div className="flex-1 overflow-hidden">
-                <p className="truncate text-xs font-medium text-neutral-300">
+                <p className="truncate text-xs font-medium text-neutral-800">
                   {userEmail || 'Business account'}
                 </p>
                 <p className="truncate text-[11px] text-neutral-500">
@@ -305,7 +359,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="mt-0.5 text-[11px] font-medium text-neutral-500 transition-colors hover:text-red-400"
+                  className="mt-0.5 text-[11px] font-medium text-neutral-500 transition-colors hover:text-red-600"
                 >
                   Sign out
                 </button>
@@ -318,39 +372,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ─── Main content area ─── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top header bar */}
-        <header className="hidden md:flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
-          <h1 className="text-base font-semibold text-gray-900">
-            {getPageTitle(pathname)}
-          </h1>
+        <header className="hidden h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-6 md:flex">
+          <Link href="/dashboard" className="text-sm font-semibold text-neutral-700 hover:text-neutral-950">
+            Workspace
+          </Link>
           <div className="flex items-center gap-3">
             {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
             {businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>}
-            <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" title="Live" />
             <span className="text-xs text-gray-500">
               {planStatus === 'TRIALING' && trialEndsAt
-                ? `Premium trial until ${new Date(trialEndsAt).toLocaleDateString()}`
-                : 'Live updates active'}
+                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString()}`
+                : `${businessLabel || 'Business'} workspace`}
             </span>
           </div>
         </header>
 
         {/* Mobile header */}
-        <header className="flex md:hidden h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <BrandMark href="/dashboard" size="sm" label="Qfast dashboard" />
             {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />}
-            <span className="truncate text-sm font-bold text-gray-900">
-              {getPageTitle(pathname)}
-            </span>
+            <span className="truncate text-sm font-bold text-gray-900">{businessName || getPageTitle(pathname)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-[11px] text-gray-500">Live</span>
+            <span className="text-[11px] text-gray-500">
+              {planStatus === 'TRIALING' && trialEndsAt
+                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString()}`
+                : 'Workspace'}
+            </span>
           </div>
         </header>
 
         {/* Scrollable page content */}
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-24 md:pb-0">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-neutral-50 pb-24 md:pb-0">
           {children}
         </main>
       </div>
@@ -378,37 +432,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               : 'pointer-events-none translate-y-4 opacity-0'
           }`}
         >
-          <div className="mx-3 mb-2 rounded-2xl border border-gray-200/80 bg-white p-2 shadow-2xl">
+          <div className="mx-3 mb-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200/80 bg-white p-2 shadow-2xl">
             <div className="mb-1 px-3 py-2">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                 More sections
               </p>
             </div>
-            {moreNavigation.map(({ label, href, icon: Icon }) => {
-              const active = isActive(pathname, href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => setMoreOpen(false)}
-                  className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-150 active:scale-[0.98] ${
-                    active
-                      ? 'bg-brand-50 text-brand-700'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                      active ? 'bg-brand-100' : 'bg-gray-100'
-                    }`}
-                  >
-                    <Icon aria-hidden="true" size={16} />
-                  </div>
-                  {label}
-                </Link>
-              );
-            })}
+            {moreNavigationGroups.map((group) => (
+              <section key={group.label} aria-label={group.label} className="mb-2 last:mb-0">
+                <h2 className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">{group.label}</h2>
+                {group.items.map(({ label, href, icon: Icon }) => {
+                  const active = isActive(pathname, href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => setMoreOpen(false)}
+                      className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
+                        active ? 'bg-brand-50 text-brand-700' : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-brand-100' : 'bg-gray-100'}`}>
+                        <Icon aria-hidden="true" size={16} />
+                      </div>
+                      {label}
+                    </Link>
+                  );
+                })}
+              </section>
+            ))}
           </div>
         </div>
 
