@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   Users,
   Clock,
@@ -31,6 +30,13 @@ import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { clearGuestToken, guestTokenUrl, readGuestToken, saveGuestToken } from '@/lib/guest-token';
 import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+
+function readApiMessage(data: { message?: unknown }, fallback: string) {
+  const message = data?.message;
+  if (Array.isArray(message)) return message.map((item) => String(item)).join(' ');
+  if (typeof message === 'string' && message.trim()) return message;
+  return fallback;
+}
 
 export default function JoinQueuePage() {
   const params = useParams();
@@ -345,22 +351,22 @@ export default function JoinQueuePage() {
         </div>
         <nav className="flex items-center gap-2">
           {foodBusiness && (
-            <Link
+            <a
               href={`${publicPath}/loyalty`}
               className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
             >
               <Gift className="w-3.5 h-3.5" />
               <span>Stamps</span>
-            </Link>
+            </a>
           )}
           {foodBusiness && activeToken && (
-            <Link
+            <a
               href={`/r/${slug}/table/queue?token=${activeToken.id}`}
               className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200/60 px-3 py-2 rounded-full transition-all flex items-center gap-1.5"
             >
               <UtensilsCrossed className="w-3.5 h-3.5" />
               <span>Menu</span>
-            </Link>
+            </a>
           )}
         </nav>
       </header>
@@ -657,14 +663,14 @@ export default function JoinQueuePage() {
               <div className="relative z-10 pt-2 flex flex-col gap-2.5">
                 {foodBusiness && (
                   <div className="space-y-1">
-                    <Link
+                    <a
                       href={`/r/${slug}/table/queue?token=${activeToken.id}`}
                       className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold py-3.5 rounded-2xl transition-all duration-200 shadow-md text-sm flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98]"
                     >
                       <UtensilsCrossed className="w-4 h-4" />
                       <span>{activeToken.orders?.length ? 'Add more items' : 'Order while you wait'}</span>
                       <ChevronRight className="w-4 h-4 -ml-0.5" />
-                    </Link>
+                    </a>
                     <p className="text-[11px] text-center text-neutral-500 font-medium">
                       {activeToken.status === 'WAITING'
                         ? 'The kitchen holds this pre-order until you are called.'
@@ -706,13 +712,13 @@ export default function JoinQueuePage() {
                       }}
                     />
                   )}
-                  <Link
+                  <a
                     href={`/r/${slug}/table/queue?token=${activeToken.id}`}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-sm font-extrabold text-white"
                   >
                     <UtensilsCrossed className="h-4 w-4" />
                     Add more items
-                  </Link>
+                  </a>
                 </div>
               )}
             </div>
@@ -727,17 +733,17 @@ export default function JoinQueuePage() {
               <p className="text-lg font-black text-neutral-950">Dine in</p>
               <p className="mt-1 text-sm text-neutral-600">Join the queue. You can order while you wait, then we seat you at a free table.</p>
             </button>
-            <Link
+            <a
               href={`/r/${slug}/table/takeaway`}
               className="block w-full rounded-3xl border border-neutral-200 bg-white p-5 text-left shadow-sm"
             >
               <p className="text-lg font-black text-neutral-950">Takeaway</p>
               <p className="mt-1 text-sm text-neutral-600">No table. Order now, and we will show you when it is ready to collect.</p>
-            </Link>
+            </a>
             {takeawayId && (
-              <Link href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
+              <a href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
                 You already have a takeaway order. Check if it is ready.
-              </Link>
+              </a>
             )}
           </div>
         ) : (
@@ -1026,9 +1032,9 @@ function VisitFinished({
               ? `Your card is full: ${stamps} of ${goal}. Show this phone at the counter and collect ${loyalty?.rewardName || 'your free dish'}.`
               : `You have ${stamps} of ${goal} stamps toward ${loyalty?.rewardName || 'a reward'}.`}
           </p>
-          <Link href={stampsHref} className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
+          <a href={stampsHref} className="mt-3 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
             Open your stamp card
-          </Link>
+          </a>
         </div>
       ) : (
         <p className="mt-3 text-sm text-emerald-900">
