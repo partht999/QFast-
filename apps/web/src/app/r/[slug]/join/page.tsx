@@ -293,7 +293,7 @@ export default function JoinQueuePage() {
       <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
         <div className="max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm">
           <div className="mb-4 flex justify-center">
-            <BrandLockup venueName={queueStatus.businessName} venueLogoUrl={queueStatus.logoUrl} />
+            <BrandLockup venueLogoUrl={queueStatus.logoUrl} />
           </div>
           <h1 className="text-xl font-black text-neutral-950">{queueStatus.businessName || 'This queue'}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">This queue is paused because the business plan has expired. Please speak to the counter.</p>

@@ -250,13 +250,18 @@ export default function OrderTrackingPage() {
             )
           )}
           <div className="flex items-center justify-between mb-5">
-            <div>
+            <div className="flex min-w-0 items-center gap-3">
+              {order.business?.logoUrl && (
+                <img src={order.business.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+              )}
+              <div className="min-w-0">
               <span className="text-[11px] font-black text-orange-600 uppercase tracking-wider block">
                 {order.business?.name}
               </span>
               <h2 className="text-xl font-black text-neutral-900 mt-0.5">
                 Ticket #{order.id.slice(-6).toUpperCase()}
               </h2>
+              </div>
             </div>
             <span
               className={`text-xs font-extrabold px-3.5 py-1.5 rounded-full ${
