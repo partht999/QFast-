@@ -20,15 +20,12 @@ export function BrandMark({
   label?: string;
 }) {
   const onDark = tone === 'light';
+  const src = !showWordmark ? '/qfast-mark.png' : onDark ? '/qfast-logo-dark.png' : '/qfast-logo.png';
 
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      className={`inline-flex shrink-0 items-center ${onDark ? 'rounded-lg bg-white px-1.5 py-1' : ''}`}
-    >
+    <Link href={href} aria-label={label} className="inline-flex shrink-0 items-center">
       <img
-        src={showWordmark ? '/qfast-logo.png' : '/qfast-mark.png'}
+        src={src}
         alt=""
         className={`${heights[size]} w-auto max-w-none object-contain ${showWordmark ? '' : 'aspect-square'}`}
       />
