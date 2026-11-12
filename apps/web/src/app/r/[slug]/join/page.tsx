@@ -12,7 +12,6 @@ import {
   AlertCircle,
   X,
   ChevronRight,
-  Sparkles,
   Phone,
   QrCode,
   UtensilsCrossed,
@@ -22,7 +21,7 @@ import {
   Stethoscope,
   Scissors,
 } from 'lucide-react';
-import { BrandMark } from '@/components/brand-mark';
+import { BrandLockup, BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
 import { getBusinessPublicPath, isClinicalBusiness, isFoodBusiness } from '@/lib/business-links';
 import { isIndianMobile, localMobile } from '@/lib/phone';
@@ -293,6 +292,9 @@ export default function JoinQueuePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
         <div className="max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm">
+          <div className="mb-4 flex justify-center">
+            <BrandLockup venueName={queueStatus.businessName} venueLogoUrl={queueStatus.logoUrl} />
+          </div>
           <h1 className="text-xl font-black text-neutral-950">{queueStatus.businessName || 'This queue'}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">This queue is paused because the business plan has expired. Please speak to the counter.</p>
         </div>
@@ -336,8 +338,8 @@ export default function JoinQueuePage() {
 
       {/* Top Header */}
       <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-orange-100/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <BrandMark href="/" size="sm" label="Qfast home" />
+        <div className="flex min-w-0 items-center gap-2">
+          <BrandLockup href="/" size="sm" venueLogoUrl={queueStatus?.logoUrl || activeToken?.business?.logoUrl} />
           <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
             Live queue
           </span>
@@ -371,6 +373,13 @@ export default function JoinQueuePage() {
             <QrCode className="w-3.5 h-3.5 text-orange-600" />
             <span>{foodBusiness && !activeToken && !visitChoice ? 'Choose your visit' : 'Join the queue'}</span>
           </div>
+          {(queueStatus?.logoUrl || activeToken?.business?.logoUrl) && (
+            <img
+              src={queueStatus?.logoUrl || activeToken?.business?.logoUrl}
+              alt=""
+              className="mx-auto mb-3 h-16 w-16 rounded-2xl object-cover"
+            />
+          )}
           <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
             {queueStatus?.businessName || 'Customer Queue'}
           </h1>
@@ -942,9 +951,9 @@ export default function JoinQueuePage() {
 
       {/* Footer */}
       <footer className="py-5 text-center text-[11px] text-neutral-400 font-medium">
-        <span className="inline-flex items-center gap-1.5">
-          <Sparkles className="w-3 h-3 text-orange-400" />
-          Powered by Qfast · No app install required
+        <span className="inline-flex items-center justify-center gap-2">
+          <BrandMark href="/" size="sm" label="Qfast" />
+          <span>No app install required</span>
         </span>
       </footer>
 

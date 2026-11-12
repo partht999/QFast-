@@ -24,6 +24,7 @@ import {
 import { getApiUrl } from '@/lib/api';
 import { lineName } from '@/lib/order-line';
 import { describePayments } from '@/lib/payment';
+import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 
@@ -280,13 +281,9 @@ export default function KDSPage() {
             />
           )}
           <div className="flex min-w-0 items-center gap-2">
+            <BrandLockup tone="light" size="sm" venueName={business?.name} venueLogoUrl={business?.logoUrl} />
             <ChefHat className="h-5 w-5 shrink-0 text-orange-500" />
             <h1 className="text-sm font-black uppercase tracking-wider text-white">Kitchen</h1>
-            {business?.name && (
-              <span className="truncate rounded-full border border-neutral-700 bg-neutral-800 px-2.5 py-0.5 font-mono text-xs text-neutral-300">
-                {business.name}
-              </span>
-            )}
           </div>
         </div>
 

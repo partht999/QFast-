@@ -535,7 +535,10 @@ export default function TablesManagementPage() {
         <section className="qr-print-sheet" aria-label="Printable QR code">
           <div className="qr-print-card">
             <div className="qr-sticker-top">
-              <span className="qr-print-brand">QFAST</span>
+              <span className="qr-print-logos">
+                <img className="qr-print-logo" src="/qfast-logo.png" alt="Qfast" />
+                {business?.logoUrl && <img className="qr-print-venue" src={business.logoUrl} alt="" />}
+              </span>
               <span className="qr-sticker-type">
                 {printQR.kind === 'entrance' ? 'WELCOME' : 'SCAN & ORDER'}
               </span>

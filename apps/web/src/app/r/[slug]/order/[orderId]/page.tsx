@@ -14,7 +14,7 @@ import {
 import { getApiUrl } from '@/lib/api';
 import { lineName } from '@/lib/order-line';
 import { reviewHref } from '@/lib/google-place';
-import { BrandMark } from '@/components/brand-mark';
+import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { VisitBill } from '@/components/visit-bill';
@@ -175,7 +175,12 @@ export default function OrderTrackingPage() {
                   : `/r/${slug}/join`
             }
           />
-          <BrandMark href={`/r/${slug}/order/${order.id}`} size="sm" label="Qfast" />
+          <BrandLockup
+            href={`/r/${slug}/order/${order.id}`}
+            size="sm"
+            venueName={order.business?.name}
+            venueLogoUrl={order.business?.logoUrl}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link

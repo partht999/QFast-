@@ -69,7 +69,7 @@ export function VisitBill({
   const sgst = Math.round((tax - cgst) * 100) / 100;
   const when = issuedAt || new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
-  const receiptHtml = (logoSrc = logoUrl) => {
+  const receiptHtml = (logoSrc = logoUrl, qfastSrc = '/qfast-logo.png') => {
     const rows = lines.length
       ? lines
           .map(
@@ -96,8 +96,10 @@ export function VisitBill({
     .toolbar { max-width: 420px; margin: 16px auto 0; display: flex; justify-content: flex-end; }
     .toolbar button { border: 0; background: #1c1917; color: white; border-radius: 10px; padding: 10px 14px; font-weight: 700; }
     .sheet { max-width: 420px; margin: 12px auto 28px; background: white; padding: 28px 24px 22px; border: 1px solid #e7e5e4; }
-    .brand { display: flex; gap: 12px; align-items: center; }
-    .brand img { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; }
+    .brand { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+    .brand-venue { display: flex; gap: 12px; align-items: center; min-width: 0; }
+    .brand img.venue { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; }
+    .brand img.qfast { height: 36px; width: auto; }
     h1 { margin: 0; font-size: 22px; letter-spacing: -0.03em; }
     .meta { margin: 4px 0 0; color: #57534e; font-size: 12px; line-height: 1.5; }
     .rule { height: 1px; background: #e7e5e4; margin: 16px 0; }
@@ -129,11 +131,14 @@ export function VisitBill({
   <div class="toolbar"><button type="button" onclick="window.print()">Save as PDF</button></div>
   <article class="sheet">
     <div class="brand">
-      ${logoSrc ? `<img src="${escapeHtml(logoSrc)}" alt="" />` : ''}
-      <div>
-        <h1>${escapeHtml(businessName || 'Qfast')}</h1>
-        <p class="meta">${[address, phone, gstin ? `GSTIN ${gstin}` : ''].filter(Boolean).map((part) => escapeHtml(String(part))).join('<br>')}</p>
+      <div class="brand-venue">
+        ${logoSrc ? `<img class="venue" src="${escapeHtml(logoSrc)}" alt="" />` : ''}
+        <div>
+          <h1>${escapeHtml(businessName || 'Qfast')}</h1>
+          <p class="meta">${[address, phone, gstin ? `GSTIN ${gstin}` : ''].filter(Boolean).map((part) => escapeHtml(String(part))).join('<br>')}</p>
+        </div>
       </div>
+      ${qfastSrc ? `<img class="qfast" src="${escapeHtml(qfastSrc)}" alt="Qfast" />` : ''}
     </div>
     <div class="rule"></div>
     <div class="kicker">
@@ -165,24 +170,24 @@ export function VisitBill({
 
   const download = () => {
     const preview = window.open('', 'qfast-bill');
-    const inlineLogo = async () => {
-      if (!logoUrl || logoUrl.startsWith('data:')) return logoUrl || '';
+    const inlineImage = async (src?: string) => {
+      if (!src || src.startsWith('data:')) return src || '';
       try {
-        const response = await fetch(logoUrl);
-        if (!response.ok) return logoUrl;
+        const response = await fetch(src);
+        if (!response.ok) return src;
         const blob = await response.blob();
         return await new Promise<string>((resolve) => {
           const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || logoUrl));
-          reader.onerror = () => resolve(logoUrl);
+          reader.onload = () => resolve(String(reader.result || src));
+          reader.onerror = () => resolve(src);
           reader.readAsDataURL(blob);
         });
       } catch {
-        return logoUrl;
+        return src;
       }
     };
-    void inlineLogo().then((logoSrc) => {
-    const html = receiptHtml(logoSrc);
+    void Promise.all([inlineImage(logoUrl), inlineImage('/qfast-logo.png')]).then(([logoSrc, qfastSrc]) => {
+    const html = receiptHtml(logoSrc, qfastSrc);
     if (preview) {
       preview.document.open();
       preview.document.write(html);
@@ -217,14 +222,17 @@ export function VisitBill({
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={download}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-stone-950 px-3 text-xs font-bold text-white"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <img src="/qfast-logo.png" alt="Qfast" className="h-8 w-auto" />
+          <button
+            type="button"
+            onClick={download}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-stone-950 px-3 text-xs font-bold text-white"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex items-start justify-between gap-3 border-y border-stone-100 py-3">

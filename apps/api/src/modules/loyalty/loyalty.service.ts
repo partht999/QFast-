@@ -32,6 +32,7 @@ export class LoyaltyService {
       return {
         hasProgram: false,
         businessName: business.name,
+        logoUrl: business.logoUrl,
         points: 0,
         stamps: 0,
         stampsForReward: 8,
@@ -72,6 +73,7 @@ export class LoyaltyService {
     return {
       hasProgram: true,
       businessName: business.name,
+      logoUrl: business.logoUrl,
       programType: business.loyaltyProgram.type,
       points: account?.points || 0,
       stamps: account?.stamps || 0,
@@ -87,6 +89,7 @@ export class LoyaltyService {
       select: {
         id: true,
         name: true,
+        logoUrl: true,
         type: true,
         loyaltyProgram: {
           select: {
@@ -110,11 +113,12 @@ export class LoyaltyService {
     });
     if (!business) throw new NotFoundException('Business not found');
     if (!isRestaurant(business.type)) {
-      return { businessName: business.name, hasProgram: false, enabled: false, rewards: [] };
+      return { businessName: business.name, logoUrl: business.logoUrl, hasProgram: false, enabled: false, rewards: [] };
     }
 
     return {
       businessName: business.name,
+      logoUrl: business.logoUrl,
       enabled: true,
       hasProgram: Boolean(business.loyaltyProgram),
       programType: business.loyaltyProgram?.type,

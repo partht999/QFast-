@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import { Zap } from 'lucide-react';
 
-const sizes = {
-  sm: { box: 'h-8 w-8 rounded-lg', icon: 'h-4 w-4', word: 'text-lg' },
-  md: { box: 'h-9 w-9 rounded-xl', icon: 'h-5 w-5', word: 'text-xl' },
-  lg: { box: 'h-10 w-10 rounded-xl', icon: 'h-5 w-5', word: 'text-2xl' },
+const heights = {
+  sm: 'h-8',
+  md: 'h-10',
+  lg: 'h-14',
 };
 
 export function BrandMark({
@@ -16,21 +15,53 @@ export function BrandMark({
 }: {
   href?: string;
   tone?: 'dark' | 'light';
-  size?: keyof typeof sizes;
+  size?: keyof typeof heights;
   showWordmark?: boolean;
   label?: string;
 }) {
-  const style = sizes[size];
-  const wordColor = tone === 'light' ? 'text-white' : 'text-slate-950';
+  const onDark = tone === 'light';
 
   return (
-    <Link href={href} className="inline-flex items-center gap-2.5" aria-label={label}>
-      <span className={`flex shrink-0 items-center justify-center bg-orange-500 text-white shadow-md shadow-orange-500/25 ${style.box}`}>
-        <Zap className={style.icon} fill="currentColor" />
-      </span>
-      {showWordmark && (
-        <span className={`${style.word} font-black tracking-tight ${wordColor}`}>Qfast</span>
-      )}
+    <Link
+      href={href}
+      aria-label={label}
+      className={`inline-flex shrink-0 items-center ${onDark ? 'rounded-lg bg-white px-1.5 py-1' : ''}`}
+    >
+      <img
+        src={showWordmark ? '/qfast-logo.png' : '/qfast-mark.png'}
+        alt=""
+        className={`${heights[size]} w-auto max-w-none object-contain ${showWordmark ? '' : 'aspect-square'}`}
+      />
     </Link>
+  );
+}
+
+export function BrandLockup({
+  href = '/',
+  tone = 'dark',
+  size = 'sm',
+  venueName,
+  venueLogoUrl,
+}: {
+  href?: string;
+  tone?: 'dark' | 'light';
+  size?: keyof typeof heights;
+  venueName?: string | null;
+  venueLogoUrl?: string | null;
+}) {
+  const onDark = tone === 'light';
+  const hasVenue = Boolean(venueLogoUrl || venueName);
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <BrandMark href={href} tone={tone} size={size} label="Qfast" />
+      {hasVenue && <span className={`h-6 w-px shrink-0 ${onDark ? 'bg-neutral-700' : 'bg-neutral-200'}`} aria-hidden />}
+      {venueLogoUrl ? (
+        <img src={venueLogoUrl} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
+      ) : null}
+      {venueName ? (
+        <span className={`truncate text-sm font-black ${onDark ? 'text-white' : 'text-neutral-950'}`}>{venueName}</span>
+      ) : null}
+    </div>
   );
 }

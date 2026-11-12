@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
+import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
 
@@ -23,6 +24,7 @@ export default function CustomerLoyaltyPage() {
   const [phone, setPhone] = useState(phoneParam);
   const [card, setCard] = useState<Card | null>(null);
   const [businessName, setBusinessName] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [goal, setGoal] = useState(8);
   const [rewardName, setRewardName] = useState('Free visit');
   const [checking, setChecking] = useState(false);
@@ -35,6 +37,7 @@ export default function CustomerLoyaltyPage() {
       .then((data) => {
         if (!data) return;
         setBusinessName(data.businessName || '');
+        setLogoUrl(data.logoUrl || '');
         setAvailable(data.enabled !== false);
         setGoal(data.stampsForReward || 8);
         setRewardName(data.rewardName || 'Free visit');
@@ -51,6 +54,8 @@ export default function CustomerLoyaltyPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Could not find this card');
       setCard(data);
+      if (data.logoUrl) setLogoUrl(data.logoUrl);
+      if (data.businessName) setBusinessName(data.businessName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not find this card');
     } finally {
@@ -74,7 +79,10 @@ export default function CustomerLoyaltyPage() {
   return (
     <main className="min-h-screen bg-orange-50 px-4 py-8 text-slate-950">
       <div className="mx-auto max-w-md">
-        <BackLink fallback={publicPath} />
+        <BrandLockup venueName={card?.businessName || businessName} venueLogoUrl={logoUrl} />
+        <div className="mt-4">
+          <BackLink fallback={publicPath} />
+        </div>
         {!available ? (
           <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
             <h1 className="text-2xl font-black">No stamp card here</h1>

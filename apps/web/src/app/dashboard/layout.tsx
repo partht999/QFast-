@@ -20,9 +20,8 @@ import {
   Users,
   Utensils,
   X,
-  Zap,
 } from 'lucide-react';
-import { BrandMark } from '@/components/brand-mark';
+import { BrandLockup, BrandMark } from '@/components/brand-mark';
 import { PlanBoard } from '@/components/plan-board';
 import { getApiUrl } from '@/lib/api';
 import { BUSINESS_TYPES } from '@/lib/business-types';
@@ -75,6 +74,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [staffRole, setStaffRole] = useState<string>('OWNER');
   const [planStatus, setPlanStatus] = useState<string>('');
   const [trialEndsAt, setTrialEndsAt] = useState<string>('');
+  const [businessName, setBusinessName] = useState('');
+  const [businessLogoUrl, setBusinessLogoUrl] = useState('');
   const roleNavigation = navigation.filter((item) => {
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
     if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables'].includes(item.href);
@@ -141,6 +142,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const current = businesses[0];
         if (current.type) setBusinessType(current.type);
         if (current.myRole) setStaffRole(current.myRole);
+        setBusinessName(current.name || '');
+        setBusinessLogoUrl(current.logoUrl || '');
         const subscription = current.subscriptions?.[0];
         setPlanStatus(subscription?.status || '');
         setTrialEndsAt(subscription?.trialEndsAt || '');
@@ -190,8 +193,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-orange-600">Qfast</p>
-              <h1 className="mt-1 text-3xl font-black">Your plan has expired</h1>
+              <BrandLockup venueName={businessName} venueLogoUrl={businessLogoUrl} />
+              <h1 className="mt-3 text-3xl font-black">Your plan has expired</h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-600">
                 The 30-day Advanced trial is over. The queue, table ordering, and kitchen stay closed until a plan is active.
               </p>
@@ -219,8 +222,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }`}
       >
         {/* Logo area */}
-        <div className="flex h-16 items-center border-b border-neutral-800 px-4">
+        <div className="flex h-16 items-center gap-2 border-b border-neutral-800 px-3">
           <BrandMark href="/dashboard" tone="light" size="sm" showWordmark={!sidebarCollapsed} label="Qfast dashboard" />
+          {businessLogoUrl && !sidebarCollapsed && (
+            <img src={businessLogoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+          )}
         </div>
 
         {/* Navigation items */}
@@ -317,6 +323,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {getPageTitle(pathname)}
           </h1>
           <div className="flex items-center gap-3">
+            {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
+            {businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>}
             <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" title="Live" />
             <span className="text-xs text-gray-500">
               {planStatus === 'TRIALING' && trialEndsAt
@@ -328,11 +336,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile header */}
         <header className="flex md:hidden h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500">
-              <Zap size={14} className="text-white" strokeWidth={2.5} />
-            </div>
-            <span className="text-sm font-bold text-gray-900">
+          <div className="flex min-w-0 items-center gap-2">
+            <BrandMark href="/dashboard" size="sm" label="Qfast dashboard" />
+            {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />}
+            <span className="truncate text-sm font-bold text-gray-900">
               {getPageTitle(pathname)}
             </span>
           </div>

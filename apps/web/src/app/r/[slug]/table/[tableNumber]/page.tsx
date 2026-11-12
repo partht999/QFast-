@@ -280,6 +280,7 @@ export default function TableOrderPage() {
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}
+            <img src="/qfast-logo.png" alt="Qfast" className="h-8 w-auto shrink-0" />
             {restaurant?.logoUrl ? (
               <img src={restaurant.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
             ) : (
