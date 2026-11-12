@@ -162,8 +162,7 @@ export default function JoinQueuePage() {
   }, [slug]);
 
   useEffect(() => {
-    const source = new URLSearchParams(window.location.search).get('source');
-    setJoinSource(source === 'walkin' ? 'WALK_IN' : 'REMOTE');
+    setJoinSource('REMOTE');
     setNotificationPermission(
       'Notification' in window ? Notification.permission : 'unsupported',
     );
@@ -247,8 +246,8 @@ export default function JoinQueuePage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to join queue');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(readApiMessage(data, 'Failed to join queue'));
 
       setActiveToken(data);
       saveGuestToken(slug, data.id, data.guestSecret);

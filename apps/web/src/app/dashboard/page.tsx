@@ -132,7 +132,7 @@ export default function DashboardPage() {
   }, []);
 
   const entranceUrl = selectedBusiness && siteOrigin
-    ? `${siteOrigin}${getBusinessPublicPath(selectedBusiness.slug, selectedBusiness.type)}?source=walkin`
+    ? `${siteOrigin}${getBusinessPublicPath(selectedBusiness.slug, selectedBusiness.type)}`
     : '';
   const foodBusiness = isFoodBusiness(selectedBusiness?.type);
 

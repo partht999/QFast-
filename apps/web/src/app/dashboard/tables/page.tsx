@@ -226,7 +226,7 @@ export default function TablesManagementPage() {
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const entranceUrl = `${origin}${getBusinessPublicPath(business?.slug, business?.type)}?source=walkin`;
+  const entranceUrl = `${origin}${getBusinessPublicPath(business?.slug, business?.type)}`;
 
   const totalSeats = tables.reduce((acc, t) => acc + (t.capacity || 0), 0);
   const occupiedTables = tables.filter(

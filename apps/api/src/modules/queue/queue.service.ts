@@ -226,7 +226,15 @@ export class QueueService {
     }
     if (!token) throw new ConflictException('Could not reserve a queue token. Please try again.');
 
-    // Emit live update to dashboard
+    const position = await this.prisma.queueToken.count({
+      where: {
+        queueId: queue.id,
+        status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+        createdAt: { lte: token.createdAt },
+      },
+    });
+    const place = token.status === QueueTokenStatus.WAITING ? position : 0;
+
     this.events.emitQueueUpdate(business.id, queue.id, {
       type: 'TOKEN_JOINED',
       token,
@@ -235,8 +243,8 @@ export class QueueService {
     return {
       ...publicToken(token),
       guestSecret,
-      position: waitingBefore + 1,
-      estimatedWaitMin,
+      position: place,
+      estimatedWaitMin: place * avgWait,
       businessName: business.name,
       businessSlug: business.slug,
       queueName: queue.name,
@@ -1031,9 +1039,10 @@ export class QueueService {
         },
       });
       if (existingToken) {
-        throw new ConflictException(
-          `There is already an active queue entry for this phone number (token #${existingToken.tokenNumber}).`,
-        );
+        return tx.queueToken.update({
+          where: { id: existingToken.id },
+          data: { guestSecretHash: input.guestSecretHash },
+        });
       }
       const qRec = await tx.queue.findUnique({ where: { id: input.queueId } });
       if (!qRec) throw new NotFoundException('Queue not found');
