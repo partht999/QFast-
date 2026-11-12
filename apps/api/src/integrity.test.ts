@@ -169,7 +169,9 @@ test('prices come from the menu, including a variant, add-ons, quantity, and the
 test('one open table bill is shared, and a closed bill rejects new items under concurrency', async () => {
   assert.equal(tableSessionDecision(null), 'create');
   assert.equal(tableSessionDecision({ status: 'PREPARING' }), 'append');
+  assert.equal(tableSessionDecision({ status: ' open ' }), 'append');
   assert.equal(tableSessionDecision({ status: 'COMPLETED' }), 'closed');
+  assert.equal(tableSessionDecision({ status: ' completed ' }), 'closed');
   const sessions = createTableSessionLock();
   const arrivals = await Promise.all([sessions.place(), sessions.place(), sessions.place()]);
   assert.equal(arrivals.filter((row) => row.action === 'create').length, 1);

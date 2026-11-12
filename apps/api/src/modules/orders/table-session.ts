@@ -1,4 +1,9 @@
 const CLOSED = new Set(['COMPLETED', 'CANCELLED', 'REJECTED']);
+const OPEN_LIKE = new Set(['OPEN', 'PENDING', 'ACTIVE', 'IN_PROGRESS', 'CONFIRMED']);
+
+function normalizeStatus(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
 
 /**
  * Current table policy: one open bill per table.
@@ -6,9 +11,13 @@ const CLOSED = new Set(['COMPLETED', 'CANCELLED', 'REJECTED']);
  * A closed bill cannot take new items. Whether a second phone should start
  * a separate bill is not decided here.
  */
-export function tableSessionDecision(open: { status: string } | null): 'create' | 'append' | 'closed' {
+export function tableSessionDecision(open: { status?: string | null } | null): 'create' | 'append' | 'closed' {
   if (!open) return 'create';
-  if (CLOSED.has(open.status)) return 'closed';
+
+  const status = normalizeStatus(open.status);
+  if (!status || OPEN_LIKE.has(status)) return 'append';
+  if (CLOSED.has(status)) return 'closed';
+
   return 'append';
 }
 

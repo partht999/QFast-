@@ -417,15 +417,28 @@ async function main() {
   const queueTokenIds: string[] = [];
   for (let index = 0; index < tokenStatuses.length; index += 1) {
     const status = tokenStatuses[index];
-    const createdAt = new Date(Date.now() - (tokenStatuses.length - index) * 11 * 60 * 1000);
-    const calledAt = [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED, QueueTokenStatus.COMPLETED].includes(status)
+    const ageMinutes = status === QueueTokenStatus.SEATED
+      ? 32
+      : status === QueueTokenStatus.CALLED
+        ? 14
+        : status === QueueTokenStatus.WAITING
+          ? 40 - (index - 2) * 5
+          : status === QueueTokenStatus.COMPLETED
+            ? 70 - (index - 8) * 10
+            : 28;
+    const createdAt = new Date(Date.now() - ageMinutes * 60 * 1000);
+    const hasBeenCalled = status === QueueTokenStatus.CALLED
+      || status === QueueTokenStatus.SEATED
+      || status === QueueTokenStatus.COMPLETED;
+    const hasBeenSeated = status === QueueTokenStatus.SEATED || status === QueueTokenStatus.COMPLETED;
+    const calledAt = hasBeenCalled
       ? new Date(createdAt.getTime() + 3 * 60 * 1000)
       : null;
-    const seatedAt = [QueueTokenStatus.SEATED, QueueTokenStatus.COMPLETED].includes(status)
+    const seatedAt = hasBeenSeated
       ? new Date(createdAt.getTime() + 12 * 60 * 1000)
       : null;
     const completedAt = status === QueueTokenStatus.COMPLETED
-      ? new Date(createdAt.getTime() + 58 * 60 * 1000)
+      ? new Date(createdAt.getTime() + 25 * 60 * 1000)
       : null;
     const token = await prisma.queueToken.upsert({
       where: {
@@ -443,6 +456,8 @@ async function main() {
         status,
         source: index % 3 === 0 ? QueueEntrySource.WALK_IN : QueueEntrySource.REMOTE,
         estimatedWaitMin: index * 8,
+        createdAt,
+        updatedAt: createdAt,
         calledAt,
         seatedAt,
         completedAt,
