@@ -1,3 +1,5 @@
+import { storageGet, storageSet } from './safe-storage';
+
 export type GuestProfile = { name: string; phone: string };
 
 function key(slug: string) {
@@ -5,9 +7,9 @@ function key(slug: string) {
 }
 
 export function readGuest(slug: string): GuestProfile | null {
-  if (typeof window === 'undefined' || !slug) return null;
+  if (!slug) return null;
   try {
-    const raw = localStorage.getItem(key(slug));
+    const raw = storageGet(key(slug));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<GuestProfile>;
     if (!parsed.name || !parsed.phone) return null;
@@ -18,6 +20,6 @@ export function readGuest(slug: string): GuestProfile | null {
 }
 
 export function saveGuest(slug: string, guest: GuestProfile) {
-  if (typeof window === 'undefined' || !slug || !guest.name || !guest.phone) return;
-  localStorage.setItem(key(slug), JSON.stringify({ name: guest.name.trim(), phone: guest.phone.trim() }));
+  if (!slug || !guest.name || !guest.phone) return;
+  storageSet(key(slug), JSON.stringify({ name: guest.name.trim(), phone: guest.phone.trim() }));
 }

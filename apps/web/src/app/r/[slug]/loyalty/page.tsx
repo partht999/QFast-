@@ -5,6 +5,9 @@ import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { getApiUrl } from '@/lib/api';
+import { isIndianMobile, localMobile } from '@/lib/phone';
+import { readGuest } from '@/lib/guest';
+import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 
 type Card = {
   hasProgram: boolean;
@@ -45,27 +48,51 @@ export default function CustomerLoyaltyPage() {
       .catch(() => setError('Could not load the stamp card.'));
   }, [apiUrl, slug]);
 
-  const checkCard = async (number: string) => {
-    if (!number.trim()) return;
+  const checkCard = async (input: string) => {
+    if (!input.trim()) return;
+    // "+91 98765 43210" and "098765-43210" used to miss the card because the raw text was sent
+    const number = localMobile(input);
+    if (!isIndianMobile(number)) {
+      setCard(null);
+      setError('Enter a 10-digit mobile number starting with 6, 7, 8, or 9.');
+      return;
+    }
     setChecking(true);
     setError('');
     try {
-      const response = await fetch(`${apiUrl}/api/v1/loyalty/public/${slug}/${encodeURIComponent(number.trim())}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Could not find this card');
+      const response = await fetch(`${apiUrl}/api/v1/loyalty/public/${slug}/${encodeURIComponent(number)}`);
+      const data = await readJsonSafe(response);
+      if (!response.ok) throw new Error(readApiError(data, 'We could not find a stamp card for this number yet.'));
       setCard(data);
       if (data.logoUrl) setLogoUrl(data.logoUrl);
       if (data.businessName) setBusinessName(data.businessName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not find this card');
+      setCard(null);
+      setError(
+        err instanceof TypeError
+          ? 'Could not reach the server. Please try again.'
+          : err instanceof Error
+            ? err.message
+            : 'Could not find this card',
+      );
     } finally {
       setChecking(false);
     }
   };
 
   useEffect(() => {
-    if (phoneParam) void checkCard(phoneParam);
-  }, [phoneParam]);
+    if (phoneParam) {
+      void checkCard(phoneParam);
+      return;
+    }
+    // No number in the link: use the one this phone already gave the restaurant
+    const guest = readGuest(slug);
+    if (guest?.phone) {
+      setPhone(guest.phone);
+      void checkCard(guest.phone);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneParam, slug]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -118,6 +145,10 @@ export default function CustomerLoyaltyPage() {
             <input
               type="tel"
               required
+              inputMode="tel"
+              autoComplete="tel-national"
+              aria-label="Mobile number"
+              maxLength={17}
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="Mobile number"
@@ -127,7 +158,7 @@ export default function CustomerLoyaltyPage() {
               {checking ? '…' : 'View'}
             </button>
           </form>
-          {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         </section>
         )}
       </div>

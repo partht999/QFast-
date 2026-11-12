@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Users,
@@ -19,6 +19,10 @@ import {
   ArrowRight,
   Stethoscope,
   Scissors,
+  Minus,
+  Plus,
+  RefreshCw,
+  SearchX,
 } from 'lucide-react';
 import { BrandLockup, BrandMark } from '@/components/brand-mark';
 import { getApiUrl } from '@/lib/api';
@@ -30,6 +34,16 @@ import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { clearGuestToken, guestTokenUrl, readGuestToken, saveGuestToken } from '@/lib/guest-token';
 import { VisitBill } from '@/components/visit-bill';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { readGuest, saveGuest } from '@/lib/guest';
+import { readApiError, readJsonSafe } from '@/lib/read-api-error';
+import { storageGet, storageSet } from '@/lib/safe-storage';
+
+const MAX_PARTY = 20;
+const ENDED_MESSAGES: Record<string, string> = {
+  NO_SHOW: 'Your arrival window expired and your place in the queue was released.',
+  SKIPPED: 'The team skipped your turn. Please check with the counter, or join again.',
+  CANCELLED: 'Your place in the queue was cancelled by the business. You can join again.',
+};
 
 function readApiMessage(data: { message?: unknown }, fallback: string) {
   const message = data?.message;
@@ -65,6 +79,27 @@ export default function JoinQueuePage() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const lastNotifiedToken = useRef<string | null>(null);
   const lastBrowserAlertToken = useRef<string | null>(null);
+  const [loadError, setLoadError] = useState<'' | 'not-found' | 'network'>('');
+  const hasStatusRef = useRef(false);
+  const activeTokenIdRef = useRef('');
+  const initialPosition = useRef<{ id: string; value: number } | null>(null);
+
+  // Random confetti is generated once per burst, not on every 4s poll re-render
+  const confettiPieces = useMemo(
+    () =>
+      Array.from({ length: 24 }).map((_, i) => ({
+        width: `${6 + Math.random() * 8}px`,
+        height: `${6 + Math.random() * 8}px`,
+        background: ['#f97316', '#fbbf24', '#ef4444', '#22c55e', '#3b82f6', '#a855f7'][i % 6],
+        left: `${10 + Math.random() * 80}%`,
+        top: `${5 + Math.random() * 30}%`,
+        animation: `confetti-pop ${0.8 + Math.random() * 0.8}s ease-out ${Math.random() * 0.4}s forwards`,
+        opacity: 0,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showConfetti],
+  );
+  activeTokenIdRef.current = activeToken?.id || '';
 
   const apiUrl = getApiUrl();
   const publicPath = getBusinessPublicPath(slug, queueStatus?.businessType);
@@ -77,20 +112,30 @@ export default function JoinQueuePage() {
         fetch(`${apiUrl}/api/v1/queue/public/${slug}/status`),
         fetch(`${apiUrl}/api/v1/queue/public/${slug}/queues`),
       ]);
-      if (res.ok) {
+      if (res.status === 404) {
+        setLoadError('not-found');
+      } else if (res.ok) {
         const data = await res.json();
+        hasStatusRef.current = true;
         setQueueStatus(data);
+        setLoadError('');
+      } else if (!hasStatusRef.current) {
+        setLoadError('network');
       }
       if (qRes.ok) {
         const qData = await qRes.json();
-        setQueues(qData || []);
-        if (qData.length > 0 && !selectedQueueId) {
-          const firstOpen = qData.find((q: any) => q.isOpen && !q.isPaused) || qData[0];
-          setSelectedQueueId(firstOpen?.id || '');
-        }
+        const list: any[] = Array.isArray(qData) ? qData : [];
+        setQueues(list);
+        // Functional update: the 4s poll must never overwrite a queue the guest picked
+        setSelectedQueueId((current) => {
+          if (current && list.some((q) => q.id === current && q.isOpen !== false && !q.isPaused)) return current;
+          const firstOpen = list.find((q) => q.isOpen && !q.isPaused) || list[0];
+          return firstOpen?.id || '';
+        });
       }
     } catch (err) {
       console.error(err);
+      if (!hasStatusRef.current) setLoadError('network');
     } finally {
       setLoading(false);
     }
@@ -103,8 +148,8 @@ export default function JoinQueuePage() {
       const response = await fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret, 'on-the-way'), {
         method: 'POST',
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Could not update your arrival status');
+      const data = await readJsonSafe(response);
+      if (!response.ok) throw new Error(readApiError(data, 'Could not update your arrival status'));
       setActiveToken((current: any) => ({ ...current, ...data }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update your arrival status');
@@ -121,9 +166,14 @@ export default function JoinQueuePage() {
   };
 
   const checkExistingToken = async () => {
-    if (new URLSearchParams(window.location.search).get('fresh')) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fresh')) {
       clearGuestToken(slug);
       setActiveToken(null);
+      // Drop the flag so it cannot wipe the token the guest is about to create
+      params.delete('fresh');
+      const qs = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
       return;
     }
     const saved = readGuestToken(slug);
@@ -132,108 +182,150 @@ export default function JoinQueuePage() {
       setActiveToken(null);
       return;
     }
-    if (saved.id) {
-      try {
-        const res = await fetch(guestTokenUrl(apiUrl, saved.id, saved.secret));
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED' || data.status === 'COMPLETED') {
-            noteVisit(data);
-            setActiveToken(data);
-            if (data.status === 'CALLED' && typeof window !== 'undefined' && 'vibrate' in navigator) {
-              navigator.vibrate([300, 100, 300]);
-            }
-          } else {
-            clearGuestToken(slug);
+    try {
+      const res = await fetch(guestTokenUrl(apiUrl, saved.id, saved.secret));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'WAITING' || data.status === 'CALLED' || data.status === 'SEATED' || data.status === 'COMPLETED') {
+          noteVisit(data);
+          setActiveToken(data);
+          if (data.status === 'CALLED' && 'vibrate' in navigator) {
+            navigator.vibrate([300, 100, 300]);
           }
         } else {
           clearGuestToken(slug);
         }
-      } catch (err) {
-        console.error(err);
+      } else if (res.status >= 400 && res.status < 500) {
+        // Only drop the token when the server says it is really invalid.
+        // A 5xx or cold-start hiccup must not cost the guest their place.
+        clearGuestToken(slug);
       }
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const noteVisit = (data: any) => {
-    if (data?.status === 'COMPLETED' && data?.loyalty?.hasProgram && !sessionStorage.getItem(`qfast_stamp_${data.id}`)) {
+    if (data?.status === 'COMPLETED' && data?.loyalty?.hasProgram && !storageGet(`qfast_stamp_${data.id}`, 'session')) {
       setStampBurst(true);
-      sessionStorage.setItem(`qfast_stamp_${data.id}`, '1');
+      storageSet(`qfast_stamp_${data.id}`, '1', 'session');
+    }
+  };
+
+  const pollToken = async () => {
+    const id = activeTokenIdRef.current;
+    if (!id) return;
+    try {
+      const res = await fetch(guestTokenUrl(apiUrl, id, readGuestToken(slug).secret));
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        clearGuestToken(slug);
+        setActiveToken(null);
+        setError('We could not find your place in the queue any more. You can join again.');
+        return;
+      }
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.id || data.id !== activeTokenIdRef.current) return;
+
+      if (data.status === 'CALLED' && lastNotifiedToken.current !== data.id) {
+        if ('vibrate' in navigator) navigator.vibrate([400, 200, 400]);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+        lastNotifiedToken.current = data.id;
+      }
+      if (
+        data.status === 'CALLED' &&
+        'Notification' in window &&
+        Notification.permission === 'granted' &&
+        lastBrowserAlertToken.current !== data.id
+      ) {
+        lastBrowserAlertToken.current = data.id;
+        try {
+          // Android Chrome throws "Illegal constructor" here. That used to abort the
+          // whole update, so the guest never saw they had been called.
+          new Notification(`${data.business?.name || 'Business'}: your turn is ready`, {
+            body: `Please arrive by ${
+              data.arrivalDeadlineAt
+                ? new Date(data.arrivalDeadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'now'
+            }.`,
+          });
+        } catch {
+          /* in-page alert is already showing */
+        }
+      }
+      noteVisit(data);
+      if (data.status === 'COMPLETED' && !storageGet(`qfast_review_${data.id}`, 'session')) {
+        storageSet(`qfast_review_${data.id}`, '1', 'session');
+        setReviewOpen(true);
+      }
+      if (ENDED_MESSAGES[data.status]) {
+        clearGuestToken(slug);
+        setActiveToken(null);
+        setError(ENDED_MESSAGES[data.status]);
+      } else {
+        setActiveToken(data);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem(`qfast_takeaway_${slug}`);
+    const saved = storageGet(`qfast_takeaway_${slug}`);
     if (saved) setTakeawayId(saved);
+    const guest = readGuest(slug);
+    if (guest) {
+      setForm((current) => ({
+        ...current,
+        customerName: current.customerName || guest.name,
+        customerPhone: current.customerPhone || guest.phone,
+      }));
+    }
   }, [slug]);
 
   useEffect(() => {
     setJoinSource('REMOTE');
-    setNotificationPermission(
-      'Notification' in window ? Notification.permission : 'unsupported',
-    );
+    setNotificationPermission('Notification' in window ? Notification.permission : 'unsupported');
   }, []);
 
+  // Run once per business. (It used to re-run whenever the token changed, which
+  // made `?fresh=1` delete the token a guest had just created.)
   useEffect(() => {
-    fetchStatus();
-    checkExistingToken();
-    const interval = setInterval(() => {
-      fetchStatus();
-      if (activeToken?.id) {
-        fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret))
-          .then((r) => r.json())
-          .then((data) => {
-            if (data.id) {
-              if (data.status === 'CALLED' && lastNotifiedToken.current !== data.id) {
-                if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-                  navigator.vibrate([400, 200, 400]);
-                }
-                setShowConfetti(true);
-                setTimeout(() => setShowConfetti(false), 3000);
-                lastNotifiedToken.current = data.id;
-              }
-              if (
-                data.status === 'CALLED' &&
-                'Notification' in window &&
-                Notification.permission === 'granted' &&
-                lastBrowserAlertToken.current !== data.id
-              ) {
-                new Notification(`${data.business?.name || 'Business'}: your turn is ready`, {
-                  body: `Please arrive by ${
-                    data.arrivalDeadlineAt
-                      ? new Date(data.arrivalDeadlineAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : 'now'
-                  }.`,
-                });
-                lastBrowserAlertToken.current = data.id;
-              }
-              noteVisit(data);
-              if (data.status === 'COMPLETED' && !sessionStorage.getItem(`qfast_review_${data.id}`)) {
-                sessionStorage.setItem(`qfast_review_${data.id}`, '1');
-                setReviewOpen(true);
-              }
-              if (data.status === 'NO_SHOW') {
-                clearGuestToken(slug);
-                setActiveToken(null);
-                setError('Your arrival window expired and your place in the queue was released.');
-              } else {
-                setActiveToken(data);
-              }
-            }
-          })
-          .catch(console.error);
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [slug, activeToken?.id]);
+    void fetchStatus();
+    void checkExistingToken();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.hidden) return;
+      void fetchStatus();
+      void pollToken();
+    };
+    const interval = setInterval(tick, 4000);
+    // Phones throttle timers while the screen is locked; refresh the moment the guest is back
+    const onVisible = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setError('');
+    if (!form.customerName.trim()) {
+      setError('Please enter your name.');
+      setSubmitting(false);
+      return;
+    }
     if (!isIndianMobile(form.customerPhone)) {
       setError('Enter a 10-digit mobile number starting with 6, 7, 8, or 9.');
       setSubmitting(false);
@@ -246,20 +338,27 @@ export default function JoinQueuePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          customerName: form.customerName.trim(),
           customerPhone: localMobile(form.customerPhone),
+          partySize: Math.min(Math.max(Number(form.partySize) || 1, 1), MAX_PARTY),
           queueId: selectedQueueId || undefined,
           source: joinSource,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(readApiMessage(data, 'Failed to join queue'));
+      const data = await readJsonSafe(res);
+      if (!res.ok) throw new Error(readApiMessage(data, 'Failed to join queue. Please try again.'));
 
       setActiveToken(data);
       saveGuestToken(slug, data.id, data.guestSecret);
+      saveGuest(slug, { name: form.customerName, phone: localMobile(form.customerPhone) });
       setError('');
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      setError(
+        err instanceof TypeError
+          ? 'Could not reach the server. Check your connection and try again.'
+          : err.message || 'Something went wrong',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -268,29 +367,50 @@ export default function JoinQueuePage() {
   const handleCancelToken = async () => {
     if (!activeToken) return;
     try {
-      await fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret, 'cancel'), {
+      const res = await fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret, 'cancel'), {
         method: 'POST',
       });
+      // Previously the token was cleared locally even when the server refused,
+      // so the guest believed they had left while still holding a place.
+      if (!res.ok && res.status !== 404) {
+        throw new Error(readApiError(await readJsonSafe(res), 'Could not leave the queue. Please try again.'));
+      }
       clearGuestToken(slug);
       setActiveToken(null);
+      setError('');
       setShowCancelModal(false);
-      fetchStatus();
+      void fetchStatus();
     } catch (err) {
-      console.error(err);
+      setShowCancelModal(false);
+      setError(
+        err instanceof TypeError
+          ? 'Could not reach the server, so your place was kept. Please try again.'
+          : err instanceof Error
+            ? err.message
+            : 'Could not leave the queue.',
+      );
     }
   };
 
-  // Estimated wait progress (0–100)
+  // Progress is measured from where the guest started, not from the current queue length
+  if (activeToken) {
+    const current = Math.max(Number(activeToken.position) || 0, 1);
+    if (initialPosition.current?.id !== activeToken.id) {
+      initialPosition.current = { id: activeToken.id, value: current };
+    } else if (current > initialPosition.current.value) {
+      initialPosition.current.value = current;
+    }
+  }
   const waitProgress = activeToken
-    ? Math.max(
-        5,
-        Math.min(
-          95,
-          activeToken.position <= 0
-            ? 95
-            : 100 - (activeToken.position / Math.max(queueStatus?.waitingCount || 1, 1)) * 100
+    ? activeToken.status === 'CALLED' || activeToken.position <= 0
+      ? 95
+      : Math.max(
+          5,
+          Math.min(
+            95,
+            ((initialPosition.current!.value - Math.max(activeToken.position, 0)) / initialPosition.current!.value) * 100,
+          ),
         )
-      )
     : 0;
 
   if (!loading && queueStatus && queueStatus.visitsOpen === false) {
@@ -318,25 +438,47 @@ export default function JoinQueuePage() {
     );
   }
 
+  if (!queueStatus && loadError) {
+    const notFound = loadError === 'not-found';
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="ui-card max-w-sm p-7 text-center" role="alert">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+            {notFound ? <SearchX className="h-7 w-7 text-red-500" /> : <RefreshCw className="h-7 w-7 text-red-500" />}
+          </div>
+          <h1 className="text-lg font-semibold text-neutral-950">
+            {notFound ? 'We could not find this queue' : 'Could not load the queue'}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">
+            {notFound
+              ? 'This QR code may be out of date. Please ask the staff for a new one.'
+              : 'Check your internet connection and try again.'}
+          </p>
+          {!notFound && (
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setLoadError('');
+                void fetchStatus();
+              }}
+              className="ui-btn-primary mt-5 w-full"
+            >
+              <RefreshCw className="h-4 w-4" /> Try again
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col justify-between text-neutral-900">
       {/* Confetti overlay */}
       {showConfetti && (
         <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden" aria-hidden="true">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                width: `${6 + Math.random() * 8}px`,
-                height: `${6 + Math.random() * 8}px`,
-                background: ['#f97316', '#fbbf24', '#ef4444', '#22c55e', '#3b82f6', '#a855f7'][i % 6],
-                left: `${10 + Math.random() * 80}%`,
-                top: `${5 + Math.random() * 30}%`,
-                animation: `confetti-pop ${0.8 + Math.random() * 0.8}s ease-out ${Math.random() * 0.4}s forwards`,
-                opacity: 0,
-              }}
-            />
+          {confettiPieces.map((piece, i) => (
+            <div key={i} className="absolute rounded-full" style={piece} />
           ))}
         </div>
       )}
@@ -656,7 +798,7 @@ export default function JoinQueuePage() {
                   <div className="flex items-center justify-center gap-1 mt-0.5">
                     <Clock className="w-4 h-4 text-orange-500" />
                     <span className="text-2xl font-black text-orange-600">
-                      ~{activeToken.estimatedWaitMin || 5}
+                      ~{Math.max(1, Math.round(activeToken.estimatedWaitMin ?? 5))}
                     </span>
                     <span className="text-xs font-bold text-orange-600">min</span>
                   </div>
@@ -728,6 +870,12 @@ export default function JoinQueuePage() {
           </div>
         ) : foodBusiness && !visitChoice ? (
           <div className="animate-fade-in-scale space-y-3">
+            {error && (
+              <div role="alert" className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setVisitChoice('dine-in')}
@@ -820,10 +968,12 @@ export default function JoinQueuePage() {
                         {queues.map((q) => (
                           <label
                             key={q.id}
-                            className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
-                              selectedQueueId === q.id
-                                ? 'border-orange-500 bg-orange-50/60 shadow-xs'
-                                : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                            className={`flex items-center justify-between p-3 rounded-2xl border transition ${
+                              q.isOpen === false || q.isPaused
+                                ? 'cursor-not-allowed border-neutral-200 bg-neutral-50 opacity-60'
+                                : selectedQueueId === q.id
+                                  ? 'cursor-pointer border-orange-500 bg-orange-50/60 shadow-xs'
+                                  : 'cursor-pointer border-neutral-200 bg-white hover:bg-neutral-50'
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
@@ -831,6 +981,7 @@ export default function JoinQueuePage() {
                                 type="radio"
                                 name="queueSelection"
                                 checked={selectedQueueId === q.id}
+                                disabled={q.isOpen === false || Boolean(q.isPaused)}
                                 onChange={() => setSelectedQueueId(q.id)}
                                 className="text-orange-500 focus:ring-orange-500"
                               />
@@ -844,7 +995,7 @@ export default function JoinQueuePage() {
                               </div>
                             </div>
                             <span className="text-[11px] font-bold text-neutral-600">
-                              ~{q.estimatedWaitMin || 5}m wait
+                              {q.isOpen === false ? 'Closed' : q.isPaused ? 'Paused' : `~${Math.max(1, Math.round(q.estimatedWaitMin ?? 5))}m wait`}
                             </span>
                           </label>
                         ))}
@@ -853,11 +1004,14 @@ export default function JoinQueuePage() {
                   )}
 
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
+                    <label htmlFor="join-name" className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       Your Name *
                     </label>
                     <input
+                      id="join-name"
                       type="text"
+                      autoComplete="name"
+                      maxLength={60}
                       required
                       value={form.customerName}
                       onChange={(e) => setForm({ ...form, customerName: e.target.value })}
@@ -867,17 +1021,19 @@ export default function JoinQueuePage() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
+                    <label htmlFor="join-phone" className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       <span className="flex items-center gap-1.5">
                         <Phone className="w-3 h-3" />
                         Mobile Number (for queue updates) *
                       </span>
                     </label>
                     <input
+                      id="join-phone"
                       type="tel"
                       required
-                      inputMode="numeric"
-                      autoComplete="tel"
+                      maxLength={17}
+                      inputMode="tel"
+                      autoComplete="tel-national"
                       value={form.customerPhone}
                       onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
                       className="w-full border border-neutral-200 rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden transition-all duration-200 bg-neutral-50/50 focus:bg-white"
@@ -885,40 +1041,62 @@ export default function JoinQueuePage() {
                     />
                   </div>
 
-                  {foodBusiness && <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                      Party Size (Guests) *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 4, 6, 8].map((size) => (
+                  {foodBusiness && (
+                    <div>
+                      <span id="party-size-label" className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">
+                        Party Size (Guests) *
+                      </span>
+                      <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-1.5" role="group" aria-labelledby="party-size-label">
                         <button
-                          key={size}
                           type="button"
-                          onClick={() => setForm({ ...form, partySize: size })}
-                          className={`flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all duration-200 flex flex-col items-center gap-0.5 ${
-                            form.partySize === size
-                              ? 'bg-orange-500 border-orange-500 text-white shadow-md scale-[1.03]'
-                              : 'bg-white border-neutral-200 text-neutral-700 hover:border-orange-300 hover:bg-orange-50/50 active:scale-[0.97]'
-                          }`}
+                          aria-label="Fewer guests"
+                          disabled={form.partySize <= 1}
+                          onClick={() => setForm({ ...form, partySize: Math.max(1, form.partySize - 1) })}
+                          className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 transition active:scale-95 disabled:opacity-40"
                         >
-                          <div className="flex items-center gap-px">
-                            {Array.from({ length: Math.min(size, 4) }).map((_, i) => (
-                              <UserRound key={i} className={`w-3 h-3 ${form.partySize === size ? 'text-white/80' : 'text-neutral-400'}`} />
-                            ))}
-                            {size > 4 && <span className={`text-[9px] font-bold ${form.partySize === size ? 'text-white/80' : 'text-neutral-400'}`}>+</span>}
-                          </div>
-                          <span>{size}</span>
+                          <Minus className="h-5 w-5" />
                         </button>
-                      ))}
+                        <div className="text-center" aria-live="polite">
+                          <span className="block text-2xl font-black tabular text-neutral-950 leading-none">{form.partySize}</span>
+                          <span className="text-[11px] font-semibold text-neutral-500">{form.partySize === 1 ? 'guest' : 'guests'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="More guests"
+                          disabled={form.partySize >= MAX_PARTY}
+                          onClick={() => setForm({ ...form, partySize: Math.min(MAX_PARTY, form.partySize + 1) })}
+                          className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500 text-white transition active:scale-95 disabled:opacity-40"
+                        >
+                          <Plus className="h-5 w-5" />
+                        </button>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        {[2, 4, 6].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setForm({ ...form, partySize: size })}
+                            className={`flex-1 rounded-lg border py-1.5 text-xs font-bold transition ${
+                              form.partySize === size
+                                ? 'border-orange-500 bg-orange-50 text-orange-700'
+                                : 'border-neutral-200 bg-white text-neutral-600 hover:border-orange-300'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>}
+                  )}
 
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
+                    <label htmlFor="join-notes" className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
                       {foodBusiness ? 'Seating Preference / Special Notes (Optional)' : 'Notes or Access Needs (Optional)'}
                     </label>
                     <input
+                      id="join-notes"
                       type="text"
+                      maxLength={200}
                       value={form.notes}
                       onChange={(e) => setForm({ ...form, notes: e.target.value })}
                       className="w-full border border-neutral-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-hidden transition-all duration-200 bg-neutral-50/50 focus:bg-white"
@@ -927,7 +1105,7 @@ export default function JoinQueuePage() {
                   </div>
 
                   {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 font-semibold flex items-center gap-2 animate-slide-in-down">
+                    <div role="alert" className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 font-semibold flex items-center gap-2 animate-slide-in-down">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{error}</span>
                     </div>

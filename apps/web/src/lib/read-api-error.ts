@@ -8,3 +8,12 @@ export function readApiError(data: unknown, fallback: string) {
   if (typeof message === 'string' && message.trim()) return message;
   return fallback;
 }
+
+/** Parse a response body without throwing on HTML error pages (502/504 from cold starts). */
+export async function readJsonSafe<T = any>(response: Response): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return {} as T;
+  }
+}

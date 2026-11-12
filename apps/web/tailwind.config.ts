@@ -56,6 +56,12 @@ const config: Config = {
         lift: '0 2px 4px rgb(12 10 9 / 0.04), 0 12px 32px -8px rgb(12 10 9 / 0.14)',
         glow: '0 8px 30px -6px rgb(249 115 22 / 0.45)',
       },
+      borderWidth: {
+        3: '3px',
+      },
+      scale: {
+        98: '0.98',
+      },
       backdropBlur: {
         xs: '2px',
       },

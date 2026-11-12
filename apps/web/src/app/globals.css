@@ -534,6 +534,19 @@ textarea:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* The guest pages use tailwindcss-animate class names (animate-in, slide-in-from-*)
+   but that plugin is not installed, so map them to the keyframes we do have. */
+.animate-in {
+  animation: slide-in-up 0.25s ease-out both;
+}
+.animate-in.fade-in:not([class*='slide-in-from']) {
+  animation-name: fade-in-scale;
+}
+.animate-in.slide-in-from-top-2,
+.animate-in.slide-in-from-top-3 {
+  animation-name: slide-in-down;
+}
+
 /* Safe-area padding for fixed bottom bars on phones */
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));

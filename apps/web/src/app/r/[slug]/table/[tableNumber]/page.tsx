@@ -23,6 +23,10 @@ import { BackLink, releaseOverlayHistory, useOverlayHistory } from '@/components
 import { getApiUrl } from '@/lib/api';
 import { guestTokenUrl, readGuestToken } from '@/lib/guest-token';
 import { isIndianMobile, localMobile } from '@/lib/phone';
+import { readGuest, saveGuest } from '@/lib/guest';
+import { readApiError, readJsonSafe } from '@/lib/read-api-error';
+import { storageGet, storageRemove, storageSet } from '@/lib/safe-storage';
+import { uuid } from '@/lib/uuid';
 
 interface CartItem {
   id: string;
@@ -73,10 +77,33 @@ export default function TableOrderPage() {
 
   const apiUrl = getApiUrl();
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
   };
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  // Cart survives reloads, switching to a UPI app, or the browser reclaiming the tab
+  const cartKey = `qfast_cart_${slug}_${isFixedTable ? tableNumber : isTakeawayParam ? 'takeaway' : 'queue'}`;
+  const [cartHydrated, setCartHydrated] = useState(false);
+
+  // Returning guests do not retype their details
+  useEffect(() => {
+    const guest = readGuest(slug);
+    if (guest) {
+      setCustomerName((name) => name || guest.name);
+      setCustomerPhone((phone) => phone || guest.phone);
+    }
+  }, [slug]);
+
+  // A different cart is a different order, so it must not reuse the old idempotency key
+  useEffect(() => {
+    orderKey.current = '';
+  }, [cart]);
 
   useEffect(() => {
     if (isFixedTable) return;
@@ -114,6 +141,32 @@ export default function TableOrderPage() {
         if (menu?.categories) {
           setCategories(menu.categories);
         }
+        if (!cartHydrated) {
+          try {
+            const raw = storageGet(cartKey, 'session');
+            const saved: CartItem[] = raw ? JSON.parse(raw) : [];
+            const live = new Map<string, any>(
+              (menu?.categories || []).flatMap((c: any) => (c.items || []).map((i: any) => [i.id, i])),
+            );
+            // Re-price from the live menu and drop dishes that are gone
+            const restored = saved
+              .filter((line) => live.has(line.id) && line.quantity > 0)
+              .map((line) => {
+                const item = live.get(line.id);
+                return {
+                  ...line,
+                  name: item.name,
+                  price: Number(item.price),
+                  taxRate: Number(item.taxRate || 0),
+                  isVeg: item.isVeg,
+                };
+              });
+            if (restored.length) setCart(restored);
+          } catch {
+            /* ignore a corrupt saved cart */
+          }
+          setCartHydrated(true);
+        }
       })
       .catch((err) => {
         console.error(err);
@@ -121,6 +174,12 @@ export default function TableOrderPage() {
       })
       .finally(() => setLoading(false));
   }, [slug, apiUrl, menuLoadAttempt]);
+
+  useEffect(() => {
+    if (!cartHydrated) return;
+    if (cart.length === 0) storageRemove(cartKey, 'session');
+    else storageSet(cartKey, JSON.stringify(cart), 'session');
+  }, [cart, cartHydrated, cartKey]);
 
   const addToCart = (item: any) => {
     setCart((prev) => {
@@ -182,19 +241,23 @@ export default function TableOrderPage() {
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) return;
+    if (cart.length === 0 || placingOrder) return;
     if (orderSource === 'TABLE_QR' && (!customerName.trim() || !isIndianMobile(customerPhone))) {
       setError('Enter your name and a 10-digit mobile number. Stamps are saved to that number.');
       return;
     }
-    if (!orderKey.current) orderKey.current = crypto.randomUUID();
+    if (customerPhone.trim() && !isIndianMobile(customerPhone)) {
+      setError('That mobile number does not look right. Use 10 digits starting with 6, 7, 8, or 9, or leave it blank.');
+      return;
+    }
+    if (!orderKey.current) orderKey.current = uuid();
     setPlacingOrder(true);
     setError('');
 
     try {
       const resolvedQueueTokenId =
         orderSource === 'QUEUE_PREORDER'
-          ? (queueToken?.id || tokenParam || (typeof window !== 'undefined' ? localStorage.getItem(`qfast_token_${slug}`) : undefined) || undefined)
+          ? (queueToken?.id || tokenParam || storageGet(`qfast_token_${slug}`) || undefined)
           : undefined;
 
       const res = await fetch(`${apiUrl}/api/v1/orders/public`, {
@@ -220,12 +283,16 @@ export default function TableOrderPage() {
         }),
       });
 
-      const orderData = await res.json();
-      if (!res.ok) throw new Error(orderData.message || 'Failed to submit order');
+      const orderData = await readJsonSafe(res);
+      if (!res.ok) throw new Error(readApiError(orderData, 'Failed to submit order. Please try again.'));
 
-      if (orderSource === 'TAKEAWAY' && orderData.id) {
-        localStorage.setItem(`qfast_takeaway_${slug}`, orderData.id);
+      if (customerName.trim() && isIndianMobile(customerPhone)) {
+        saveGuest(slug, { name: customerName, phone: localMobile(customerPhone) });
       }
+      if (orderSource === 'TAKEAWAY' && orderData.id) {
+        storageSet(`qfast_takeaway_${slug}`, orderData.id);
+      }
+      storageRemove(cartKey, 'session');
       releaseOverlayHistory();
       const destination =
         orderSource === 'QUEUE_PREORDER' || resolvedQueueTokenId
@@ -233,7 +300,11 @@ export default function TableOrderPage() {
           : `/r/${slug}/order/${orderData.id}`;
       window.location.assign(destination);
     } catch (err: any) {
-      setError(err.message || 'Could not place order');
+      setError(
+        err instanceof TypeError
+          ? 'Could not reach the server. Your order is safe in the cart. Check your connection and try again.'
+          : err.message || 'Could not place order',
+      );
       setPlacingOrder(false);
     }
   };
@@ -579,7 +650,7 @@ export default function TableOrderPage() {
 
       {/* Floating Bottom Cart Bar */}
       {totalCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-neutral-200 z-30 shadow-2xl animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-white/95 backdrop-blur-md border-t border-neutral-200 z-30 shadow-2xl animate-in slide-in-from-bottom-3 duration-200">
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-1.5">

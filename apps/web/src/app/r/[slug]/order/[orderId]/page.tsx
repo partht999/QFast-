@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -10,6 +10,8 @@ import {
   Star,
   ExternalLink,
   Gift,
+  XCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { lineName } from '@/lib/order-line';
@@ -19,6 +21,8 @@ import { BackLink } from '@/components/navigation-memory';
 import { GuestVisitActions } from '@/components/guest-visit-actions';
 import { VisitBill } from '@/components/visit-bill';
 import { ReviewPrompt } from '@/components/review-prompt';
+import { readApiError, readJsonSafe } from '@/lib/read-api-error';
+import { storageGet, storageSet } from '@/lib/safe-storage';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -34,6 +38,11 @@ export default function OrderTrackingPage() {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [loadError, setLoadError] = useState<'' | 'not-found' | 'network'>('');
+  const [feedbackError, setFeedbackError] = useState('');
+  const hasOrderRef = useRef(false);
+  const statusRef = useRef('');
+  const helpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const apiUrl = getApiUrl();
 
@@ -42,32 +51,62 @@ export default function OrderTrackingPage() {
       const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}`);
       if (res.ok) {
         const data = await res.json();
+        hasOrderRef.current = true;
+        statusRef.current = data.status || '';
         setOrder(data);
-        if (data.status === 'COMPLETED' && !sessionStorage.getItem(`qfast_review_order_${orderId}`)) {
-          sessionStorage.setItem(`qfast_review_order_${orderId}`, '1');
+        setLoadError('');
+        if (data.status === 'COMPLETED' && !storageGet(`qfast_review_order_${orderId}`, 'session')) {
+          storageSet(`qfast_review_order_${orderId}`, '1', 'session');
           setReviewOpen(true);
         }
+      } else if (res.status === 404) {
+        setLoadError('not-found');
+      } else if (!hasOrderRef.current) {
+        setLoadError('network');
       }
     } catch (err) {
       console.error(err);
+      if (!hasOrderRef.current) setLoadError('network');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrder();
-    const interval = setInterval(fetchOrder, 4000);
-    return () => clearInterval(interval);
+    void fetchOrder();
+    let ticks = 0;
+    const tick = () => {
+      if (document.hidden) return;
+      const status = statusRef.current;
+      // Nothing more will change on a cancelled order. A served order only needs
+      // an occasional refresh (the counter may mark the bill paid).
+      if (status === 'CANCELLED' || status === 'REJECTED') return;
+      ticks += 1;
+      if (status === 'COMPLETED' && ticks % 4 !== 0) return;
+      void fetchOrder();
+    };
+    const interval = setInterval(tick, 4000);
+    const onVisible = () => {
+      if (!document.hidden) void fetchOrder();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (helpTimer.current) clearTimeout(helpTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   const askStaff = async (kind: 'waiter' | 'bill', reason?: string) => {
     try {
-      await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+      const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind }),
       });
+      // Previously any HTTP error still said "the host has your request"
+      if (!res.ok) throw new Error('help request failed');
       setAssistanceMsg(
         kind === 'bill'
           ? 'The host has your bill request.'
@@ -76,7 +115,8 @@ export default function OrderTrackingPage() {
     } catch {
       setAssistanceMsg('Could not reach the host. Please wave someone down.');
     }
-    setTimeout(() => setAssistanceMsg(''), 6000);
+    if (helpTimer.current) clearTimeout(helpTimer.current);
+    helpTimer.current = setTimeout(() => setAssistanceMsg(''), 6000);
   };
 
   const toggleTag = (t: string) => {
@@ -87,10 +127,12 @@ export default function OrderTrackingPage() {
 
   const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingFeedback) return;
     setSubmittingFeedback(true);
+    setFeedbackError('');
 
     try {
-      await fetch(`${apiUrl}/api/v1/reviews/feedback`, {
+      const res = await fetch(`${apiUrl}/api/v1/reviews/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,9 +144,13 @@ export default function OrderTrackingPage() {
           customerPhone: order?.customerPhone,
         }),
       });
+      // Previously a rejected request still showed "Thank you", so feedback was silently lost
+      if (!res.ok) throw new Error(readApiError(await readJsonSafe(res), 'Could not send your feedback. Please try again.'));
       setFeedbackSubmitted(true);
     } catch (err) {
-      console.error(err);
+      setFeedbackError(
+        err instanceof TypeError ? 'Could not reach the server. Please try again.' : err instanceof Error ? err.message : 'Could not send your feedback.',
+      );
     } finally {
       setSubmittingFeedback(false);
     }
@@ -122,12 +168,27 @@ export default function OrderTrackingPage() {
   }
 
   if (!order) {
+    const network = loadError === 'network';
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-sm bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
+        <div role="alert" className="text-center max-w-sm bg-white p-8 rounded-3xl border border-neutral-100 shadow-sm">
           <Receipt className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-          <h2 className="text-base font-extrabold text-neutral-800">Order not found</h2>
-          <p className="text-xs text-neutral-400 mt-1">Please ask your server for assistance.</p>
+          <h2 className="text-base font-extrabold text-neutral-800">{network ? 'Could not load your order' : 'Order not found'}</h2>
+          <p className="text-xs text-neutral-500 mt-1">
+            {network ? 'Check your internet connection and try again.' : 'Please ask your server for assistance.'}
+          </p>
+          {network && (
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                void fetchOrder();
+              }}
+              className="ui-btn-primary mt-5 w-full"
+            >
+              <RefreshCw className="h-4 w-4" /> Try again
+            </button>
+          )}
         </div>
       </div>
     );
@@ -213,6 +274,21 @@ export default function OrderTrackingPage() {
           <div className="bg-neutral-900 text-white rounded-2xl p-4 text-xs font-semibold shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
             <Bell className="w-4 h-4 text-orange-400 shrink-0 animate-bounce" />
             <span className="flex-1">{assistanceMsg}</span>
+          </div>
+        )}
+
+        {(order.status === 'CANCELLED' || order.status === 'REJECTED') && (
+          <div role="alert" className="rounded-3xl border-2 border-red-300 bg-red-50 p-5 text-center">
+            <XCircle className="mx-auto mb-2 h-8 w-8 text-red-500" />
+            <p className="text-lg font-black text-red-950">
+              {order.status === 'REJECTED' ? 'The kitchen could not accept this order' : 'This order was cancelled'}
+            </p>
+            <p className="mt-1 text-sm text-red-800">
+              Please speak to the host or place a new order. You have not been charged online.
+            </p>
+            <Link href={isTakeaway ? `/r/${slug}/table/takeaway` : `/r/${slug}/join`} className="ui-btn-primary mt-4">
+              {isTakeaway ? 'Order again' : 'Back to the restaurant'}
+            </Link>
           </div>
         )}
 
@@ -417,6 +493,11 @@ export default function OrderTrackingPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmitFeedback} className="space-y-3.5 pt-3 border-t border-neutral-100">
+              {feedbackError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                  {feedbackError}
+                </p>
+              )}
               <div className="text-center">
                 <span className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
                   Private Rating
