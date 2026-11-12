@@ -12,6 +12,7 @@
     "db:push": "npm run db:push --workspace=packages/database",
     "db:migrate": "npm run db:migrate --workspace=packages/database",
     "db:seed": "npm run db:seed --workspace=packages/database",
+    "db:seed:marketing": "npm run db:seed:marketing --workspace=packages/database",
     "db:studio": "npm run db:studio --workspace=packages/database"
   },
   "devDependencies": {
@@ -22,4 +23,3 @@
     "node": ">=20"
   }
 }
-

@@ -55,6 +55,12 @@ const outcomes = [
   { icon: Clock3, title: 'For the business', detail: 'A clearer wait means fewer walkaways and a team that spends the rush serving, not managing a crowd.' },
 ];
 
+const stats = [
+  { value: '30 days', label: 'full product trial' },
+  { value: '1 QR', label: 'all guest journeys start here' },
+  { value: '100%', label: 'browser-based, no app install' },
+];
+
 const industries = [
   { icon: Stethoscope, label: 'Clinics', href: '/clinics', detail: 'One live queue. A completed visit asks for a Google review.' },
   { icon: Scissors, label: 'Salons', href: '/salons', detail: 'One walk-in queue, in arrival order.' },
@@ -93,11 +99,19 @@ export default function HomePage() {
                 Open your queue <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/#advanced"
+                href="/contact"
                 className="inline-flex items-center rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-base font-semibold text-white hover:bg-white/15"
               >
-                Pricing
+                Book a demo
               </Link>
+            </div>
+            <div className="mt-8 grid max-w-lg gap-3 sm:grid-cols-3">
+              {stats.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xl font-black text-white">{item.value}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">{item.label}</p>
+                </div>
+              ))}
             </div>
             <p className="mt-4 text-xs text-slate-400">The full product is free for 30 days. After that, a subscription keeps the queue open.</p>
           </div>

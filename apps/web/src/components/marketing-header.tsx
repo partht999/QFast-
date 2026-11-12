@@ -14,6 +14,9 @@ const links = [
   { label: 'About', href: '/about' },
 ];
 
+const primaryCta = { label: 'Get started', href: '/auth/register' };
+const secondaryCta = { label: 'Book a demo', href: '/contact' };
+
 export function MarketingHeader() {
   const [open, setOpen] = useState(false);
 
@@ -31,14 +34,11 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link href="/auth/login" className="hidden rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-flex">
-            Log in
+          <Link href={secondaryCta.href} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex">
+            {secondaryCta.label}
           </Link>
-          <Link
-            href="/auth/register"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-orange-500 px-3.5 text-sm font-bold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600"
-          >
-            Get started <ArrowRight className="h-4 w-4" />
+          <Link href={primaryCta.href} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-orange-500 px-3.5 text-sm font-bold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600">
+            {primaryCta.label} <ArrowRight className="h-4 w-4" />
           </Link>
           <button
             type="button"
@@ -64,6 +64,9 @@ export function MarketingHeader() {
                 {link.label}
               </Link>
             ))}
+            <Link href="/contact" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 sm:hidden">
+              Book a demo
+            </Link>
             <Link href="/auth/login" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 sm:hidden">
               Log in
             </Link>

@@ -6,6 +6,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" prisma/seed.ts",
+    "db:seed:marketing": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" prisma/seed-marketing.ts",
     "db:studio": "prisma studio",
     "build": "prisma generate"
   },
@@ -26,4 +27,3 @@
     }
   }
 }
-

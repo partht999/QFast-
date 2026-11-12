@@ -20,8 +20,11 @@ export function MarketingFooter() {
           <BrandMark href="/" />
           <p className="mt-3 max-w-xs text-sm leading-6 text-slate-600">
             Live queues for clinics, salons, labs, service centres, and restaurants.
-            Customers join in the browser. Staff call the next person from one board.
+            Customers join in the browser, and your team runs the flow from one calm board.
           </p>
+          <Link href="/contact" className="mt-5 inline-flex text-sm font-semibold text-orange-600 hover:text-orange-700">
+            Book a demo →
+          </Link>
         </div>
         <div>
           <h2 className="text-xs font-black uppercase tracking-wider text-slate-900">Product</h2>
