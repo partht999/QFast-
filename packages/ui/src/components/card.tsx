@@ -1,14 +1,16 @@
 import React from 'react';
 
-export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white rounded-xl border border-gray-200 shadow-sm ${className}`}>{children}</div>;
+type Props = { children: React.ReactNode; className?: string };
+
+export function Card({ children, className = '' }: Props) {
+  return <div className={`rounded-2xl border border-gray-200/80 bg-white shadow-soft ${className}`}>{children}</div>;
 }
-export function CardHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`px-6 py-4 border-b border-gray-100 ${className}`}>{children}</div>;
+export function CardHeader({ children, className = '' }: Props) {
+  return <div className={`border-b border-gray-100 px-5 py-4 sm:px-6 ${className}`}>{children}</div>;
 }
-export function CardContent({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`px-6 py-4 ${className}`}>{children}</div>;
+export function CardContent({ children, className = '' }: Props) {
+  return <div className={`px-5 py-4 sm:px-6 ${className}`}>{children}</div>;
 }
-export function CardFooter({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`px-6 py-4 border-t border-gray-100 ${className}`}>{children}</div>;
+export function CardFooter({ children, className = '' }: Props) {
+  return <div className={`border-t border-gray-100 px-5 py-4 sm:px-6 ${className}`}>{children}</div>;
 }

@@ -157,8 +157,11 @@
 }
 
 :root {
-  --foreground-rgb: 17, 24, 39;
+  --foreground-rgb: 12, 10, 9;
   --background-rgb: 255, 255, 255;
+  --brand: #ea580c;
+  --brand-soft: #fff7ed;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: light;
 }
 
@@ -175,7 +178,28 @@ body {
   background: rgb(var(--background-rgb));
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Tabular numbers for tokens, prices, timers */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* v4-compat utility used across the guest pages */
+.outline-hidden {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -185,7 +209,15 @@ body {
 
 :focus-visible {
   outline: 2px solid #ea580c !important;
-  outline-offset: 3px;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Inputs already show a ring; avoid a double outline */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none !important;
 }
 
 /* Custom Scrollbar — thin, orange-themed */
@@ -235,9 +267,9 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    #f5f5f5 25%,
-    #e5e5e5 37%,
-    #f5f5f5 63%
+    #f5f5f4 25%,
+    #e7e5e4 37%,
+    #f5f5f4 63%
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.6s ease-in-out infinite;
@@ -408,43 +440,103 @@ body {
 
 @layer components {
   .ui-title {
-    @apply text-2xl font-semibold tracking-tight text-neutral-950;
+    @apply text-2xl font-semibold tracking-tight text-neutral-950 sm:text-3xl;
   }
 
   .ui-copy {
     @apply mt-1 text-sm leading-6 text-neutral-500;
   }
 
+  .ui-eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-600;
+  }
+
+  .ui-eyebrow-dark {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300;
+  }
+
   .ui-card {
-    @apply rounded-2xl border border-neutral-200 bg-white;
+    @apply rounded-2xl border border-neutral-200/80 bg-white shadow-soft;
+  }
+
+  .ui-card-hover {
+    @apply transition duration-300 ease-out hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lift;
   }
 
   .ui-btn,
   .ui-btn-primary,
   .ui-btn-secondary,
   .ui-btn-dark {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-11 select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold transition duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
   }
 
   .ui-btn-primary {
-    @apply bg-brand-600 text-white hover:bg-brand-700;
+    @apply bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_1px_2px_rgb(154_52_18/0.35)] hover:from-brand-500 hover:to-brand-700 hover:shadow-glow;
   }
 
   .ui-btn-secondary {
-    @apply border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50;
+    @apply border border-neutral-200 bg-white text-neutral-800 shadow-xs hover:border-neutral-300 hover:bg-neutral-50;
   }
 
   .ui-btn-dark {
-    @apply border border-white/15 bg-white/10 text-white hover:bg-white/15;
+    @apply border border-white/15 bg-white/10 text-white backdrop-blur-sm hover:border-white/25 hover:bg-white/15;
   }
 
   .ui-field {
-    @apply w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-950 transition placeholder:text-neutral-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20;
+    @apply w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-sm text-neutral-950 shadow-xs transition placeholder:text-neutral-400 hover:border-neutral-300 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15;
   }
 
   .ui-label {
     @apply mb-1.5 block text-sm font-semibold text-neutral-800;
   }
+
+  .ui-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700;
+  }
+
+  .ui-live-dot {
+    @apply relative inline-flex h-2 w-2 rounded-full bg-emerald-500;
+  }
+
+  .ui-live-dot::after {
+    content: '';
+    @apply absolute inset-0 animate-ping-soft rounded-full bg-emerald-500;
+  }
+
+  /* Layout helpers for marketing pages */
+  .ui-section {
+    @apply mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24;
+  }
+
+  .ui-h2 {
+    @apply mt-3 max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl;
+  }
+
+  /* Subtle dot grid for dark hero / CTA backgrounds */
+  .bg-dots {
+    background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+  }
+}
+
+/* Staggered reveal for marketing sections (no JS needed) */
+.reveal {
+  animation: fade-up-kf 0.7s var(--ease-out) both;
+}
+.reveal-1 { animation-delay: 0.05s; }
+.reveal-2 { animation-delay: 0.15s; }
+.reveal-3 { animation-delay: 0.25s; }
+
+@keyframes fade-up-kf {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Safe-area padding for fixed bottom bars on phones */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 @media (max-width: 640px) {

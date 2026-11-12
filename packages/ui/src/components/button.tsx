@@ -7,17 +7,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary: 'bg-orange-500 hover:bg-orange-600 text-white shadow-sm',
+  primary: 'bg-gradient-to-b from-brand-500 to-brand-600 hover:to-brand-700 text-white shadow-sm',
   secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-900',
-  outline: 'border border-orange-500 text-orange-500 hover:bg-orange-50',
+  outline: 'border border-brand-500 text-brand-600 hover:bg-brand-50',
   ghost: 'text-gray-600 hover:bg-gray-100',
-  danger: 'bg-red-500 hover:bg-red-600 text-white',
+  danger: 'bg-red-600 hover:bg-red-700 text-white',
 };
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  sm: 'min-h-9 px-3 text-sm',
+  md: 'min-h-11 px-4 text-sm',
+  lg: 'min-h-12 px-6 text-base',
 };
 
 export function Button({
@@ -31,12 +31,13 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading && (
-        <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
