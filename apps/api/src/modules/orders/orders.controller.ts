@@ -65,6 +65,30 @@ export class OrdersController {
     return this.ordersService.requestStaffHelp(orderId, kind === 'bill' ? 'bill' : 'waiter');
   }
 
+  @Get('bills/:businessId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Open bills for the front desk' })
+  async openBills(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.ordersService.getOpenBills(businessId, req.user.sub);
+  }
+
+  @Patch(':id/served')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kitchen marks an order served. Payment stays at the front desk.' })
+  async markServed(@Param('id') id: string, @Req() req: any) {
+    return this.ordersService.markServed(id, req.user.sub);
+  }
+
+  @Patch(':id/close')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Front desk closes a served, paid bill' })
+  async closeBill(@Param('id') id: string, @Req() req: any) {
+    return this.ordersService.closeBill(id, req.user.sub);
+  }
+
   @Patch(':id/pay')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

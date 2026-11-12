@@ -45,6 +45,11 @@ export class UpdateBusinessSettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500000)
+  coverUrl?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   instagramHandle?: string;
 

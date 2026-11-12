@@ -7,6 +7,7 @@ import {
   ChefHat,
   ChevronLeft,
   CreditCard,
+  Receipt,
   ChevronRight,
   Gift,
   BarChart3,
@@ -39,6 +40,7 @@ const navigationGroups = [
     label: 'Live service',
     items: [
       { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
+      { label: 'Bills', href: '/dashboard/bills', icon: Receipt },
       { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
     ],
   },
@@ -48,7 +50,7 @@ const navigationGroups = [
       { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
       { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
       { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
-      { label: 'Stamps', href: '/dashboard/loyalty', icon: Gift },
+      { label: 'Loyalty', href: '/dashboard/loyalty', icon: Gift },
     ],
   },
   {
@@ -67,11 +69,12 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
   '/dashboard/analytics': 'Analytics',
   '/dashboard/queue': 'Live Queue',
+  '/dashboard/bills': 'Bills',
   '/dashboard/kds': 'Kitchen Display',
   '/dashboard/menu': 'Menu Editor',
   '/dashboard/tables': 'Tables',
   '/dashboard/reviews': 'Google Reviews',
-  '/dashboard/loyalty': 'Stamp card',
+  '/dashboard/loyalty': 'Loyalty',
   '/dashboard/staff': 'Staff',
   '/dashboard/billing': 'Plan',
   '/dashboard/settings': 'Settings',
@@ -100,8 +103,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [businessLogoUrl, setBusinessLogoUrl] = useState('');
   const roleNavigation = navigation.filter((item) => {
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
-    if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables'].includes(item.href);
-    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/queue', '/dashboard/tables'].includes(item.href);
+    if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
+    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
     if (!['OWNER', 'MANAGER'].includes(staffRole) && (item.href === '/dashboard/staff' || item.href === '/dashboard/billing')) return false;
     return true;
   });
@@ -109,7 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
     : !isFoodBusiness(businessType)
       ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
-      : roleNavigation;
+      : roleNavigation.filter((item) => item.href !== '/dashboard/bills' || isFoodBusiness(businessType));
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -119,11 +122,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const primaryNavigationOrder = staffRole === 'KITCHEN_STAFF'
     ? ['/dashboard/kds']
     : staffRole === 'WAITER'
-      ? ['/dashboard/queue', '/dashboard/tables']
+      ? ['/dashboard/queue', '/dashboard/bills', '/dashboard/tables']
       : staffRole === 'CASHIER'
-        ? ['/dashboard', '/dashboard/queue', '/dashboard/tables']
+        ? ['/dashboard', '/dashboard/queue', '/dashboard/bills', '/dashboard/tables']
         : isFoodBusiness(businessType)
-          ? ['/dashboard', '/dashboard/queue', '/dashboard/kds', '/dashboard/menu']
+          ? ['/dashboard', '/dashboard/queue', '/dashboard/bills', '/dashboard/kds']
           : ['/dashboard', '/dashboard/queue', '/dashboard/analytics', '/dashboard/settings'];
   const primaryNavigation = [
     ...primaryNavigationOrder

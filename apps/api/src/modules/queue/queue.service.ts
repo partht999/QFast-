@@ -46,6 +46,7 @@ export class QueueService {
     const access = await visitsAreOpen(this.prisma, business.id);
     const profile = {
       logoUrl: business.logoUrl,
+      coverUrl: business.coverUrl,
       address: business.address,
       phone: business.phone,
       instagramHandle: business.instagramHandle,

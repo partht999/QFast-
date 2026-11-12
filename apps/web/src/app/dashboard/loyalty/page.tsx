@@ -51,6 +51,7 @@ export default function LoyaltyManagementPage() {
         });
         if (!programResponse.ok) return;
         const program = await programResponse.json();
+        if (!program) return;
         setStampsForReward(program.stampsForReward || program.rewards?.[0]?.pointsCost || 8);
         setRewardName(program.rewards?.[0]?.name || 'Free visit');
       })
@@ -143,8 +144,10 @@ export default function LoyaltyManagementPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="ui-title">Stamp card</h1>
-        <p className="ui-copy">One stamp each visit. A full card is the reward.</p>
+        <h1 className="ui-title">Loyalty</h1>
+        <p className="ui-copy">
+          A stamp card for regulars. Each finished visit adds one stamp. When the card is full, the guest gets the reward and the next card starts. Save the card here to turn it on. Guests look up their stamps from the public page.
+        </p>
       </div>
       <section className="ui-card p-5 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What guests collect</p>

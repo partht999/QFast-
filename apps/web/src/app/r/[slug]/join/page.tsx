@@ -378,6 +378,9 @@ export default function JoinQueuePage() {
             <QrCode className="w-3.5 h-3.5 text-orange-600" />
             <span>{foodBusiness && !activeToken && !visitChoice ? 'Choose your visit' : 'Join the queue'}</span>
           </div>
+          {(queueStatus?.coverUrl) && (
+            <img src={queueStatus.coverUrl} alt="" className="mx-auto mb-4 h-36 w-full max-w-sm rounded-2xl object-cover" />
+          )}
           {(queueStatus?.logoUrl || activeToken?.business?.logoUrl) && (
             <img
               src={queueStatus?.logoUrl || activeToken?.business?.logoUrl}

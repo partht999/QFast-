@@ -119,7 +119,7 @@ export class LoyaltyService {
     return {
       businessName: business.name,
       logoUrl: business.logoUrl,
-      enabled: true,
+      enabled: Boolean(business.loyaltyProgram),
       hasProgram: Boolean(business.loyaltyProgram),
       programType: business.loyaltyProgram?.type,
       pointsPerRupee: business.loyaltyProgram?.pointsPerRupee,
@@ -131,30 +131,11 @@ export class LoyaltyService {
 
   async getProgram(businessId: string, userId: string, userRole?: string) {
     await this.assertRestaurantAccess(businessId, userId, userRole);
-    let program = await this.prisma.loyaltyProgram.findUnique({
+    const program = await this.prisma.loyaltyProgram.findUnique({
       where: { businessId },
       include: { rewards: { orderBy: { createdAt: 'desc' } }, tiers: true },
     });
 
-    if (!program) {
-      program = await this.prisma.loyaltyProgram.create({
-        data: {
-          businessId,
-          type: LoyaltyProgramType.VISIT_STAMPS,
-          stampsPerVisit: 1,
-          stampsForReward: 8,
-          rewards: {
-            create: {
-              name: 'Free visit',
-              pointsCost: 8,
-              rewardType: 'FREE_ITEM',
-              rewardValue: { description: 'Collected after 8 stamps' },
-            },
-          },
-        },
-        include: { rewards: { orderBy: { createdAt: 'desc' } }, tiers: true },
-      });
-    }
     return program;
   }
 

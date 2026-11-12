@@ -29,7 +29,7 @@ export class BusinessService {
     const foodBusiness = !dto.type || dto.type === BusinessType.RESTAURANT || dto.type === BusinessType.CAFE;
     const queueLimit = 20;
     const tableLimit = 40;
-    const requestedCount = dto.counterCount || (foodBusiness ? 4 : 1);
+    const requestedCount = dto.counterCount == null ? (foodBusiness ? 4 : 1) : dto.counterCount;
     const setupCount = Math.min(requestedCount, foodBusiness ? tableLimit : queueLimit);
     const averageWaitMinutes = dto.averageWaitMinutes || 10;
     const queueBase = foodBusiness
@@ -41,7 +41,7 @@ export class BusinessService {
           : dto.type === BusinessType.DIAGNOSTIC_CENTRE
             ? 'Collection desk'
             : 'Service counter';
-    const queues = [{ name: queueBase, averageWaitMinutes }];
+    const queues = [{ name: queueBase, averageWaitMinutes, remoteJoinEnabled: dto.remoteJoinEnabled !== false }];
 
     const business = await this.prisma.business.create({
       data: {
@@ -505,6 +505,7 @@ export class BusinessService {
       isOpen?: boolean;
       remoteJoinEnabled?: boolean;
       logoUrl?: string;
+      coverUrl?: string;
       instagramHandle?: string;
       gstin?: string;
     },
@@ -523,6 +524,7 @@ export class BusinessService {
         ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
         ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
         ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl.trim() || null } : {}),
+        ...(dto.coverUrl !== undefined ? { coverUrl: dto.coverUrl.trim() || null } : {}),
         ...(dto.instagramHandle !== undefined
           ? { instagramHandle: dto.instagramHandle.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '') || null }
           : {}),
@@ -626,6 +628,32 @@ export class BusinessService {
       update: { isActive: true, config: { webhookSecret: secret } },
       create: { businessId, provider, isActive: true, config: { webhookSecret: secret } },
     });
+  }
+
+  async searchPlaces(query: string) {
+    const text = query.trim();
+    const key = process.env.GOOGLE_MAPS_API_KEY?.trim();
+    if (!key) return { configured: false, places: [] as { id: string; name: string; address: string }[] };
+    if (text.length < 2) return { configured: true, places: [] };
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+      },
+      body: JSON.stringify({ textQuery: text, pageSize: 5 }),
+    });
+    if (!response.ok) return { configured: true, places: [] };
+    const data = await response.json().catch(() => ({}));
+    const places = Array.isArray(data.places)
+      ? data.places.map((place: { id?: string; displayName?: { text?: string }; formattedAddress?: string }) => ({
+          id: String(place.id || '').replace(/^places\//, ''),
+          name: place.displayName?.text || 'Google listing',
+          address: place.formattedAddress || '',
+        })).filter((place: { id: string }) => place.id.startsWith('ChI'))
+      : [];
+    return { configured: true, places };
   }
 
   private async assertManager(businessId: string, userId: string) {

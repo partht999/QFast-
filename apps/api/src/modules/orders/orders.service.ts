@@ -234,6 +234,7 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: {
         businessId,
+        servedAt: null,
         status: {
           in: [
             OrderStatus.PENDING,
@@ -263,7 +264,8 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: {
         businessId,
-        status: OrderStatus.COMPLETED,
+        servedAt: { not: null },
+        status: OrderStatus.READY,
         updatedAt: { gte: today.start, lt: today.end },
       },
       include: {
@@ -281,7 +283,46 @@ export class OrdersService {
 
   async updateOrderStatus(orderId: string, status: OrderStatus, userId: string) {
     await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
+    if (status === OrderStatus.COMPLETED) {
+      throw new ConflictException('The front desk closes the bill. The kitchen stops at served.');
+    }
     return this.applyOrderStatus(orderId, status);
+  }
+
+  async markServed(orderId: string, userId: string) {
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== OrderStatus.READY) {
+      throw new ConflictException('Mark the order ready before it leaves the kitchen.');
+    }
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: { servedAt: new Date() },
+      include: { table: true, items: { include: { menuItem: true } } },
+    });
+  }
+
+  async getOpenBills(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.floor);
+    return this.prisma.order.findMany({
+      where: {
+        businessId,
+        status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+      },
+      include: {
+        table: true,
+        queueToken: true,
+        items: { include: { menuItem: true } },
+        payments: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async closeBill(orderId: string, userId: string) {
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.floor);
+    return this.applyOrderStatus(orderId, OrderStatus.COMPLETED);
   }
 
   private async applyOrderStatus(orderId: string, status: OrderStatus) {
@@ -298,6 +339,9 @@ export class OrdersService {
       throw new ConflictException(
         `Pre-order #${current.queueToken?.tokenNumber} stays on hold until that party is called.`,
       );
+    }
+    if (status === OrderStatus.COMPLETED && !current.servedAt) {
+      throw new ConflictException('The kitchen has not marked this served yet.');
     }
     if (status === OrderStatus.COMPLETED) {
       const payments = await this.prisma.payment.findMany({
@@ -323,7 +367,15 @@ export class OrdersService {
       }
       const updated = await tx.order.update({
         where: { id: orderId },
-        data: { status },
+        data: {
+          status,
+          ...(status === OrderStatus.PENDING ||
+          status === OrderStatus.ACCEPTED ||
+          status === OrderStatus.PREPARING ||
+          status === OrderStatus.READY
+            ? { servedAt: null }
+            : {}),
+        },
         include: { table: true, items: { include: { menuItem: true } } },
       });
       if (status === OrderStatus.COMPLETED && fresh.customerPhone) {
@@ -353,7 +405,7 @@ export class OrdersService {
   }
 
   async markOrderPaid(orderId: string, userId: string) {
-    await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.floor);
     await this.collectBill(orderId, undefined, { requireReady: true });
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
   }

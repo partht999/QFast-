@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { lineName } from '@/lib/order-line';
-import { describePayments } from '@/lib/payment';
 import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -183,16 +182,16 @@ export default function KDSPage() {
     }
   };
 
-  const handleMarkPaid = async (orderId: string) => {
+  const handleMarkServed = async (orderId: string) => {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${apiUrl}/api/v1/orders/${orderId}/pay`, {
+    const response = await fetch(`${apiUrl}/api/v1/orders/${orderId}/served`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
-      setKitchenError(message || 'Could not mark this order paid.');
+      setKitchenError(message || 'Could not mark this order served.');
       return;
     }
     setKitchenError('');
@@ -628,28 +627,13 @@ export default function KDSPage() {
                     ))}
                   </div>
 
-                  {(() => {
-                    const payment = describePayments(order.payments || [], Number(order.totalAmount || 0));
-                    if (!payment.paid) {
-                      return (
-                    <button
-                      onClick={() => void handleMarkPaid(order.id)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs"
-                    >
-                      Mark bill paid · ₹{Number(order.totalAmount || 0).toFixed(0)}
-                    </button>
-                      );
-                    }
-                    return (
                   <button
                     onClick={() => setTicketToClear(order)}
-                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold py-2.5 rounded-xl text-xs transition-colors border border-neutral-700 flex items-center justify-center gap-1.5 active:scale-98"
+                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold py-2.5 rounded-xl text-xs transition-colors border border-neutral-700 flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{order.source === 'TAKEAWAY' ? 'Mark collected' : 'Served'}</span>
+                    <span>{order.source === 'TAKEAWAY' ? 'Collected' : 'Served'}</span>
                   </button>
-                    );
-                  })()}
                 </div>
               ))
             )}
@@ -677,13 +661,13 @@ export default function KDSPage() {
             </div>
 
             <p className="text-xs text-neutral-400">
-              Accidentally tapped "Clear Ticket"? Restore any of the last completed orders back to the active KDS line:
+              Put a served ticket back on the kitchen screen. Payment stays on Bills.
             </p>
 
             <div className="space-y-2.5 max-h-80 overflow-y-auto">
               {recentlyClearedOrders.length === 0 ? (
                 <div className="text-center py-8 text-neutral-500 text-xs">
-                  No completed orders found today.
+                  No served tickets to bring back.
                 </div>
               ) : (
                 recentlyClearedOrders.map((order) => (
@@ -730,15 +714,15 @@ export default function KDSPage() {
         onConfirm={() => {
           const order = ticketToClear;
           setTicketToClear(null);
-          if (order) void handleUpdateStatus(order.id, 'COMPLETED');
+          if (order) void handleMarkServed(order.id);
         }}
-        title={ticketToClear?.source === 'TAKEAWAY' ? 'Mark this takeaway collected?' : 'Clear this ticket?'}
+        title={ticketToClear?.source === 'TAKEAWAY' ? 'Mark this takeaway collected?' : 'Mark this served?'}
         description={
           ticketToClear
-            ? `${ticketToClear.table?.name ? `Table ${ticketToClear.table.name}` : ticketToClear.customerName || 'This order'} leaves the kitchen screen.`
-            : 'This order leaves the kitchen screen.'
+            ? `${ticketToClear.table?.name ? `Table ${ticketToClear.table.name}` : ticketToClear.customerName || 'This order'} leaves the kitchen. The front desk takes payment on Bills.`
+            : 'This order leaves the kitchen. The front desk takes payment on Bills.'
         }
-        confirmLabel="Order served"
+        confirmLabel="Served"
         cancelLabel="Keep it"
         variant="warning"
       />

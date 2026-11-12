@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
@@ -62,6 +62,14 @@ export class BusinessController {
   @ApiOperation({ summary: 'Plans a restaurant can be on' })
   async plans() {
     return this.businessService.listPlans();
+  }
+
+  @Get('places')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search Google Maps listings for the review link' })
+  async places(@Query('q') query: string) {
+    return this.businessService.searchPlaces(query || '');
   }
 
   @Get('explore')

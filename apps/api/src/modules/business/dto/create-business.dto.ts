@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsEnum, IsIn, IsInt, Min, Max, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsBoolean, IsString, IsOptional, IsEmail, IsEnum, IsIn, IsInt, Min, Max, MinLength, MaxLength, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BusinessType } from '@prisma/client';
 
@@ -49,7 +49,7 @@ export class CreateBusinessDto {
   @ApiPropertyOptional({ example: 2, description: 'Queues to open, or tables for a restaurant or cafe' })
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(40)
   counterCount?: number;
 
@@ -59,4 +59,9 @@ export class CreateBusinessDto {
   @Min(1)
   @Max(180)
   averageWaitMinutes?: number;
+
+  @ApiPropertyOptional({ description: 'Guests can join from their phone. Turn off for a counter-only line.' })
+  @IsOptional()
+  @IsBoolean()
+  remoteJoinEnabled?: boolean;
 }

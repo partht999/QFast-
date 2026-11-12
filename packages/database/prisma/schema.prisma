@@ -257,6 +257,7 @@ model Business {
   email                String?
   address              String?
   logoUrl              String?
+  coverUrl             String?
   instagramHandle      String?
   gstin                String?
   timezone             String                 @default("Asia/Kolkata")
@@ -634,6 +635,7 @@ model Order {
   customerPhone       String?
   source              OrderSource
   status              OrderStatus     @default(PENDING)
+  servedAt            DateTime?
   items               OrderItem[]
   payments            Payment[]
   subtotal            Decimal         @db.Decimal(10, 2)

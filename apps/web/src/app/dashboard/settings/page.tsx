@@ -26,6 +26,7 @@ export default function SettingsPage() {
   const [isOpen, setIsOpen] = useState(true);
   const [remoteJoinEnabled, setRemoteJoinEnabled] = useState(true);
   const [logoUrl, setLogoUrl] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
   const [instagramHandle, setInstagramHandle] = useState('');
   const [gstin, setGstin] = useState('');
   const [swiggySecret, setSwiggySecret] = useState('');
@@ -62,6 +63,7 @@ export default function SettingsPage() {
         setPhone(current.phone || '');
         setAddress(current.address || '');
         setLogoUrl(current.logoUrl || '');
+        setCoverUrl(current.coverUrl || '');
         setInstagramHandle(current.instagramHandle || '');
         setGstin(current.gstin || '');
         setGooglePlaceId(current.googlePlaceId || '');
@@ -103,6 +105,7 @@ export default function SettingsPage() {
           phone,
           address,
           logoUrl,
+          coverUrl,
           instagramHandle,
           gstin,
           googlePlaceId,
@@ -196,7 +199,14 @@ export default function SettingsPage() {
           businessId={businessId}
           value={logoUrl}
           onChange={setLogoUrl}
-          hint="Stored with your restaurant. Guests see it on the page and the bill."
+          hint="Guests see this on the menu and on the bill."
+        />
+        <PhotoUpload
+          label="Restaurant photo"
+          businessId={businessId}
+          value={coverUrl}
+          onChange={setCoverUrl}
+          hint="Optional. Shown at the top of the guest page."
         />
         <label className="block text-sm font-semibold text-neutral-800">
           Instagram
