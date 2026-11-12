@@ -7,9 +7,10 @@ import { BrandMark } from './brand-mark';
 
 const links = [
   { label: 'How it works', href: '/#how-it-works' },
+  { label: 'For business', href: '/for-business' },
   { label: 'Industries', href: '/industries' },
   { label: 'Features', href: '/features' },
-  { label: 'Pricing', href: '/#advanced' },
+  { label: 'Pricing', href: '/pricing' },
   { label: 'About', href: '/about' },
 ];
 
