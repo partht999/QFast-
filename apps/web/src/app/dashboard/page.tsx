@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Activity,
   Download,
   RefreshCw,
   Copy,
@@ -239,6 +240,30 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {businesses.length > 0 && (
+        <Link
+          href="/dashboard/live"
+          className="group mb-6 flex flex-col gap-3 rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 transition hover:border-orange-300 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm">
+              <Activity className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-base font-black text-neutral-950">Run today’s service from the Live board</p>
+              <p className="mt-0.5 text-sm leading-6 text-neutral-600">
+                {foodBusiness
+                  ? 'Queue → seat → accept order → cooking → served → paid. Every guest is a card, and the next step is one button.'
+                  : 'See who is waiting, call the next person and mark visits done, all on one screen.'}
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white group-hover:bg-neutral-800">
+            Open Live board <ArrowRight className="h-4 w-4" />
+          </span>
+        </Link>
+      )}
 
       <div>
         {businesses.length === 0 ? (

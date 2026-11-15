@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  Activity,
   ChefHat,
   ChevronLeft,
   CreditCard,
@@ -32,33 +33,34 @@ const navigationGroups = [
   {
     label: 'Workspace',
     items: [
-      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, hint: 'Today at a glance and your entrance QR code' },
+      { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, hint: 'Sales, waits and busy hours over time' },
     ],
   },
   {
     label: 'Live service',
     items: [
-      { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered },
-      { label: 'Bills', href: '/dashboard/bills', icon: Receipt },
-      { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat },
+      { label: 'Live board', href: '/dashboard/live', icon: Activity, hint: 'Every guest and order in one place, with the next step on each card' },
+      { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered, hint: 'Host stand: add walk-ins, call, seat, skip' },
+      { label: 'Bills', href: '/dashboard/bills', icon: Receipt, hint: 'Counter: take payment and close bills' },
+      { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat, hint: 'Big screen for cooks: start cooking, mark ready' },
     ],
   },
   {
     label: 'Restaurant',
     items: [
-      { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon },
-      { label: 'Tables', href: '/dashboard/tables', icon: Utensils },
-      { label: 'Reviews', href: '/dashboard/reviews', icon: Star },
-      { label: 'Loyalty', href: '/dashboard/loyalty', icon: Gift },
+      { label: 'Menu', href: '/dashboard/menu', icon: MenuIcon, hint: 'Add dishes, prices and photos' },
+      { label: 'Tables', href: '/dashboard/tables', icon: Utensils, hint: 'Add tables and print their QR codes' },
+      { label: 'Reviews', href: '/dashboard/reviews', icon: Star, hint: 'What guests said after their visit' },
+      { label: 'Loyalty', href: '/dashboard/loyalty', icon: Gift, hint: 'Stamp cards and rewards for regulars' },
     ],
   },
   {
     label: 'Team & account',
     items: [
-      { label: 'Staff', href: '/dashboard/staff', icon: Users },
-      { label: 'Plan', href: '/dashboard/billing', icon: CreditCard },
-      { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+      { label: 'Staff', href: '/dashboard/staff', icon: Users, hint: 'Give your team their own logins' },
+      { label: 'Plan', href: '/dashboard/billing', icon: CreditCard, hint: 'Your Qfast subscription' },
+      { label: 'Settings', href: '/dashboard/settings', icon: Settings, hint: 'Business details, logo and preferences' },
     ],
   },
 ];
@@ -68,6 +70,7 @@ const navigation = navigationGroups.flatMap((group) => group.items);
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Overview',
   '/dashboard/analytics': 'Analytics',
+  '/dashboard/live': 'Live Board',
   '/dashboard/queue': 'Live Queue',
   '/dashboard/bills': 'Bills',
   '/dashboard/kds': 'Kitchen Display',
@@ -103,15 +106,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [businessLogoUrl, setBusinessLogoUrl] = useState('');
   const roleNavigation = navigation.filter((item) => {
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
-    if (staffRole === 'WAITER') return ['/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
-    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
+    if (staffRole === 'WAITER') return ['/dashboard/live', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
+    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/live', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
     if (!['OWNER', 'MANAGER'].includes(staffRole) && (item.href === '/dashboard/staff' || item.href === '/dashboard/billing')) return false;
     return true;
   });
   const visibleNavigation = !businessType
-    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
+    ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/live', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
     : !isFoodBusiness(businessType)
-      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
+      ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/live', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
       : roleNavigation.filter((item) => item.href !== '/dashboard/bills' || isFoodBusiness(businessType));
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
@@ -122,11 +125,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const primaryNavigationOrder = staffRole === 'KITCHEN_STAFF'
     ? ['/dashboard/kds']
     : staffRole === 'WAITER'
-      ? ['/dashboard/queue', '/dashboard/bills', '/dashboard/tables']
+      ? ['/dashboard/live', '/dashboard/queue', '/dashboard/bills', '/dashboard/tables']
       : staffRole === 'CASHIER'
-        ? ['/dashboard', '/dashboard/queue', '/dashboard/bills', '/dashboard/tables']
+        ? ['/dashboard', '/dashboard/live', '/dashboard/queue', '/dashboard/bills']
         : isFoodBusiness(businessType)
-          ? ['/dashboard', '/dashboard/queue', '/dashboard/bills', '/dashboard/kds']
+          ? ['/dashboard', '/dashboard/live', '/dashboard/queue', '/dashboard/kds']
           : ['/dashboard', '/dashboard/queue', '/dashboard/analytics', '/dashboard/settings'];
   const primaryNavigation = [
     ...primaryNavigationOrder
@@ -293,14 +296,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </h2>
                 )}
                 <ul className="space-y-0.5">
-                  {group.items.map(({ label, href, icon: Icon }) => {
+                  {group.items.map(({ label, href, icon: Icon, hint }) => {
                     const active = isActive(pathname, href);
                     return (
                       <li key={href}>
                         <Link
                           href={href}
                           aria-current={active ? 'page' : undefined}
-                          title={sidebarCollapsed ? label : undefined}
+                          title={hint ? `${label}: ${hint}` : label}
                           className={`group flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
                             active
                               ? 'bg-brand-50 text-brand-700'
