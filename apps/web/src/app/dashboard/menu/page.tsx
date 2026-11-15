@@ -20,6 +20,7 @@ import { getApiUrl } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EmptyState } from '@/components/ui/empty-state';
+import { DishImage } from '@/components/dish-image';
 import { PhotoUpload } from '@/components/photo-upload';
 
 export default function MenuManagementPage() {
@@ -111,10 +112,13 @@ export default function MenuManagementPage() {
         body: JSON.stringify({ name: categoryName.trim() }),
       });
       if (!res.ok) throw new Error('Failed to create category');
+      const created = await res.json().catch(() => null);
       setCategoryName('');
       setShowCategoryModal(false);
-      toast.success('Category Added', `Created category "${categoryName.trim()}".`);
-      fetchData();
+      toast.success('Section added', `Now add the first dish to "${categoryName.trim()}".`);
+      await fetchData();
+      // Go straight to adding a dish, which is what the owner wanted in the first place.
+      if (created?.id) openAddItemModal(created.id);
     } catch (err: any) {
       toast.error('Could Not Add Category', err.message);
     } finally {
@@ -322,7 +326,7 @@ export default function MenuManagementPage() {
             <h1 className="ui-title">Menu</h1>
             <p className="ui-copy">Categories, dishes, and what guests can order.</p>
             <span className="mt-3 inline-flex rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">
-              {totalItemsCount} dishes
+              {totalItemsCount} {totalItemsCount === 1 ? 'dish' : 'dishes'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -336,7 +340,7 @@ export default function MenuManagementPage() {
             <button
               onClick={() => {
                 if (categories.length === 0) {
-                  toast.warning('No Categories', 'Please create at least one category before adding dishes.');
+                  toast.info('First, name a section', 'Dishes sit in sections like Starters or Drinks. Name one, then add your dish.');
                   setShowCategoryModal(true);
                   return;
                 }
@@ -420,9 +424,9 @@ export default function MenuManagementPage() {
         {categories.length === 0 ? (
           <EmptyState
             icon={UtensilsCrossed}
-            title="Build your digital QR menu"
-            description="Organize your dishes into categories (e.g. Starters, Main Course, Drinks, Desserts). Diners scan table or queue QRs to order straight from their phone."
-            actionLabel="Create First Category"
+            title="Add your first dishes"
+            description="Step 1: name a menu section, like Starters or Drinks. Step 2: add dishes with a price. Guests see this menu when they scan a table QR."
+            actionLabel="Start: name a section"
             onAction={() => setShowCategoryModal(true)}
           />
         ) : filteredCategories.length === 0 ? (
@@ -496,9 +500,7 @@ export default function MenuManagementPage() {
                             : 'bg-gray-50/80 border-gray-200/60 opacity-75'
                         }`}
                       >
-                        {item.imageUrl && (
-                          <img src={item.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
-                        )}
+                        {item.imageUrl && <DishImage src={item.imageUrl} className="h-16 w-16 shrink-0 rounded-xl" />}
                         <div className="space-y-1 flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span

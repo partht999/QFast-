@@ -7,10 +7,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { sanitizeRealtimePayload } from '../access/access.rules';
+import { corsOriginCallback } from '../../common/cors-origins';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: corsOriginCallback,
   },
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {

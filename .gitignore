@@ -9,3 +9,8 @@ build
 .vercel
 coverage
 
+
+# Compiled output must stay in dist/, never next to the sources
+packages/shared/src/**/*.js
+packages/shared/src/**/*.js.map
+packages/shared/src/**/*.d.ts
