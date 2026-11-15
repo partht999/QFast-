@@ -8,6 +8,12 @@ import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  // Hosted behind one reverse proxy (Render/Netlify). Without this every request
+  // appears to come from the proxy's IP, so the per-IP rate limits on queue join,
+  // ordering and login would be shared by all guests at once.
+  // Set TRUST_PROXY=0 when the API is exposed directly.
+  const trustProxy = Number(process.env.TRUST_PROXY ?? 1);
+  app.getHttpAdapter().getInstance().set('trust proxy', Number.isFinite(trustProxy) ? trustProxy : 1);
   app.use(json({ limit: '2mb' }));
   app.use(urlencoded({ extended: true, limit: '2mb' }));
 

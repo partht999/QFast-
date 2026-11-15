@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { tableLabel } from '@/lib/table-label';
+import { rupees, guestsLabel } from '@/lib/format';
 
 export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
@@ -271,7 +273,7 @@ export default function DashboardQueuePage() {
       setTargetTableId('');
 
       if (action === 'call' && body.table?.name) {
-        toast.success('Called', `Table ${body.table.name} is theirs.`);
+        toast.success('Called', `${tableLabel(body.table.name)} is theirs.`);
       } else if (action === 'call') {
         toast.success('Called', 'No table yet. Seat them when one is free.');
       } else if (action === 'seat') {
@@ -452,11 +454,17 @@ export default function DashboardQueuePage() {
         <div>
           <h1 className="ui-title">{copy.pageTitle}</h1>
           <p className="ui-copy">
-            {waitingTokens.length} waiting
+            {waitingTokens.filter((t) => t.status === 'WAITING').length} waiting
+            {waitingTokens.some((t) => t.status === 'CALLED') && (
+              <>
+                <span className="mx-1.5 text-gray-300">·</span>
+                {waitingTokens.filter((t) => t.status === 'CALLED').length} called
+              </>
+            )}
             <span className="mx-1.5 text-gray-300">·</span>
             {servedTokens.length} done today
             <span className="mx-1.5 text-gray-300">·</span>
-            about {queue?.averageWaitMinutes || 8} min each
+            about {queue?.averageWaitMinutes || 8} min per party
           </p>
         </div>
         <button
@@ -646,7 +654,7 @@ export default function DashboardQueuePage() {
                 : copy.readyDetail}
               {currentServingToken?.source === 'REMOTE' ? ` · ${copy.remote}` : ''}
               {currentServingToken?.arrivedAt ? ` · ${copy.arrived}` : ''}
-              {foodBusiness && currentServingToken ? ` · ${currentServingToken.partySize} guests` : ''}
+              {foodBusiness && currentServingToken ? ` · ${guestsLabel(currentServingToken.partySize)}` : ''}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -827,7 +835,7 @@ export default function DashboardQueuePage() {
               const skipped = token.status === 'SKIPPED' || token.status === 'CANCELLED';
               const detail = [
                 token.customerPhone,
-                foodBusiness ? `${token.partySize} guests` : '',
+                foodBusiness ? guestsLabel(token.partySize) : '',
                 token.table?.name,
                 token.source === 'REMOTE' ? copy.remote : '',
                 token.onTheWayAt && !token.arrivedAt ? copy.onTheWay : '',
@@ -903,8 +911,8 @@ export default function DashboardQueuePage() {
                 : openOrders.length === 0
                   ? token.table?.name || 'Ready to close'
                   : payment.paid
-                    ? `Paid ₹${due.toFixed(0)} · ${token.table?.name || 'Ready to close'}`
-                    : `Due ₹${due.toFixed(0)} at the counter`;
+                    ? `Paid ${rupees(due)} · ${token.table?.name ? tableLabel(token.table.name) : 'Ready to close'}`
+                    : `Due ${rupees(due)} at the counter`;
               return (
               <li key={token.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                 <div className="min-w-0">
@@ -1159,7 +1167,7 @@ export default function DashboardQueuePage() {
                     {assignMode === 'call' ? 'Call' : 'Seat'} party #{selectedTokenForSeat.tokenNumber}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    {selectedTokenForSeat.customerName} ({selectedTokenForSeat.partySize} guests)
+                    {selectedTokenForSeat.customerName} ({guestsLabel(selectedTokenForSeat.partySize)})
                   </p>
                 </div>
               </div>

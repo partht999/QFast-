@@ -26,6 +26,7 @@ import { lineName } from '@/lib/order-line';
 import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { tableLabel } from '@/lib/table-label';
 
 export default function KDSPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -677,7 +678,7 @@ export default function KDSPage() {
                   >
                     <div>
                       <div className="font-bold text-xs text-neutral-100">
-                        {order.table?.name ? `Table ${order.table.name}` : `Order #${order.id.slice(-4).toUpperCase()}`}
+                        {order.table?.name ? tableLabel(order.table.name) : `Order #${order.id.slice(-4).toUpperCase()}`}
                       </div>
                       <div className="text-[11px] text-neutral-400">
                         {order.items?.map((i: any) => `${i.quantity}× ${i.menuItem?.name}`).join(', ')}
@@ -719,7 +720,7 @@ export default function KDSPage() {
         title={ticketToClear?.source === 'TAKEAWAY' ? 'Mark this takeaway collected?' : 'Mark this served?'}
         description={
           ticketToClear
-            ? `${ticketToClear.table?.name ? `Table ${ticketToClear.table.name}` : ticketToClear.customerName || 'This order'} leaves the kitchen. The front desk takes payment on Bills.`
+            ? `${ticketToClear.table?.name ? tableLabel(ticketToClear.table.name) : ticketToClear.customerName || 'This order'} leaves the kitchen. The front desk takes payment on Bills.`
             : 'This order leaves the kitchen. The front desk takes payment on Bills.'
         }
         confirmLabel="Served"

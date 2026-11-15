@@ -597,7 +597,7 @@ async function main() {
     const sample = orderSamples[index];
     const customer = customers[index % customers.length];
     const itemLines = sample.items.map((itemIndex, lineIndex) => {
-      const item = savedItems[itemIndex];
+      const item = savedItems[itemIndex % savedItems.length];
       const quantity = lineIndex === 0 && index % 4 === 0 ? 2 : 1;
       const lineTotal = item.price * quantity;
       return {

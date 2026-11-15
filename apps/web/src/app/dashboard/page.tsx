@@ -30,6 +30,7 @@ import { VisitBill } from '@/components/visit-bill';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TodayReport, TodayReportData } from '@/components/today-report';
+import { tableLabel } from '@/lib/table-label';
 
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -609,7 +610,7 @@ export default function DashboardPage() {
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Where</span>
                 <span className="font-bold text-gray-900">
                   {selectedOrderDetails.table?.name
-                    ? `Table ${selectedOrderDetails.table.name}`
+                    ? tableLabel(selectedOrderDetails.table.name)
                     : selectedOrderDetails.source === 'QUEUE_PREORDER'
                     ? `Queue #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
                     : 'Takeaway'}
@@ -646,7 +647,7 @@ export default function DashboardPage() {
                 billNo={selectedOrderDetails.id.slice(-6).toUpperCase()}
                 detail={
                   selectedOrderDetails.table?.name
-                    ? `Table ${selectedOrderDetails.table.name}`
+                    ? tableLabel(selectedOrderDetails.table.name)
                     : selectedOrderDetails.source === 'QUEUE_PREORDER'
                     ? `Queue #${selectedOrderDetails.queueToken?.tokenNumber || ''}`
                     : 'Takeaway'

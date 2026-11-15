@@ -112,19 +112,26 @@ export class QueueService {
     });
     if (!business) throw new NotFoundException('Business not found');
 
-    return business.queues.map((q) => ({
-      id: q.id,
-      name: q.name,
-      department: q.department,
-      doctorName: q.doctorName,
-      serviceName: q.serviceName,
-      isOpen: q.isOpen,
-      isPaused: q.isPaused,
-      remoteJoinEnabled: q.remoteJoinEnabled,
-      waitingCount: q.tokens.length,
-      averageWaitMinutes: q.averageWaitMinutes,
-      estimatedWaitMin: q.tokens.length * q.averageWaitMinutes,
-    }));
+    // Use the same learned average as the status and token endpoints, so the guest
+    // never sees two different wait estimates for the same queue.
+    return Promise.all(
+      business.queues.map(async (q) => {
+        const avgWait = await this.getAverageWaitMinutes(q.id);
+        return {
+          id: q.id,
+          name: q.name,
+          department: q.department,
+          doctorName: q.doctorName,
+          serviceName: q.serviceName,
+          isOpen: q.isOpen,
+          isPaused: q.isPaused,
+          remoteJoinEnabled: q.remoteJoinEnabled,
+          waitingCount: q.tokens.length,
+          averageWaitMinutes: avgWait,
+          estimatedWaitMin: q.tokens.length * avgWait,
+        };
+      }),
+    );
   }
 
   async joinQueue(slug: string, dto: JoinQueueDto, options?: { source?: QueueEntrySource }) {

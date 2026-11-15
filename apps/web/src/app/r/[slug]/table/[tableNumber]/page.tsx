@@ -27,6 +27,13 @@ import { readGuest, saveGuest } from '@/lib/guest';
 import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 import { storageGet, storageRemove, storageSet } from '@/lib/safe-storage';
 import { uuid } from '@/lib/uuid';
+import { DishImage } from '@/components/dish-image';
+import { tableLabel } from '@/lib/table-label';
+
+function formatRupees(value: unknown) {
+  const amount = Number(value) || 0;
+  return `₹${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`;
+}
 
 interface CartItem {
   id: string;
@@ -232,7 +239,7 @@ export default function TableOrderPage() {
   const total = subtotal + taxAmount + tipAmount;
   const totalCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const orderContext = orderSource === 'TABLE_QR'
-    ? `Table ${tableNumber}`
+    ? tableLabel(tableNumber)
     : orderSource === 'TAKEAWAY'
       ? 'Takeaway pickup'
       : queueToken?.tokenNumber
@@ -359,71 +366,76 @@ export default function TableOrderPage() {
 
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}
-            <img src="/qfast-logo.png" alt="Qfast" className="h-8 w-auto shrink-0" />
-            {restaurant?.logoUrl ? (
-              <img src={restaurant.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
-                <UtensilsCrossed className="w-5 h-5" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="text-lg font-black tracking-tight text-neutral-950 line-clamp-1">
+        <div className="mx-auto max-w-2xl px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {!isFixedTable && <BackLink fallback={`/r/${slug}/join`} />}
+              <img src="/qfast-logo.png" alt="Qfast" className="hidden h-8 w-auto shrink-0 sm:block" />
+              {restaurant?.logoUrl ? (
+                <img src={restaurant.logoUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white shadow-xs">
+                  <UtensilsCrossed className="h-5 w-5" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-black leading-tight tracking-tight text-neutral-950 sm:text-lg">
                   {restaurant?.name || 'Restaurant'}
                 </h1>
                 {orderSource === 'QUEUE_PREORDER' ? (
-                  <span className="text-[11px] bg-amber-100 text-amber-900 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300 shrink-0">
+                  <span className="mt-0.5 inline-block rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-extrabold text-amber-900">
                     Queue #{queueToken?.tokenNumber || 'Waitlist'}
                   </span>
                 ) : orderSource === 'TAKEAWAY' ? (
-                  <span className="text-[11px] bg-purple-100 text-purple-900 font-extrabold px-2.5 py-0.5 rounded-full border border-purple-300 shrink-0">
+                  <span className="mt-0.5 inline-block rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-[11px] font-extrabold text-purple-900">
                     Takeaway
                   </span>
                 ) : (
-                  <span className="text-[11px] bg-orange-100 text-orange-800 font-extrabold px-2.5 py-0.5 rounded-full border border-orange-200/60 shrink-0">
-                    Table {tableNumber}
+                  <span className="mt-0.5 inline-block rounded-full border border-orange-200/60 bg-orange-100 px-2 py-0.5 text-[11px] font-extrabold text-orange-800">
+                    {tableLabel(tableNumber)}
                   </span>
                 )}
               </div>
-              {restaurant?.instagramHandle && (
-                <a href={`https://instagram.com/${restaurant.instagramHandle}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-orange-700">
-                  Follow @{restaurant.instagramHandle}
-                </a>
-              )}
-              <p className="text-[11px] text-neutral-400 font-medium">
-                {orderSource === 'QUEUE_PREORDER'
-                  ? 'Dine-in Pre-order · Served when table is ready'
-                  : orderSource === 'TAKEAWAY'
-                  ? 'Takeaway Menu · Pick up at counter'
-                  : 'Order from this table. You pay, call a waiter, and review on the next screen.'}
-              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Link
+                href={`/r/${slug}/loyalty`}
+                aria-label="View stamp card"
+                title="Stamp card"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+              >
+                <Gift className="h-4 w-4" />
+              </Link>
+              <button
+                type="button"
+                aria-pressed={vegOnly}
+                onClick={() => setVegOnly(!vegOnly)}
+                className={`flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-bold transition-all ${vegOnly
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300'
+                  }`}
+              >
+                <Leaf className="w-3.5 h-3.5" />
+                Veg only
+              </button>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/r/${slug}/loyalty`}
-              aria-label="View stamp card"
-              title="Stamp card"
-              className="rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-800 hover:bg-amber-100"
-            >
-              <Gift className="h-4 w-4" />
-            </Link>
-            <button
-              onClick={() => setVegOnly(!vegOnly)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${vegOnly
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                  : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300'
-                }`}
-            >
-              <Leaf className="w-3.5 h-3.5" />
-              Veg Only
-            </button>
-          </div>
+          <p className="mt-2 text-xs leading-5 text-neutral-500">
+            {orderSource === 'QUEUE_PREORDER'
+              ? 'Pre-order while you wait. Food is served once you are seated.'
+              : orderSource === 'TAKEAWAY'
+              ? 'Order now and collect it from the counter when it is ready.'
+              : 'Add dishes, then place your order. You can pay, call a waiter, or leave a review on the next screen.'}
+            {restaurant?.instagramHandle && (
+              <>
+                {' '}
+                <a href={`https://instagram.com/${restaurant.instagramHandle}`} target="_blank" rel="noreferrer" className="font-bold text-orange-700">
+                  @{restaurant.instagramHandle}
+                </a>
+              </>
+            )}
+          </p>
         </div>
 
         {/* Search Bar */}
@@ -551,95 +563,95 @@ export default function TableOrderPage() {
                   }`}
               >
                 <div className="flex items-start gap-3">
-                  {item.imageUrl ? (
-                    <button type="button" onClick={() => setDetailItem(item)} className="shrink-0">
-                      <img src={item.imageUrl} alt="" className="h-24 w-24 rounded-2xl object-cover" />
-                    </button>
-                  ) : (
-                    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-300">
-                      <UtensilsCrossed className="h-6 w-6" />
-                    </div>
-                  )}
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                      {/* Dietary Dot Indicator */}
+                    <div className="mb-1 flex items-start gap-2">
+                      {/* Dietary indicator */}
                       <span
-                        className={`w-4 h-4 rounded-md flex items-center justify-center border text-[8px] font-bold ${item.isVeg
+                        className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border text-[8px] font-bold ${item.isVeg
                             ? 'border-emerald-600 text-emerald-600 bg-emerald-50'
                             : 'border-red-600 text-red-600 bg-red-50'
                           }`}
-                        title={item.isVeg ? 'Vegetarian' : 'Non-Vegetarian'}
+                        title={item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+                        aria-label={item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
                       >
                         ●
                       </span>
-                      <h3 className="font-bold text-neutral-950 text-base leading-snug">{item.name}</h3>
-                      {item.mostOrdered && (
-                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-800">
-                          Most ordered
-                        </span>
-                      )}
-                      {item.badge && (
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-neutral-700">
-                          {item.badge}
-                        </span>
-                      )}
+                      <h3 className="text-base font-bold leading-snug text-neutral-950">{item.name}</h3>
                     </div>
+                    {(item.mostOrdered || item.badge) && (
+                      <div className="mb-1.5 flex flex-wrap gap-1.5">
+                        {item.mostOrdered && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-800">
+                            Most ordered
+                          </span>
+                        )}
+                        {item.badge && (
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-neutral-700">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                    <div className="font-black text-base text-neutral-950 mb-1">
-                      ₹{Number(item.price).toFixed(2)}
-                    </div>
+                    <div className="mb-1 text-base font-black text-neutral-950">{formatRupees(item.price)}</div>
 
                     {item.description && (
-                      <p className="line-clamp-2 pr-2 text-sm leading-5 text-neutral-600">
-                        {item.description}
-                      </p>
+                      <p className="line-clamp-2 text-sm leading-5 text-neutral-600">{item.description}</p>
                     )}
                     {item.servedAs && <p className="mt-1 text-xs font-semibold text-neutral-700">Served: {item.servedAs}</p>}
-                    <button type="button" onClick={() => setDetailItem(item)} className="mt-2 text-xs font-bold text-orange-700">
-                      View dish details
-                    </button>
 
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-neutral-400">
-                      {item.prepTimeMinutes && (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-500">
+                      <button type="button" onClick={() => setDetailItem(item)} className="text-xs font-bold text-orange-700">
+                        View details
+                      </button>
+                      {item.prepTimeMinutes ? (
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-neutral-400" />
-                          ~{item.prepTimeMinutes} mins
+                          <Clock className="h-3 w-3" />
+                          ~{item.prepTimeMinutes} min
                         </span>
-                      )}
-                      <span className="text-neutral-300">•</span>
-                      <span className="text-neutral-400">{item.categoryName}</span>
+                      ) : null}
+                      {item.categoryName && <span>{item.categoryName}</span>}
                     </div>
                   </div>
 
-                  {/* Add to Cart / Stepper Controller */}
-                  <div className="flex flex-col items-center justify-center shrink-0">
-                    {qty === 0 ? (
-                      <button
-                        onClick={() => addToCart(item)}
-                        className="flex min-h-11 items-center gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-extrabold text-orange-700 shadow-xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add
-                      </button>
-                    ) : (
-                      <div className="flex min-h-11 items-center gap-1 rounded-xl bg-orange-500 px-1.5 text-white shadow-sm">
+                  {/* Photo with Add / quantity control underneath */}
+                  <div className="flex w-28 shrink-0 flex-col items-center">
+                    <button type="button" onClick={() => setDetailItem(item)} className="block" aria-label={`View ${item.name}`}>
+                      <DishImage src={item.imageUrl} className="h-24 w-28 rounded-2xl" />
+                    </button>
+                    <div className="-mt-4 w-24">
+                      {qty === 0 ? (
                         <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
-                          aria-label={`Decrease ${item.name} quantity`}
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="w-5 text-center text-sm font-black">{qty}</span>
-                        <button
+                          type="button"
                           onClick={() => addToCart(item)}
-                          className="flex h-9 w-9 items-center justify-center rounded font-bold hover:bg-orange-600"
-                          aria-label={`Increase ${item.name} quantity`}
+                          aria-label={`Add ${item.name}`}
+                          className="flex min-h-10 w-full items-center justify-center gap-1 rounded-xl border border-orange-300 bg-white text-sm font-extrabold text-orange-700 shadow-sm transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95"
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus className="h-3.5 w-3.5" />
+                          ADD
                         </button>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex min-h-10 w-full items-center justify-between rounded-xl bg-orange-500 px-1 text-white shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg font-bold hover:bg-orange-600"
+                            aria-label={`Decrease ${item.name} quantity`}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="text-center text-sm font-black" aria-live="polite">{qty}</span>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(item)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg font-bold hover:bg-orange-600"
+                            aria-label={`Increase ${item.name} quantity`}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -864,8 +876,8 @@ export default function TableOrderPage() {
 
                 <p className="rounded-2xl bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950">
                   {orderSource === 'QUEUE_PREORDER'
-                    ? 'This stays on your visit. You pay by UPI, cash, or card after you are seated. Adding more items makes the bill due again.'
-                    : 'The bill stays due until you or the counter record UPI, cash, or card. Adding more items makes a paid bill due again.'}
+                    ? 'No payment now. These items are saved to your visit, and you pay by UPI, cash or card once you are seated. Anything you add later goes on the same bill.'
+                    : 'No payment now. Pay by UPI, cash or card after you order. Anything you add later goes on the same bill.'}
                 </p>
 
                 {/* Detailed Bill Breakdown */}
@@ -925,7 +937,7 @@ export default function TableOrderPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-4 sm:items-center">
           <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
             {detailItem.imageUrl && (
-              <img src={detailItem.imageUrl} alt="" className="h-48 w-full object-cover" />
+              <DishImage src={detailItem.imageUrl} className="h-48 w-full" />
             )}
             <div className="p-5">
               <div className="flex items-start justify-between gap-3">
@@ -935,7 +947,7 @@ export default function TableOrderPage() {
                     {detailItem.mostOrdered && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-800">Most ordered</span>}
                     {detailItem.badge && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-neutral-700">{detailItem.badge}</span>}
                   </div>
-                  <p className="mt-1 text-sm font-bold">₹{Number(detailItem.price).toFixed(0)}</p>
+                  <p className="mt-1 text-sm font-bold">{formatRupees(detailItem.price)}</p>
                 </div>
                 <button type="button" onClick={() => setDetailItem(null)} className="rounded-full bg-neutral-100 p-2">
                   <X className="h-4 w-4" />
