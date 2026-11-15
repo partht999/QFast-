@@ -382,7 +382,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>}
             <span className="text-xs text-gray-500">
               {planStatus === 'TRIALING' && trialEndsAt
-                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString()}`
+                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                 : `${businessLabel || 'Business'} workspace`}
             </span>
           </div>
@@ -398,7 +398,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-gray-500">
               {planStatus === 'TRIALING' && trialEndsAt
-                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString()}`
+                ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                 : 'Workspace'}
             </span>
           </div>

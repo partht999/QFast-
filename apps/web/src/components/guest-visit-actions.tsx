@@ -23,7 +23,8 @@ export function GuestVisitActions({
   orders: VisitOrder[];
   onChanged: () => void;
   canClose?: boolean;
-  onWaiter?: () => void;
+  /** May resolve to a message to show the guest (e.g. "A waiter is on the way"). */
+  onWaiter?: () => void | string | Promise<void | string>;
 }) {
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -97,12 +98,19 @@ export function GuestVisitActions({
       )}
       <div className="flex flex-wrap gap-2">
         {onWaiter && (
-          <button type="button" onClick={onWaiter} className="ui-btn-secondary">
+          <button
+            type="button"
+            onClick={async () => {
+              const note = await onWaiter();
+              if (note) setMessage(note);
+            }}
+            className="ui-btn-secondary"
+          >
             <Bell className="h-4 w-4 text-orange-600" />
             Call waiter
           </button>
         )}
-        {canClose && (
+        {canClose && payment.paid && (
           <button
             type="button"
             disabled={!readyToClose || !!busy}
@@ -120,9 +128,9 @@ export function GuestVisitActions({
               ? 'The kitchen is still working. Close the bill when the food is ready.'
               : 'The counter confirmed payment. You can close the bill.'
             : 'The counter confirmed payment. The restaurant closes the visit.'
-          : 'The counter confirms payment. This page cannot mark the bill paid.'}
+          : 'Pay at the counter by UPI, cash or card. This changes to Paid once staff confirm it.'}
       </p>
-      {message && <p className="text-sm font-semibold text-neutral-800">{message}</p>}
+      {message && <p role="status" className="rounded-xl bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-800">{message}</p>}
     </div>
   );
 }

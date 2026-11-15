@@ -119,7 +119,7 @@ export default function CustomerLoyaltyPage() {
         <section className="ui-card mt-5 p-6">
           <p className="text-sm font-semibold text-brand-700">{card?.businessName || businessName || 'Stamp card'}</p>
           <h1 className="ui-title mt-1">Collect {target} stamps</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Each visit adds one stamp. A full card is {prize}.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Each visit adds one stamp. Fill the card to get <strong className="font-bold text-slate-900">{prize}</strong>.</p>
 
           <div className="mt-6 grid grid-cols-4 gap-3">
             {Array.from({ length: target }).map((_, index) => (

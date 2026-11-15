@@ -23,6 +23,7 @@ import { VisitBill } from '@/components/visit-bill';
 import { ReviewPrompt } from '@/components/review-prompt';
 import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 import { storageGet, storageSet } from '@/lib/safe-storage';
+import { tableLabel } from '@/lib/table-label';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -253,7 +254,7 @@ export default function OrderTrackingPage() {
           </Link>
           {order.table?.name ? (
             <span className="rounded-full border border-emerald-200/50 bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
-              Table {order.table.name}
+              {tableLabel(order.table.name)}
             </span>
           ) : order.source === 'QUEUE_PREORDER' || order.queueToken ? (
             <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900">
@@ -417,7 +418,7 @@ export default function OrderTrackingPage() {
             gstin={order.business?.gstin}
             logoUrl={order.business?.logoUrl}
             billNo={order.id.slice(-6).toUpperCase()}
-            detail={isTakeaway ? 'Collect at the counter' : order.table?.name ? `Table ${order.table.name}` : 'Dine in'}
+            detail={isTakeaway ? 'Collect at the counter' : order.table?.name ? tableLabel(order.table.name) : 'Dine in'}
             downloadName={`bill-${order.id.slice(-6)}`}
             lines={(order.items || []).map((item: any) => ({
               id: item.id,

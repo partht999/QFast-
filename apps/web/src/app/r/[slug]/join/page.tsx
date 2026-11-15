@@ -37,6 +37,8 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { readGuest, saveGuest } from '@/lib/guest';
 import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 import { storageGet, storageSet } from '@/lib/safe-storage';
+import { tableLabel } from '@/lib/table-label';
+import { rupees, waitParts } from '@/lib/format';
 
 const MAX_PARTY = 20;
 const ENDED_MESSAGES: Record<string, string> = {
@@ -547,7 +549,7 @@ export default function JoinQueuePage() {
           <p className="text-xs text-neutral-400 mt-1.5">
             {foodBusiness && !activeToken && !visitChoice
               ? 'Eat here and wait for a table, or take it away.'
-              : 'Live queue updates • Optional browser alerts while this page is open'}
+              : 'This page updates live. Keep it open to get alerted when it is your turn.'}
           </p>
         </div>
 
@@ -565,7 +567,7 @@ export default function JoinQueuePage() {
                   <p className="font-black text-base uppercase tracking-wide">
                     {foodBusiness
                       ? activeToken.table?.name
-                        ? `Table ${activeToken.table.name}`
+                        ? tableLabel(activeToken.table.name)
                         : 'Your turn is here'
                       : clinicalBusiness
                         ? 'The doctor is ready'
@@ -693,14 +695,14 @@ export default function JoinQueuePage() {
                 {foodBusiness && Array.isArray(activeToken.orders) && activeToken.orders.length > 0 && activeToken.status !== 'SEATED' && activeToken.status !== 'COMPLETED' && (
                   <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-left">
                     <p className="text-xs font-black uppercase tracking-wider text-neutral-500">
-                      {activeToken.status === 'COMPLETED' ? 'Your bill' : 'Items on your visit'}
+                      Items on your visit
                     </p>
                     <div className="mt-2 space-y-1.5">
                       {activeToken.orders.flatMap((order: any) =>
                         (order.items || []).map((item: any) => (
                           <div key={item.id} className="flex justify-between text-sm text-neutral-800">
                             <span>{item.quantity} × {item.menuItem?.name || 'Item'}</span>
-                            <span>₹{Number(item.totalPrice || 0).toFixed(0)}</span>
+                            <span>{rupees(item.totalPrice)}</span>
                           </div>
                         )),
                       )}
@@ -708,7 +710,7 @@ export default function JoinQueuePage() {
                     <div className="mt-2 flex justify-between border-t border-neutral-200 pt-2 text-sm font-black text-neutral-950">
                       <span>Total</span>
                       <span>
-                        ₹{activeToken.orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0).toFixed(0)}
+                        {rupees(activeToken.orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0))}
                       </span>
                     </div>
                   </div>
@@ -746,7 +748,7 @@ export default function JoinQueuePage() {
                   phone={queueStatus?.phone || activeToken.business?.phone}
                   gstin={queueStatus?.gstin || activeToken.business?.gstin}
                   logoUrl={queueStatus?.logoUrl || activeToken.business?.logoUrl}
-                  detail={activeToken.table?.name ? `Table ${activeToken.table.name}` : `Token #${activeToken.tokenNumber}`}
+                  detail={activeToken.table?.name ? tableLabel(activeToken.table.name) : `Token #${activeToken.tokenNumber}`}
                   billNo={String(activeToken.tokenNumber)}
                   downloadName={`bill-${activeToken.tokenNumber}`}
                   payments={(activeToken.orders || []).flatMap((order: any) => order.payments || [])}
@@ -795,12 +797,12 @@ export default function JoinQueuePage() {
                   <span className="text-[10px] font-bold text-neutral-400 block uppercase tracking-wider">
                     Est. Wait
                   </span>
-                  <div className="flex items-center justify-center gap-1 mt-0.5">
-                    <Clock className="w-4 h-4 text-orange-500" />
+                  <div className="flex items-center justify-center gap-1 mt-0.5 whitespace-nowrap">
+                    <Clock className="w-4 h-4 shrink-0 text-orange-500" />
                     <span className="text-2xl font-black text-orange-600">
-                      ~{Math.max(1, Math.round(activeToken.estimatedWaitMin ?? 5))}
+                      ~{waitParts(Math.max(1, Math.round(activeToken.estimatedWaitMin ?? 5)))[0]}
                     </span>
-                    <span className="text-xs font-bold text-orange-600">min</span>
+                    <span className="text-xs font-bold text-orange-600">{waitParts(Math.max(1, Math.round(activeToken.estimatedWaitMin ?? 5)))[1]}</span>
                   </div>
                 </div>
               </div>
@@ -841,19 +843,28 @@ export default function JoinQueuePage() {
                       canClose={false}
                       onChanged={() => {
                         void fetch(guestTokenUrl(apiUrl, activeToken.id, readGuestToken(slug).secret))
-                          .then((response) => response.json())
+                          .then((response) => (response.ok ? response.json() : null))
                           .then((data) => {
                             if (data?.id) setActiveToken(data);
+                          })
+                          .catch(() => {
+                            /* the 4s poll will catch up */
                           });
                       }}
-                      onWaiter={() => {
+                      onWaiter={async () => {
                         const orderId = activeToken.orders?.[0]?.id;
                         if (!orderId) return;
-                        void fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ kind: 'waiter' }),
-                        });
+                        try {
+                          const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ kind: 'waiter' }),
+                          });
+                          if (!res.ok) throw new Error('help request failed');
+                          return 'A waiter has been called. Someone will be with you shortly.';
+                        } catch {
+                          return 'Could not reach the staff. Please wave someone down.';
+                        }
                       }}
                     />
                   )}
@@ -927,12 +938,12 @@ export default function JoinQueuePage() {
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-700 block">
                     Current Wait
                   </span>
-                  <div className="flex items-center justify-center gap-1.5 mt-1">
-                    <Clock className="w-4 h-4 text-orange-500" />
+                  <div className="flex items-center justify-center gap-1.5 mt-1 whitespace-nowrap">
+                    <Clock className="w-4 h-4 shrink-0 text-orange-500" />
                     <span className="text-2xl font-black text-orange-600">
-                      ~{queueStatus?.estimatedWaitMin ?? 0}
+                      ~{waitParts(queueStatus?.estimatedWaitMin ?? 0)[0]}
                     </span>
-                    <span className="text-xs font-bold text-orange-600">min</span>
+                    <span className="text-xs font-bold text-orange-600">{waitParts(queueStatus?.estimatedWaitMin ?? 0)[1]}</span>
                   </div>
                 </div>
               </div>
@@ -995,7 +1006,7 @@ export default function JoinQueuePage() {
                               </div>
                             </div>
                             <span className="text-[11px] font-bold text-neutral-600">
-                              {q.isOpen === false ? 'Closed' : q.isPaused ? 'Paused' : `~${Math.max(1, Math.round(q.estimatedWaitMin ?? 5))}m wait`}
+                              {q.isOpen === false ? 'Closed' : q.isPaused ? 'Paused' : `~${waitParts(Math.max(1, Math.round(q.estimatedWaitMin ?? 5))).join(' ')} wait`}
                             </span>
                           </label>
                         ))}

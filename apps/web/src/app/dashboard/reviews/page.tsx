@@ -388,7 +388,7 @@ export default function ReviewsManagementPage() {
                     )}
 
                     <span className="text-[10px] text-gray-400 block">
-                      Received {new Date(fb.createdAt).toLocaleDateString()} at{' '}
+                      Received {new Date(fb.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at{' '}
                       {new Date(fb.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>

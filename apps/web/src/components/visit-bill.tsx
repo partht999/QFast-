@@ -67,6 +67,11 @@ export function VisitBill({
   const amount = total;
   const cgst = Math.round((tax / 2) * 100) / 100;
   const sgst = Math.round((tax - cgst) * 100) / 100;
+  // Items can carry different GST rates, so derive the half-rate from the actual tax
+  // instead of always printing 2.5%.
+  const halfRate = subtotal > 0 && tax > 0 ? Math.round((tax / subtotal) * 50 * 100) / 100 : 0;
+  const gstLabel = (name: string) => (halfRate ? `${name} ${halfRate}%` : name);
+  const paymentNote = payment.paid ? `Paid · ${payment.methods}` : `Payment pending · ${payment.methods}`;
   const when = issuedAt || new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
   const receiptHtml = (logoSrc = logoUrl, qfastSrc = '/qfast-logo.png') => {
@@ -156,10 +161,10 @@ export function VisitBill({
     </table>
     <div class="totals">
       <div><span>Subtotal</span><span>${money(subtotal)}</span></div>
-      <div><span>CGST 2.5%</span><span>${money(cgst)}</span></div>
-      <div><span>SGST 2.5%</span><span>${money(sgst)}</span></div>
+      ${tax > 0 ? `<div><span>${gstLabel('CGST')}</span><span>${money(cgst)}</span></div>` : ''}
+      ${tax > 0 ? `<div><span>${gstLabel('SGST')}</span><span>${money(sgst)}</span></div>` : ''}
       <div class="grand"><span>Total</span><span>${money(total)}</span></div>
-      <div><span>${escapeHtml(payment.methods)}</span><span>${money(amount)}</span></div>
+      <div><span>${escapeHtml(paymentNote)}</span><span>${money(amount)}</span></div>
       ${people > 1 ? `<div><span>Split ${people} ways</span><span>${money(share)} each</span></div>` : ''}
     </div>
     <p class="foot">Thank you for visiting.<br>This bill was issued by ${escapeHtml(businessName || 'the restaurant')} through Qfast.</p>
@@ -272,13 +277,17 @@ export function VisitBill({
 
       <div className="mt-2 space-y-1 border-t border-stone-200 pt-3 text-sm text-stone-600">
         <div className="flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></div>
-        <div className="flex justify-between"><span>CGST 2.5%</span><span>{money(cgst)}</span></div>
-        <div className="flex justify-between"><span>SGST 2.5%</span><span>{money(sgst)}</span></div>
+        {tax > 0 && (
+          <>
+            <div className="flex justify-between"><span>{gstLabel('CGST')}</span><span>{money(cgst)}</span></div>
+            <div className="flex justify-between"><span>{gstLabel('SGST')}</span><span>{money(sgst)}</span></div>
+          </>
+        )}
         <div className="flex justify-between border-t border-stone-900 pt-2 text-lg font-black text-stone-950">
           <span>Total</span>
           <span>{money(total)}</span>
         </div>
-        <p className="pt-1 text-xs font-semibold text-stone-500">{payment.methods} · {money(amount)}</p>
+        <p className="pt-1 text-xs font-semibold text-stone-500">{paymentNote} · {money(amount)}</p>
       </div>
 
       <div className="mt-3 flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2">

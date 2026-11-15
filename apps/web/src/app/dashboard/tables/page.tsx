@@ -18,6 +18,7 @@ import { getBusinessPublicPath } from '@/lib/business-links';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EmptyState } from '@/components/ui/empty-state';
+import { rupees, guestsLabel } from '@/lib/format';
 
 export default function TablesManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -360,8 +361,8 @@ export default function TablesManagementPage() {
                         {isOccupied && (
                           <p className="mt-2 text-xs font-bold text-red-950">
                             {heldParty
-                              ? `#${heldParty.tokenNumber} ${heldParty.customerName} · ${heldParty.partySize || 1} guests`
-                              : `${table.orders?.length || 1} open bill${(table.orders?.length || 1) === 1 ? '' : 's'} · ₹${Number(table.orders?.[0]?.totalAmount || 0).toFixed(0)}`}
+                              ? `#${heldParty.tokenNumber} ${heldParty.customerName} · ${guestsLabel(heldParty.partySize)}`
+                              : `${table.orders?.length || 1} open bill${(table.orders?.length || 1) === 1 ? '' : 's'} · ${rupees((table.orders || []).reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0))}`}
                           </p>
                         )}
                         {isOccupied && table.orders?.[0]?.status && (

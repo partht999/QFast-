@@ -7,6 +7,7 @@ import { describePayments } from '@/lib/payment';
 import { lineName } from '@/lib/order-line';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
+import { rupees } from '@/lib/format';
 
 function whereLabel(order: any) {
   if (order.table?.name) return order.table.name;
@@ -119,7 +120,7 @@ export default function BillsPage() {
                       {(order.items || []).map((item: any) => `${item.quantity}× ${lineName(item.menuItem?.name, item.addons)}`).join(', ')}
                     </p>
                   </div>
-                  <p className="text-lg font-semibold text-neutral-950">₹{Number(order.totalAmount || 0).toFixed(0)}</p>
+                  <p className="text-lg font-semibold text-neutral-950">{rupees(order.totalAmount)}</p>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {!payment.paid && ready && (
