@@ -1,5 +1,8 @@
 import {
   Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -14,6 +17,7 @@ import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
 import { BusinessType, OrderStatus, Prisma, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
 import { billDueReason } from '../orders/payment-state';
+import { prepLeadMinutes, shouldFire, TURN_SOON_BUFFER_MINUTES } from '../orders/preorder-timing';
 import { visitsAreOpen } from '../business/subscription-access';
 import { AccessService } from '../access/access.service';
 import { guestSecretMatches, hashGuestSecret } from '../access/access.rules';
@@ -23,7 +27,11 @@ import { businessDayRange, localDate, safeTimeZone } from '../../common/time';
 import { ACTIVE_QUEUE_STATUSES, allocateDailyToken, assertQueueJoinable, queuePhoneKey, resolvePartySize } from './token-sequence';
 
 @Injectable()
-export class QueueService {
+export class QueueService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(QueueService.name);
+  private schedulerTimer?: NodeJS.Timeout;
+  private schedulerBusy = false;
+
   constructor(
     private prisma: PrismaService,
     private events: EventsGateway,
@@ -31,6 +39,110 @@ export class QueueService {
     private orders: OrdersService,
     private access: AccessService,
   ) {}
+
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    this.schedulerTimer = setInterval(() => void this.runGuestScheduler(), 30_000);
+  }
+
+  onModuleDestroy() {
+    if (this.schedulerTimer) clearInterval(this.schedulerTimer);
+  }
+
+  private async runGuestScheduler() {
+    if (this.schedulerBusy) return;
+    this.schedulerBusy = true;
+    try {
+      await this.firePreordersDueSoon();
+      await this.notifyTurnSoon();
+    } catch (error) {
+      this.logger.warn(`Guest scheduler failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.schedulerBusy = false;
+    }
+  }
+
+  /** Minutes until this token is called, using the same maths the guest page shows. */
+  private async minutesUntilCalled(token: { id: string; queueId: string; createdAt: Date; status: QueueTokenStatus }, avgCache: Map<string, number>) {
+    if (token.status !== QueueTokenStatus.WAITING) return 0;
+    const position = await this.prisma.queueToken.count({
+      where: {
+        queueId: token.queueId,
+        status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] },
+        createdAt: { lte: token.createdAt },
+      },
+    });
+    let avg = avgCache.get(token.queueId);
+    if (avg === undefined) {
+      avg = await this.getAverageWaitMinutes(token.queueId);
+      avgCache.set(token.queueId, avg);
+    }
+    return position * avg;
+  }
+
+  /** Start cooking each held pre-order when its guest is one cooking-time away from their turn. */
+  async firePreordersDueSoon() {
+    const held = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PENDING,
+        queueToken: { is: { status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] } } },
+      },
+      include: {
+        queueToken: true,
+        items: { include: { menuItem: { select: { prepTimeMinutes: true } } } },
+      },
+      take: 200,
+    });
+    const avgCache = new Map<string, number>();
+    for (const order of held) {
+      if (!order.queueToken) continue;
+      const prep = prepLeadMinutes(order.items.map((item) => item.menuItem?.prepTimeMinutes));
+      const eta = await this.minutesUntilCalled(order.queueToken, avgCache);
+      if (shouldFire(eta, prep)) await this.orders.firePreorder(order.id, prep);
+    }
+  }
+
+  /** Clinics, salons and service centres: tell remote guests when to leave so they arrive on time. */
+  async notifyTurnSoon() {
+    const tokens = await this.prisma.queueToken.findMany({
+      where: {
+        status: QueueTokenStatus.WAITING,
+        source: QueueEntrySource.REMOTE,
+        queue: { business: { type: { notIn: [BusinessType.RESTAURANT, BusinessType.CAFE] } } },
+      },
+      include: { queue: { select: { arrivalGraceMinutes: true, businessId: true, business: { select: { name: true, timezone: true } } } } },
+      take: 200,
+    });
+    const avgCache = new Map<string, number>();
+    for (const token of tokens) {
+      const eta = await this.minutesUntilCalled(token, avgCache);
+      const lead = (token.queue.arrivalGraceMinutes ?? 10) + TURN_SOON_BUFFER_MINUTES;
+      if (eta > lead) continue;
+      const already = await this.prisma.notification.findFirst({
+        where: { templateKey: 'turn-soon', metadata: { path: ['tokenId'], equals: token.id } },
+        select: { id: true },
+      });
+      if (already) continue;
+      const reachBy = new Date(Date.now() + Math.max(1, eta) * 60_000);
+      const clock = new Intl.DateTimeFormat('en-IN', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: safeTimeZone(token.queue.business.timezone),
+      }).format(reachBy);
+      await this.prisma.notification.create({
+        data: {
+          businessId: token.queue.businessId,
+          channel: 'WEB_PUSH',
+          category: 'TRANSACTIONAL',
+          templateKey: 'turn-soon',
+          subject: 'Your turn is coming up',
+          body: `Your turn at ${token.queue.business.name} is in about ${Math.max(1, Math.round(eta))} min. Please reach by ${clock}. We are holding your spot.`,
+          metadata: { tokenId: token.id, readyAt: reachBy.toISOString() },
+        },
+      });
+    }
+  }
 
   async getStatusBySlug(slug: string) {
     const business = await this.prisma.business.findUnique({
@@ -313,8 +425,28 @@ export class QueueService {
       ? await this.loyalty.getCustomerBalance(token.queue.business.slug, token.customerPhone)
       : null;
 
+    const notice =
+      token.status === QueueTokenStatus.WAITING || token.status === QueueTokenStatus.CALLED
+        ? await this.prisma.notification.findFirst({
+            where: {
+              templateKey: { in: ['preorder-eta', 'turn-soon'] },
+              metadata: { path: ['tokenId'], equals: token.id },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { templateKey: true, subject: true, body: true, metadata: true, createdAt: true },
+          })
+        : null;
+
     return {
       ...publicToken(token),
+      guestNotice: notice
+        ? {
+            kind: notice.templateKey,
+            title: notice.subject,
+            message: notice.body,
+            readyAt: (notice.metadata as { readyAt?: string } | null)?.readyAt ?? null,
+          }
+        : null,
       position: token.status === QueueTokenStatus.WAITING ? position : 0,
       estimatedWaitMin:
         token.status === QueueTokenStatus.WAITING
@@ -395,11 +527,14 @@ export class QueueService {
         status: QueueTokenStatus.CANCELLED,
         cancelledAt: new Date(),
         activePhoneKey: null,
+        tableId: null,
       },
       include: {
         queue: true,
       },
     });
+    // Leaving the line must also drop the pre-order, otherwise it stays in the kitchen forever.
+    await this.orders.cancelHeldPreordersForToken(tokenId);
 
     this.events.emitQueueUpdate(token.queue.businessId, token.queueId, {
       type: 'TOKEN_CANCELLED',
@@ -632,6 +767,9 @@ export class QueueService {
       ) {
         throw new ConflictException(`Cannot change an already ${currentToken.status.toLowerCase()} entry`);
       }
+      if (currentToken.status === QueueTokenStatus.SEATED) {
+        throw new ConflictException('This party is already seated. Close their bill instead of skipping them.');
+      }
     }
 
     let phoneForKey = currentToken.customerPhone;
@@ -724,6 +862,11 @@ export class QueueService {
     ) {
       await this.releasePartyTable(tokenId);
     }
+    // A cancelled party never eats, so its pre-order goes too. A skipped party can be
+    // recalled, so its pre-order stays in Manage pre-orders for staff to decide.
+    if (status === QueueTokenStatus.CANCELLED) {
+      await this.orders.cancelHeldPreordersForToken(tokenId);
+    }
 
     const linkedTableId = token.tableId;
     if (linkedTableId && (status === QueueTokenStatus.CALLED || status === QueueTokenStatus.SEATED)) {
@@ -733,33 +876,9 @@ export class QueueService {
       });
     }
 
-    // If seated and tableId provided, link any queue pre-orders to this table
-    if (status === QueueTokenStatus.SEATED && tableId) {
-      const linkedOrders = await this.prisma.order.findMany({
-        where: { queueTokenId: tokenId },
-      });
-      if (linkedOrders.length > 0) {
-        await this.prisma.order.updateMany({
-          where: { queueTokenId: tokenId },
-          data: { tableId },
-        });
-        for (const order of linkedOrders) {
-          const updated = await this.prisma.order.findUnique({
-            where: { id: order.id },
-            include: {
-              table: true,
-              queueToken: true,
-              items: { include: { menuItem: true } },
-            },
-          });
-          if (updated) {
-            this.events.emitOrderUpdate(token.queue.businessId, order.id, {
-              type: 'ORDER_SEATED_AT_TABLE',
-              order: updated,
-            });
-          }
-        }
-      }
+    // Called or seated: the party's pre-orders go to the kitchen, on the table they now hold.
+    if (status === QueueTokenStatus.CALLED || status === QueueTokenStatus.SEATED) {
+      await this.orders.releasePreordersToKitchen(tokenId, token.tableId ?? tableId ?? null);
     }
 
     this.events.emitQueueUpdate(token.queue.businessId, token.queueId, {
@@ -1019,7 +1138,10 @@ export class QueueService {
       where: { id: { in: ids } },
       data: { status: QueueTokenStatus.NO_SHOW, tableId: null, activePhoneKey: null },
     });
-    for (const id of ids) await this.releasePartyTable(id);
+    for (const id of ids) {
+      await this.releasePartyTable(id);
+      await this.orders.cancelHeldPreordersForToken(id);
+    }
     return ids.length;
   }
 

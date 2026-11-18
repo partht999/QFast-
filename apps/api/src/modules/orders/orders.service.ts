@@ -3,8 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
-import { billDueReason, counterMethod } from './payment-state';
+import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma, QueueTokenStatus } from '@prisma/client';
+import { billDueReason, counterMethod, paidTotal } from './payment-state';
 import { visitsAreOpen } from '../business/subscription-access';
 import { AccessService } from '../access/access.service';
 import { STAFF_ROLES } from '../access/access.rules';
@@ -16,6 +16,21 @@ import { orderTotals, priceCatalogLine, PricedLine, roundMoney } from './pricing
 import { reconcilePayments } from './payment-ledger';
 import { parsePartnerOrder, partnerPayloadForStorage, secretsEqual } from './partner-webhook';
 import { tableSessionDecision } from './table-session';
+import { safeTimeZone } from '../../common/time';
+import { DEFAULT_PREP_MINUTES } from './preorder-timing';
+
+const CLOSED_ORDER_STATUSES: OrderStatus[] = [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED];
+
+// A queue pre-order stays in "Manage pre-orders" (PENDING) until it is "fired": the scheduler
+// moves it to ACCEPTED when the guest is about one cooking-time away from their turn. After
+// that, or once the party is called or seated, the kitchen sees it like any other order.
+const KITCHEN_VISIBLE: Prisma.OrderWhereInput = {
+  OR: [
+    { queueTokenId: null },
+    { status: { not: OrderStatus.PENDING } },
+    { queueToken: { is: { status: { in: [QueueTokenStatus.CALLED, QueueTokenStatus.SEATED] } } } },
+  ],
+};
 
 @Injectable()
 export class OrdersService {
@@ -189,7 +204,11 @@ export class OrdersService {
       throw error;
     }
 
-    this.events.emitNewOrder(business.id, order);
+    if (queueTokenId && tokenStatus !== QueueTokenStatus.CALLED && tokenStatus !== QueueTokenStatus.SEATED) {
+      this.events.emitOrderUpdate(business.id, order.id, { type: 'PREORDER_HELD', order });
+    } else {
+      this.events.emitNewOrder(business.id, order);
+    }
 
     return order;
   }
@@ -234,6 +253,7 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: {
         businessId,
+        AND: [KITCHEN_VISIBLE],
         servedAt: null,
         status: {
           in: [
@@ -308,7 +328,8 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: {
         businessId,
-        status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+        AND: [KITCHEN_VISIBLE],
+        status: { notIn: CLOSED_ORDER_STATUSES },
       },
       include: {
         table: true,
@@ -318,6 +339,138 @@ export class OrdersService {
       },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /** Queue pre-orders whose guest is not seated yet: scheduled, cooking, ready or abandoned. */
+  async getHeldPreorders(businessId: string, userId: string) {
+    await this.access.requireStaff(userId, businessId, STAFF_ROLES.floor);
+    return this.prisma.order.findMany({
+      where: {
+        businessId,
+        status: { notIn: CLOSED_ORDER_STATUSES },
+        servedAt: null,
+        queueToken: { is: { status: { not: QueueTokenStatus.SEATED } } },
+      },
+      include: {
+        queueToken: true,
+        items: { include: { menuItem: true } },
+        payments: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Cancel the pre-orders of a party that left, was cancelled or never arrived.
+   * Only orders the kitchen has not started cooking are touched, and an order that has
+   * already been paid is never cancelled silently.
+   */
+  async cancelHeldPreordersForToken(tokenId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { queueTokenId: tokenId, status: { in: [OrderStatus.PENDING, OrderStatus.ACCEPTED] }, servedAt: null },
+      include: { payments: true },
+    });
+    for (const order of orders) {
+      if (paidTotal(order.payments) > 0) continue;
+      const cancelled = await this.prisma.$transaction(async (tx) => {
+        await tx.payment.updateMany({
+          where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.FAILED] } },
+          data: { status: PaymentStatus.FAILED },
+        });
+        await tx.orderItem.updateMany({ where: { orderId: order.id }, data: { status: OrderStatus.CANCELLED } });
+        return tx.order.update({
+          where: { id: order.id },
+          data: { status: OrderStatus.CANCELLED, tableId: null },
+          include: { table: true, items: { include: { menuItem: true } } },
+        });
+      });
+      this.events.emitOrderUpdate(cancelled.businessId, cancelled.id, {
+        type: 'ORDER_STATUS_CHANGED',
+        order: cancelled,
+      });
+    }
+    return orders.length;
+  }
+
+  /** Called when a party is called or seated: its pre-orders go to the kitchen on that table. */
+  async releasePreordersToKitchen(tokenId: string, tableId: string | null) {
+    const orders = await this.prisma.order.findMany({
+      where: { queueTokenId: tokenId, status: { notIn: CLOSED_ORDER_STATUSES } },
+      select: { id: true, status: true },
+    });
+    if (!orders.length) return 0;
+    if (tableId) {
+      await this.prisma.order.updateMany({ where: { id: { in: orders.map((o) => o.id) } }, data: { tableId } });
+    }
+    for (const { id, status } of orders) {
+      if (status !== OrderStatus.PENDING) continue;
+      const order = await this.prisma.order.findUnique({ where: { id }, include: this.orderInclude });
+      if (order) this.events.emitNewOrder(order.businessId, order);
+    }
+    return orders.length;
+  }
+
+  /**
+   * Send a held pre-order to the kitchen so it is ready when the guest walks in, and leave a
+   * message for the guest ("ready in ~N min, reach by HH:MM, your table is waiting").
+   */
+  async firePreorder(orderId: string, prepMinutes: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { business: { select: { name: true, timezone: true } } },
+    });
+    if (!order || !order.queueTokenId) return false;
+    const prep = Math.max(1, Math.round(prepMinutes));
+    const readyAt = new Date(Date.now() + prep * 60_000);
+    const fired = await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.order.updateMany({
+        where: { id: orderId, status: OrderStatus.PENDING },
+        data: { status: OrderStatus.ACCEPTED },
+      });
+      if (!moved.count) return false;
+      await tx.orderItem.updateMany({ where: { orderId }, data: { status: OrderStatus.ACCEPTED } });
+      const clock = new Intl.DateTimeFormat('en-IN', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: safeTimeZone(order.business.timezone),
+      }).format(readyAt);
+      await tx.notification.create({
+        data: {
+          businessId: order.businessId,
+          channel: 'WEB_PUSH',
+          category: 'TRANSACTIONAL',
+          templateKey: 'preorder-eta',
+          subject: 'Your food is being prepared',
+          body: `Your food will be ready in about ${prep} min. Please reach ${order.business.name} by ${clock}. Your table is waiting.`,
+          metadata: { orderId, tokenId: order.queueTokenId, readyAt: readyAt.toISOString(), prepMinutes: prep },
+        },
+      });
+      return true;
+    });
+    if (!fired) return false;
+    const fresh = await this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
+    if (fresh) {
+      this.events.emitNewOrder(fresh.businessId, fresh);
+      this.events.emitOrderUpdate(fresh.businessId, fresh.id, { type: 'PREORDER_FIRED', order: fresh });
+    }
+    return true;
+  }
+
+  /** Staff override: start cooking a held pre-order now. */
+  async firePreorderNow(orderId: string, userId: string) {
+    await this.access.requireOrder(userId, orderId, STAFF_ROLES.floor);
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { menuItem: { select: { prepTimeMinutes: true } } } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== OrderStatus.PENDING || !order.queueTokenId) {
+      throw new ConflictException('This pre-order is already with the kitchen.');
+    }
+    const prep = Math.max(DEFAULT_PREP_MINUTES, ...order.items.map((i) => i.menuItem?.prepTimeMinutes ?? 0));
+    await this.firePreorder(orderId, prep);
+    return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
   }
 
   async closeBill(orderId: string, userId: string) {
@@ -333,12 +486,19 @@ export class OrdersService {
     if (!current) throw new NotFoundException('Order not found');
     const held =
       current.queueToken &&
-      current.queueToken.status !== 'CALLED' &&
-      current.queueToken.status !== 'SEATED';
+      current.status === OrderStatus.PENDING &&
+      current.queueToken.status !== QueueTokenStatus.CALLED &&
+      current.queueToken.status !== QueueTokenStatus.SEATED;
     if (held && status !== OrderStatus.CANCELLED && status !== OrderStatus.PENDING) {
       throw new ConflictException(
-        `Pre-order #${current.queueToken?.tokenNumber} stays on hold until that party is called.`,
+        `Pre-order #${current.queueToken?.tokenNumber} starts cooking when the guest is about ${DEFAULT_PREP_MINUTES} minutes away. Use "Send to kitchen now" to start earlier.`,
       );
+    }
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REJECTED) {
+      const paid = await this.prisma.payment.findMany({ where: { orderId }, select: { status: true, amount: true } });
+      if (paidTotal(paid) > 0) {
+        throw new ConflictException('This order is already paid. Refund the payment before cancelling it.');
+      }
     }
     if (status === OrderStatus.COMPLETED && !current.servedAt) {
       throw new ConflictException('The kitchen has not marked this served yet.');
@@ -784,15 +944,19 @@ export class OrdersService {
     if (tableSessionDecision(open) === 'closed') {
       throw new ConflictException('This bill is already closed.');
     }
-    const called = tokenStatus === 'CALLED' || tokenStatus === 'SEATED';
+    const called = tokenStatus === 'CALLED' || tokenStatus === 'SEATED' || (!tokenStatus && !!open.tableId);
     const totals = this.totalsFor(lines, tipAmount, {
       subtotal: Number(open.subtotal),
       tax: Number(open.taxAmount),
       tip: Number(open.tipAmount),
     });
     let status = open.status;
-    if (!called) status = OrderStatus.PENDING;
-    else if (status === OrderStatus.READY) status = OrderStatus.PREPARING;
+    if (called || open.queueTokenId) {
+      // Extra food for a guest already being cooked for re-opens the ticket; a held one stays held.
+      if (status === OrderStatus.READY) status = OrderStatus.PREPARING;
+    } else {
+      status = OrderStatus.PENDING;
+    }
 
     const order = await tx.order.update({
       where: { id: orderId },

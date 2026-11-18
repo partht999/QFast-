@@ -807,6 +807,21 @@ export default function JoinQueuePage() {
                 </div>
               </div>
 
+              {activeToken.guestNotice && (
+                <div className="relative z-10 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">
+                    {Array.isArray(activeToken.orders) && activeToken.orders.some((o: any) => o.status === 'READY' || o.status === 'COMPLETED')
+                      ? 'Your food is ready'
+                      : activeToken.guestNotice.title}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-900">
+                    {Array.isArray(activeToken.orders) && activeToken.orders.some((o: any) => o.status === 'READY')
+                      ? 'Hot and ready. Please reach the restaurant now, your table is waiting.'
+                      : activeToken.guestNotice.message}
+                  </p>
+                </div>
+              )}
+
               <div className="relative z-10 pt-2 flex flex-col gap-2.5">
                 {foodBusiness && (
                   <div className="space-y-1">
@@ -820,7 +835,7 @@ export default function JoinQueuePage() {
                     </a>
                     <p className="text-[11px] text-center text-neutral-500 font-medium">
                       {activeToken.status === 'WAITING'
-                        ? 'The kitchen holds this pre-order until you are called.'
+                        ? 'Pre-order saved. The kitchen starts cooking at the right time so your food is hot when you arrive.'
                         : 'You come back to this page after ordering.'}
                     </p>
                   </div>
@@ -1184,7 +1199,7 @@ export default function JoinQueuePage() {
         onClose={() => setShowCancelModal(false)}
         onConfirm={handleCancelToken}
         title="Leave the Queue?"
-        description="Are you sure you want to cancel your queue token? You will lose your current spot in line."
+        description={activeToken?.orders?.length ? "You will lose your spot in line and your pre-order will be cancelled before cooking starts. Nothing is charged." : "Are you sure you want to cancel your queue token? You will lose your current spot in line."}
         confirmLabel="Yes, Leave Queue"
         cancelLabel="Stay in Queue"
         variant="danger"
