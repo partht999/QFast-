@@ -7,6 +7,7 @@ import {
   ArrowRight, ChevronDown, Coffee, FlaskConical, Menu, Scissors, Stethoscope, UtensilsCrossed, Wrench, X,
 } from 'lucide-react';
 import { BrandMark } from './brand-mark';
+import { TextReveal } from './text-reveal';
 
 const solutions = [
   { label: 'Restaurants', href: '/restaurants', icon: UtensilsCrossed, detail: 'Waitlist, table orders & bills' },
@@ -51,6 +52,7 @@ export function MarketingHeader() {
         scrolled || open ? 'border-slate-200/70 bg-white/80 shadow-soft backdrop-blur-xl' : 'border-transparent bg-transparent'
       }`}
     >
+      <TextReveal />
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-8">
         <BrandMark href="/" label="Qfast home" />
 

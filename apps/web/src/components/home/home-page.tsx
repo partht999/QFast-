@@ -104,6 +104,8 @@ function HeroDashboard() {
   const onMove = (e: React.MouseEvent) => {
     const el = devRef.current;
     if (!el || window.innerWidth < 1040) return;
+    // Keep the device still while the pointer is over the button, or the click lands off-target.
+    if ((e.target as HTMLElement).closest('.call')) return;
     const r = el.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width - 0.5;
     const y = (e.clientY - r.top) / r.height - 0.5;
