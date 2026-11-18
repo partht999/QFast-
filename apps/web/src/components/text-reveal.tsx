@@ -4,12 +4,13 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 
 /**
- * Word-by-word blur/fade/rise reveal for marketing pages.
+ * Word-by-word blur/fade/rise reveal for the hero section of each marketing page.
  * Splits static text into word spans once, then reveals each block when it scrolls into view (once only).
  * Interactive widgets, buttons, forms and the nav are left untouched so React-managed live text keeps working.
  */
 const TARGETS = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,dt,dd,figcaption,.eyebrow,.tag,[data-reveal-text]';
 const SKIP = 'header,nav[aria-label="Main navigation"],form,button:not(.step),.btn,[class*="ui-btn"],.stage,.fphone,.marq,.sc-tabs,[data-no-reveal],svg,script,style,input,textarea,select';
+const HERO = 'main > section:first-of-type, .qh .hero';
 const STEP_MS = 32;
 const MAX_DELAY_MS = 650;
 
@@ -57,7 +58,7 @@ export function TextReveal() {
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.01 });
 
     const run = () => {
-      const roots = document.querySelectorAll<HTMLElement>('main, footer');
+      const roots = document.querySelectorAll<HTMLElement>(HERO);
       roots.forEach((root) => {
         root.querySelectorAll<HTMLElement>(TARGETS).forEach((el) => {
           if (el.dataset.wr || el.closest(SKIP)) return;
