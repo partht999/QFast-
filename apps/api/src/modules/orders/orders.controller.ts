@@ -113,6 +113,22 @@ export class OrdersController {
     return this.ordersService.getActiveOrders(businessId, req.user.sub);
   }
 
+  @Patch(':id/fire')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send a held queue pre-order to the kitchen now' })
+  async firePreorder(@Param('id') id: string, @Req() req: any) {
+    return this.ordersService.firePreorderNow(id, req.user.sub);
+  }
+
+  @Get('preorders/:businessId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Queue pre-orders on hold until the party is seated' })
+  async getHeldPreorders(@Param('businessId') businessId: string, @Req() req: any) {
+    return this.ordersService.getHeldPreorders(businessId, req.user.sub);
+  }
+
   @Get('recent-completed/:businessId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -156,7 +156,10 @@ export default function KDSPage() {
   }, []);
 
   const kitchenHeld = (order: any) =>
-    Boolean(order.queueToken) && order.queueToken.status !== 'CALLED' && order.queueToken.status !== 'SEATED';
+    Boolean(order.queueToken) &&
+    order.status === 'PENDING' &&
+    order.queueToken.status !== 'CALLED' &&
+    order.queueToken.status !== 'SEATED';
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const token = localStorage.getItem('accessToken');

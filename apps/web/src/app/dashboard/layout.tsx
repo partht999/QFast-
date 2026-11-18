@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Activity,
+  ClipboardList,
   ChefHat,
   ChevronLeft,
   CreditCard,
@@ -42,6 +43,7 @@ const navigationGroups = [
     items: [
       { label: 'Live board', href: '/dashboard/live', icon: Activity, hint: 'Every guest and order in one place, with the next step on each card' },
       { label: 'Queue', href: '/dashboard/queue', icon: ListOrdered, hint: 'Host stand: add walk-ins, call, seat, skip' },
+      { label: 'Pre-orders', href: '/dashboard/preorders', icon: ClipboardList, hint: 'Food ordered from the queue, held until the guest is seated' },
       { label: 'Bills', href: '/dashboard/bills', icon: Receipt, hint: 'Counter: take payment and close bills' },
       { label: 'Kitchen', href: '/dashboard/kds', icon: ChefHat, hint: 'Big screen for cooks: start cooking, mark ready' },
     ],
@@ -106,8 +108,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [businessLogoUrl, setBusinessLogoUrl] = useState('');
   const roleNavigation = navigation.filter((item) => {
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
-    if (staffRole === 'WAITER') return ['/dashboard/live', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
-    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/live', '/dashboard/queue', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
+    if (staffRole === 'WAITER') return ['/dashboard/live', '/dashboard/queue', '/dashboard/preorders', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
+    if (staffRole === 'CASHIER') return ['/dashboard', '/dashboard/live', '/dashboard/queue', '/dashboard/preorders', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
     if (!['OWNER', 'MANAGER'].includes(staffRole) && (item.href === '/dashboard/staff' || item.href === '/dashboard/billing')) return false;
     return true;
   });
@@ -115,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/live', '/dashboard/queue', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
     : !isFoodBusiness(businessType)
       ? roleNavigation.filter((item) => ['/dashboard', '/dashboard/analytics', '/dashboard/live', '/dashboard/queue', '/dashboard/reviews', '/dashboard/settings', '/dashboard/staff', '/dashboard/billing'].includes(item.href))
-      : roleNavigation.filter((item) => item.href !== '/dashboard/bills' || isFoodBusiness(businessType));
+      : roleNavigation.filter((item) => (item.href !== '/dashboard/bills' && item.href !== '/dashboard/preorders') || isFoodBusiness(businessType));
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
