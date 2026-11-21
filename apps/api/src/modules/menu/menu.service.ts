@@ -25,7 +25,7 @@ export class MenuService {
               orderBy: { sortOrder: 'asc' },
               include: {
                 items: {
-                  where: { isAvailable: true },
+                  where: { isAvailable: true, archivedAt: null },
                   orderBy: { sortOrder: 'asc' },
                   include: {
                     variants: true,
@@ -54,9 +54,11 @@ export class MenuService {
       where: { businessId, isDefault: true },
       include: {
         categories: {
+          where: { archivedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
             items: {
+              where: { archivedAt: null },
               orderBy: { sortOrder: 'asc' },
               include: { variants: true, addons: true },
             },
@@ -118,7 +120,7 @@ export class MenuService {
     const left = await this.prisma.menuItem.count({ where: { categoryId: id } });
     if (left) {
       // Dishes that are on past bills must stay for history, so the category is hidden instead.
-      return this.prisma.menuCategory.update({ where: { id }, data: { isActive: false } });
+      return this.prisma.menuCategory.update({ where: { id }, data: { isActive: false, archivedAt: new Date() } });
     }
     return this.prisma.menuCategory.delete({ where: { id } });
   }
@@ -130,7 +132,7 @@ export class MenuService {
       this.prisma.feedbackItemRating.count({ where: { menuItemId: id } }),
     ]);
     if (orders || ratings) {
-      return this.prisma.menuItem.update({ where: { id }, data: { isAvailable: false } });
+      return this.prisma.menuItem.update({ where: { id }, data: { isAvailable: false, archivedAt: new Date() } });
     }
     return this.prisma.menuItem.delete({ where: { id } });
   }
@@ -167,6 +169,7 @@ export class MenuService {
     await this.access.requireMenuItem(userId, id, STAFF_ROLES.manager);
     const item = await this.prisma.menuItem.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Item not found');
+    if (item.archivedAt) throw new NotFoundException('Item not found');
 
     return this.prisma.menuItem.update({
       where: { id },

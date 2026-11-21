@@ -18,11 +18,9 @@ export class EntitlementGuard implements CanActivate {
     if (!featureKey) return true;
 
     const request = context.switchToHttp().getRequest();
-    const businessId =
-      request.user?.businessId ||
-      request.params?.businessId ||
-      request.query?.businessId ||
-      request.headers['x-business-id'];
+    // Only the route's businessId, which the handler also checks staff access for.
+    // Query strings and headers are caller-controlled and must not choose the plan.
+    const businessId = request.params?.businessId;
 
     if (!businessId) return false;
 

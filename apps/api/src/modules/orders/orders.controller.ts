@@ -7,6 +7,7 @@ import {
   Param,
   UseGuards,
   Req,
+  Query,
   BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -49,27 +50,32 @@ export class OrdersController {
   async customerPay(
     @Param('orderId') orderId: string,
     @Body('method') method: string,
+    @Query('key') key?: string,
   ) {
     if (method !== 'CASH' && method !== 'CARD_AT_COUNTER' && method !== 'UPI_AT_COUNTER') {
       throw new BadRequestException('Choose UPI, cash, or card.');
     }
-    return this.ordersService.customerPay(orderId, method);
+    return this.ordersService.customerPay(orderId, method, key);
   }
 
   @Post('public/:orderId/close')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Guest closes a table or takeaway bill after it is paid' })
-  async customerClose(@Param('orderId') orderId: string) {
-    return this.ordersService.customerCloseOrder(orderId);
+  async customerClose(@Param('orderId') orderId: string, @Query('key') key?: string) {
+    return this.ordersService.customerCloseOrder(orderId, key);
   }
 
   @Post('public/:orderId/help')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Ask staff for a waiter or the bill' })
-  async requestHelp(@Param('orderId') orderId: string, @Body('kind') kind: 'waiter' | 'bill') {
-    return this.ordersService.requestStaffHelp(orderId, kind === 'bill' ? 'bill' : 'waiter');
+  async requestHelp(
+    @Param('orderId') orderId: string,
+    @Body('kind') kind: 'waiter' | 'bill',
+    @Query('key') key?: string,
+  ) {
+    return this.ordersService.requestStaffHelpAsGuest(orderId, kind === 'bill' ? 'bill' : 'waiter', key);
   }
 
   @Get('bills/:businessId')
@@ -108,8 +114,8 @@ export class OrdersController {
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Customer live tracking for their active order' })
-  async getPublicOrder(@Param('orderId') orderId: string) {
-    return this.ordersService.getPublicOrder(orderId);
+  async getPublicOrder(@Param('orderId') orderId: string, @Query('key') key?: string) {
+    return this.ordersService.getPublicOrder(orderId, key);
   }
 
   // ── Staff & Kitchen KDS Endpoints ──────────────────────────────────────────

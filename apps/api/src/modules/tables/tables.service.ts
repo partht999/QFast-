@@ -63,7 +63,7 @@ export class TablesService {
     const taken = await this.prisma.qRCode.findUnique({ where: { slug: base }, select: { id: true } });
     const tableSlug = taken ? `${base}-${randomBytes(3).toString('hex')}` : base;
 
-    return this.prisma.table.create({
+    const table = await this.prisma.table.create({
       data: {
         businessId,
         branchId: dto.branchId,
@@ -80,6 +80,11 @@ export class TablesService {
       },
       include: { qrCode: true },
     });
+    const qrCode = await this.prisma.qRCode.update({
+      where: { id: table.qrCode!.id },
+      data: { targetUrl: tableQrUrl(business.slug, name, table.qrCode!.id) },
+    });
+    return { ...table, qrCode };
   }
 
   private async assertNameFree(businessId: string, name: string, exceptId?: string) {
@@ -115,7 +120,7 @@ export class TablesService {
     if (dto.name && table.qrCode) {
       await this.prisma.qRCode.update({
         where: { id: table.qrCode.id },
-        data: { targetUrl: `/r/${table.business.slug}/table/${encodeURIComponent(name)}` },
+        data: { targetUrl: tableQrUrl(table.business.slug, name, table.qrCode.id) },
       });
     }
     return updated;
@@ -183,3 +188,7 @@ export class TablesService {
   }
 }
 
+
+export function tableQrUrl(slug: string, tableName: string, qrCodeId: string) {
+  return `/r/${slug}/table/${encodeURIComponent(tableName)}?k=${encodeURIComponent(qrCodeId)}`;
+}

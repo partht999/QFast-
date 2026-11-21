@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
@@ -18,6 +19,18 @@ import { parsePartnerOrder, partnerPayloadForStorage, secretsEqual } from './par
 import { tableSessionDecision } from './table-session';
 import { safeTimeZone } from '../../common/time';
 import { DEFAULT_PREP_MINUTES } from './preorder-timing';
+
+const KITCHEN_MOVES: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  PENDING: [OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.CANCELLED, OrderStatus.REJECTED],
+  ACCEPTED: [OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.CANCELLED, OrderStatus.REJECTED],
+  PREPARING: [OrderStatus.READY, OrderStatus.CANCELLED],
+  // Ticket recall from the kitchen screen.
+  READY: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+};
+
+function newGuestKey() {
+  return randomBytes(18).toString('base64url');
+}
 
 const CLOSED_ORDER_STATUSES: OrderStatus[] = [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED];
 
@@ -169,6 +182,7 @@ export class OrdersService {
         totalAmount: new Prisma.Decimal(totalAmount),
         specialInstructions: dto.specialInstructions,
         idempotencyKey: dto.idempotencyKey,
+        guestKey: newGuestKey(),
         items: {
           create: lines.map((line) => this.itemData(line, OrderStatus.PENDING)),
         },
@@ -207,7 +221,8 @@ export class OrdersService {
     return publicOrderView(order);
   }
 
-  async getPublicOrder(orderId: string) {
+  async getPublicOrder(orderId: string, key?: string) {
+    await this.assertGuestKey(orderId, key);
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -299,6 +314,12 @@ export class OrdersService {
     await this.access.requireOrder(userId, orderId, STAFF_ROLES.kitchen);
     if (status === OrderStatus.COMPLETED) {
       throw new ConflictException('The front desk closes the bill. The kitchen stops at served.');
+    }
+    const current = await this.prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    if (!current) throw new NotFoundException('Order not found');
+    const allowed = KITCHEN_MOVES[current.status] || [];
+    if (current.status !== status && !allowed.includes(status)) {
+      throw new ConflictException(`An order that is ${current.status.toLowerCase()} cannot be moved to ${status.toLowerCase()}.`);
     }
     return this.applyOrderStatus(orderId, status);
   }
@@ -519,6 +540,13 @@ export class OrdersService {
         const reason = billDueReason(Number(fresh.totalAmount), fresh.payments);
         if (reason) throw new ConflictException(reason);
       }
+      if (status === OrderStatus.CANCELLED || status === OrderStatus.REJECTED) {
+        await tx.orderItem.updateMany({ where: { orderId }, data: { status } });
+        await tx.payment.updateMany({
+          where: { orderId, status: { in: [PaymentStatus.PENDING, PaymentStatus.FAILED] } },
+          data: { status: PaymentStatus.FAILED },
+        });
+      }
       const updated = await tx.order.update({
         where: { id: orderId },
         data: {
@@ -555,6 +583,8 @@ export class OrdersService {
   }
 
   async completeFromQueue(orderId: string) {
+    // Closing the party's visit means the food reached the table.
+    await this.prisma.order.updateMany({ where: { id: orderId, servedAt: null }, data: { servedAt: new Date() } });
     return this.applyOrderStatus(orderId, OrderStatus.COMPLETED);
   }
 
@@ -564,7 +594,25 @@ export class OrdersService {
     return this.prisma.order.findUnique({ where: { id: orderId }, include: this.orderInclude });
   }
 
-  async customerPay(orderId: string, method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER') {
+  /** Guests prove they hold the order with the key returned when it was placed. */
+  async assertGuestKey(orderId: string, key?: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { guestKey: true } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!order.guestKey) return; // orders placed before guest keys existed
+    const a = Buffer.from(order.guestKey);
+    const b = Buffer.from(key || '');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('This order link is not valid on this phone.');
+    }
+  }
+
+  async requestStaffHelpAsGuest(orderId: string, kind: 'waiter' | 'bill', key?: string) {
+    await this.assertGuestKey(orderId, key);
+    return this.requestStaffHelp(orderId, kind);
+  }
+
+  async customerPay(orderId: string, method: 'CASH' | 'CARD_AT_COUNTER' | 'UPI_AT_COUNTER', key?: string) {
+    await this.assertGuestKey(orderId, key);
     const label = method === 'CASH' ? 'cash' : method === 'CARD_AT_COUNTER' ? 'card' : 'UPI';
     await this.requestStaffHelp(orderId, 'bill', `They say they can pay by ${label}. Confirm the money before closing the bill.`);
     return { ok: true, paid: false };
@@ -601,7 +649,8 @@ export class OrdersService {
     return this.prisma.order.findUnique({ where: { id: orderId }, include: { payments: true } });
   }
 
-  async customerCloseOrder(orderId: string) {
+  async customerCloseOrder(orderId: string, key?: string) {
+    await this.assertGuestKey(orderId, key);
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { payments: true },
@@ -774,8 +823,13 @@ export class OrdersService {
     const tableName = (dto.tableName || '').trim();
     const table = await this.prisma.table.findFirst({
       where: { businessId: business.id, isActive: true, name: { equals: tableName, mode: 'insensitive' } },
+      include: { qrCode: { select: { id: true } } },
     });
     if (!table) throw new BadRequestException('This table QR is not active. Ask the counter to reprint it.');
+    // The printed QR carries the code's id, so only someone at the table can order onto it.
+    if (table.qrCode && dto.tableKey !== table.qrCode.id) {
+      throw new ForbiddenException('Scan the QR code on your table to order. Ask the counter if it does not work.');
+    }
     const phone = this.canonicalPhone(dto.customerPhone);
     if (!phone || !isIndianMobile(phone)) {
       throw new BadRequestException('Enter a 10-digit mobile number so your stamps are saved.');
@@ -811,6 +865,7 @@ export class OrdersService {
         totalAmount: new Prisma.Decimal(totals.totalAmount),
         specialInstructions: dto.specialInstructions,
         idempotencyKey: dto.idempotencyKey,
+        guestKey: newGuestKey(),
         items: {
           create: lines.map((line) => this.itemData(line, OrderStatus.PENDING)),
         },
@@ -839,7 +894,7 @@ export class OrdersService {
     const lines: PricedLine[] = [];
     for (const item of items) {
       const menuItem = await this.prisma.menuItem.findFirst({
-        where: { id: item.menuItemId, isAvailable: true, category: { menu: { businessId } } },
+        where: { id: item.menuItemId, isAvailable: true, archivedAt: null, category: { menu: { businessId } } },
         include: { variants: true, addons: true },
       });
       if (!menuItem) throw new BadRequestException('One of those dishes is no longer available.');

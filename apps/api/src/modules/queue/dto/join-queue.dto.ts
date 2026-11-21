@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional, IsEnum, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { QueueEntrySource } from '@prisma/client';
 
@@ -6,11 +6,13 @@ export class JoinQueueDto {
   @ApiProperty({ example: 'Rahul Sharma' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   customerName: string;
 
   @ApiProperty({ example: '+919876543210' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(20)
   customerPhone: string;
 
   @ApiProperty({ example: 2, default: 1 })
@@ -22,6 +24,7 @@ export class JoinQueueDto {
   @ApiProperty({ example: 'Window seating preferred', required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(300)
   notes?: string;
 
   @ApiProperty({ enum: QueueEntrySource, required: false, default: QueueEntrySource.REMOTE })
@@ -32,15 +35,18 @@ export class JoinQueueDto {
   @ApiProperty({ example: 'queue_123', required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(40)
   queueId?: string;
 
   @ApiProperty({ example: 'Dr. Sarah Smith', required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(80)
   doctorName?: string;
 
   @ApiProperty({ example: 'General Consultation', required: false })
   @IsString()
   @IsOptional()
+  @MaxLength(80)
   serviceName?: string;
 }

@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { LoyaltyService } from './loyalty.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateLoyaltyProgramDto } from './dto/update-loyalty-program.dto';
@@ -29,12 +30,22 @@ export class LoyaltyController {
   }
 
   @Get('public/:slug/:phone')
-  @ApiOperation({ summary: 'Lookup diner loyalty balance & stamps' })
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Lookup diner loyalty balance & stamps (no history)' })
   async getCustomerBalance(
     @Param('slug') slug: string,
     @Param('phone') phone: string,
   ) {
-    return this.loyaltyService.getCustomerBalance(slug, phone);
+    return this.loyaltyService.getPublicBalance(slug, phone);
+  }
+
+  @Get('program/:businessId/customer/:phone')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Staff lookup of a guest stamp card with history' })
+  async staffBalance(@Param('businessId') businessId: string, @Param('phone') phone: string, @Req() req: any) {
+    return this.loyaltyService.staffCustomerBalance(businessId, req.user.sub, req.user.role, phone);
   }
 
   @Get('program/:businessId')

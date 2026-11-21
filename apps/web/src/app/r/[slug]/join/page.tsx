@@ -39,6 +39,7 @@ import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 import { storageGet, storageSet } from '@/lib/safe-storage';
 import { tableLabel } from '@/lib/table-label';
 import { rupees, waitParts } from '@/lib/format';
+import { orderPagePath, withOrderKey } from '@/lib/order-key';
 
 const MAX_PARTY = 20;
 const ENDED_MESSAGES: Record<string, string> = {
@@ -870,7 +871,7 @@ export default function JoinQueuePage() {
                         const orderId = activeToken.orders?.[0]?.id;
                         if (!orderId) return;
                         try {
-                          const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+                          const res = await fetch(withOrderKey(`${apiUrl}/api/v1/orders/public/${orderId}/help`, orderId, activeToken.orders?.[0]?.guestKey), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ kind: 'waiter' }),
@@ -918,7 +919,7 @@ export default function JoinQueuePage() {
               <p className="mt-1 text-sm text-neutral-600">No table. Order now, and we will show you when it is ready to collect.</p>
             </a>
             {takeawayId && (
-              <a href={`/r/${slug}/order/${takeawayId}`} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
+              <a href={orderPagePath(slug, takeawayId)} className="block rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
                 You already have a takeaway order. Check if it is ready.
               </a>
             )}
