@@ -27,8 +27,12 @@ import {
 import { BrandLockup, BrandMark } from '@/components/brand-mark';
 import { PlanBoard } from '@/components/plan-board';
 import { getApiUrl } from '@/lib/api';
+import { installAuthRefresh, refreshSessionOnce } from '@/lib/auth-fetch';
+import { chooseBusiness, pickBusiness } from '@/lib/current-business';
 import { BUSINESS_TYPES } from '@/lib/business-types';
 import { isFoodBusiness } from '@/lib/business-links';
+
+installAuthRefresh();
 
 const navigationGroups = [
   {
@@ -106,6 +110,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [trialEndsAt, setTrialEndsAt] = useState<string>('');
   const [businessName, setBusinessName] = useState('');
   const [businessLogoUrl, setBusinessLogoUrl] = useState('');
+  const [businessChoices, setBusinessChoices] = useState<{ id: string; name: string }[]>([]);
+  const [businessId, setBusinessId] = useState('');
   const roleNavigation = navigation.filter((item) => {
     if (staffRole === 'KITCHEN_STAFF') return item.href === '/dashboard/kds';
     if (staffRole === 'WAITER') return ['/dashboard/live', '/dashboard/queue', '/dashboard/preorders', '/dashboard/tables', '/dashboard/bills'].includes(item.href);
@@ -159,20 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     let cancelled = false;
     const load = async () => {
-      const refreshSession = async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) return null;
-        const response = await fetch(`${getApiUrl()}/api/v1/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        if (data.accessToken) localStorage.setItem('accessToken', data.accessToken);
-        if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
-        return data.accessToken as string;
-      };
+      const refreshSession = () => refreshSessionOnce();
 
       let token = localStorage.getItem('accessToken');
       if (!token) token = await refreshSession();
@@ -196,8 +189,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       if (!response.ok) return;
       const businesses = await response.json();
-      if (!cancelled && Array.isArray(businesses) && businesses[0]) {
-        const current = businesses[0];
+      const current = pickBusiness(businesses);
+      if (!cancelled && current) {
+        setBusinessChoices(businesses.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+        setBusinessId(current.id);
         if (current.type) setBusinessType(current.type);
         if (current.myRole) setStaffRole(current.myRole);
         setBusinessName(current.name || '');
@@ -384,7 +379,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <p className="text-sm font-semibold text-neutral-950">{getPageTitle(pathname)}</p>
           <div className="flex items-center gap-3">
             {businessLogoUrl && <img src={businessLogoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
-            {businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>}
+            {businessChoices.length > 1 ? (
+              <select
+                aria-label="Business"
+                value={businessId}
+                onChange={(event) => {
+                  chooseBusiness(event.target.value);
+                  window.location.reload();
+                }}
+                className="max-w-[12rem] truncate rounded-lg border border-neutral-200 bg-white px-2 py-1 text-sm font-bold text-gray-900"
+              >
+                {businessChoices.map((choice) => (
+                  <option key={choice.id} value={choice.id}>{choice.name}</option>
+                ))}
+              </select>
+            ) : (
+              businessName && <span className="max-w-[12rem] truncate text-sm font-bold text-gray-900">{businessName}</span>
+            )}
             <span className="text-xs text-gray-500">
               {planStatus === 'TRIALING' && trialEndsAt
                 ? `Trial ends ${new Date(trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`

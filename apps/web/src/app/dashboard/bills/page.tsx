@@ -8,6 +8,7 @@ import { lineName } from '@/lib/order-line';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 import { rupees } from '@/lib/format';
+import { pickBusiness } from '@/lib/current-business';
 
 function whereLabel(order: any) {
   if (order.table?.name) return order.table.name;
@@ -44,7 +45,7 @@ export default function BillsPage() {
       return;
     }
     const businesses = await businessResponse.json();
-    const business = Array.isArray(businesses) ? businesses[0] : null;
+    const business = pickBusiness(businesses);
     if (!business) {
       setOrders([]);
       return;

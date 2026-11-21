@@ -19,10 +19,11 @@ import {
 import { reportToPdf } from './analytics.pdf';
 
 const CACHE_MS = 60_000;
-const waitValid = Prisma.sql`t."seatedAt" IS NOT NULL AND t."seatedAt" >= t."createdAt" AND EXTRACT(EPOCH FROM (t."seatedAt" - t."createdAt")) BETWEEN 0 AND 43200`;
-const serviceValid = Prisma.sql`t."completedAt" IS NOT NULL AND t."seatedAt" IS NOT NULL AND t."completedAt" >= t."seatedAt" AND EXTRACT(EPOCH FROM (t."completedAt" - t."seatedAt")) BETWEEN 0 AND 43200`;
+const waitValid = Prisma.sql`COALESCE(t."seatedAt", t."calledAt") IS NOT NULL AND COALESCE(t."seatedAt", t."calledAt") >= t."createdAt" AND EXTRACT(EPOCH FROM (COALESCE(t."seatedAt", t."calledAt") - t."createdAt")) BETWEEN 0 AND 43200`;
+const serviceValid = Prisma.sql`t."completedAt" IS NOT NULL AND COALESCE(t."seatedAt", t."calledAt") IS NOT NULL AND t."completedAt" >= COALESCE(t."seatedAt", t."calledAt") AND EXTRACT(EPOCH FROM (t."completedAt" - COALESCE(t."seatedAt", t."calledAt"))) BETWEEN 0 AND 43200`;
 
 type QueryInput = {
+  businessId?: string;
   from?: string;
   to?: string;
   groupBy?: string;
@@ -38,7 +39,7 @@ export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
   async report(userId: string, query: QueryInput) {
-    const scope = await this.scopeForUser(userId);
+    const scope = await this.scopeForUser(userId, query.businessId);
     const range = this.rangeOrThrow(query, scope.timeZone);
     const groupBy = resolveGroupBy(query.groupBy, range.from, range.to);
     const branchId = query.branchId?.trim() || null;
@@ -129,9 +130,14 @@ export class AnalyticsService {
     }
   }
 
-  private async scopeForUser(userId: string) {
+  private async scopeForUser(userId: string, businessId?: string) {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId, isActive: true, role: { in: [UserRole.OWNER, UserRole.MANAGER] } },
+      where: {
+        userId,
+        isActive: true,
+        role: { in: [UserRole.OWNER, UserRole.MANAGER] },
+        ...(businessId ? { businessId } : {}),
+      },
       orderBy: { createdAt: 'asc' },
       select: { businessId: true, business: { select: { timezone: true, type: true } } },
     });
@@ -170,12 +176,12 @@ export class AnalyticsService {
         COALESCE(SUM(t."partySize"), 0)::float AS party_sum,
         COUNT(t."partySize")::int AS party_count,
         COUNT(*) FILTER (WHERE ${waitValid})::int AS wait_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."seatedAt" - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
+        COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(t."seatedAt", t."calledAt") - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
         COUNT(*) FILTER (WHERE ${serviceValid})::int AS service_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - t."seatedAt"))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds,
+        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - COALESCE(t."seatedAt", t."calledAt")))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds,
         COUNT(*) FILTER (WHERE
-          (t."seatedAt" IS NOT NULL AND (t."seatedAt" < t."createdAt" OR EXTRACT(EPOCH FROM (t."seatedAt" - t."createdAt")) > 43200))
-          OR (t."completedAt" IS NOT NULL AND t."seatedAt" IS NOT NULL AND (t."completedAt" < t."seatedAt" OR EXTRACT(EPOCH FROM (t."completedAt" - t."seatedAt")) > 43200))
+          (COALESCE(t."seatedAt", t."calledAt") IS NOT NULL AND (COALESCE(t."seatedAt", t."calledAt") < t."createdAt" OR EXTRACT(EPOCH FROM (COALESCE(t."seatedAt", t."calledAt") - t."createdAt")) > 43200))
+          OR (t."completedAt" IS NOT NULL AND COALESCE(t."seatedAt", t."calledAt") IS NOT NULL AND (t."completedAt" < COALESCE(t."seatedAt", t."calledAt") OR EXTRACT(EPOCH FROM (t."completedAt" - COALESCE(t."seatedAt", t."calledAt"))) > 43200))
         )::int AS excluded
       FROM "QueueToken" t
       JOIN "Queue" q ON q.id = t."queueId"
@@ -209,9 +215,9 @@ export class AnalyticsService {
         COUNT(*) FILTER (WHERE t.status = 'CANCELLED')::int AS cancelled,
         COUNT(*) FILTER (WHERE t.status = 'NO_SHOW')::int AS no_show,
         COUNT(*) FILTER (WHERE ${waitValid})::int AS wait_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."seatedAt" - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
+        COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(t."seatedAt", t."calledAt") - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
         COUNT(*) FILTER (WHERE ${serviceValid})::int AS service_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - t."seatedAt"))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds
+        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - COALESCE(t."seatedAt", t."calledAt")))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds
       FROM "QueueToken" t
       JOIN "Queue" q ON q.id = t."queueId"
       WHERE q."businessId" = ${businessId}
@@ -236,9 +242,9 @@ export class AnalyticsService {
         COUNT(*) FILTER (WHERE t.status = 'CANCELLED')::int AS cancelled,
         COUNT(*) FILTER (WHERE t.status = 'NO_SHOW')::int AS no_show,
         COUNT(*) FILTER (WHERE ${waitValid})::int AS wait_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."seatedAt" - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
+        COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(t."seatedAt", t."calledAt") - t."createdAt"))) FILTER (WHERE ${waitValid}), 0)::float AS wait_seconds,
         COUNT(*) FILTER (WHERE ${serviceValid})::int AS service_samples,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - t."seatedAt"))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds
+        COALESCE(SUM(EXTRACT(EPOCH FROM (t."completedAt" - COALESCE(t."seatedAt", t."calledAt")))) FILTER (WHERE ${serviceValid}), 0)::float AS service_seconds
       FROM "QueueToken" t
       JOIN "Queue" q ON q.id = t."queueId"
       WHERE q."businessId" = ${businessId}

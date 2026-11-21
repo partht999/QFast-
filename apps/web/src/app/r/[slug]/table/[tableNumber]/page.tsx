@@ -275,6 +275,7 @@ export default function TableOrderPage() {
           source: orderSource,
           tableName: orderSource === 'TABLE_QR' ? tableNumber : undefined,
           queueTokenId: resolvedQueueTokenId,
+          queueTokenSecret: resolvedQueueTokenId ? storageGet(`qfast_token_secret_${slug}`) || undefined : undefined,
           customerName: customerName.trim() || undefined,
           customerPhone: customerPhone.trim() ? localMobile(customerPhone) : undefined,
           specialInstructions: specialInstructions.trim() || undefined,

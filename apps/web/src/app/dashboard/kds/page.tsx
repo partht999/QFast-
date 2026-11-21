@@ -27,6 +27,7 @@ import { BrandLockup } from '@/components/brand-mark';
 import { BackLink } from '@/components/navigation-memory';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { tableLabel } from '@/lib/table-label';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function KDSPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -40,7 +41,7 @@ export default function KDSPage() {
   const [showRecallModal, setShowRecallModal] = useState(false);
   const [ticketToClear, setTicketToClear] = useState<any>(null);
   const [kitchenError, setKitchenError] = useState('');
-  const prevOrderCountRef = useRef(0);
+  const prevOrderCountRef = useRef(-1);
   const router = useRouter();
 
   const apiUrl = getApiUrl();
@@ -115,7 +116,7 @@ export default function KDSPage() {
       }
       const bizList = await bizRes.json();
       if (bizList.length > 0) {
-        const curBiz = bizList[0];
+        const curBiz = pickBusiness(bizList);
         setBusiness(curBiz);
 
         const [orderRes, recentRes] = await Promise.all([
@@ -130,7 +131,7 @@ export default function KDSPage() {
         if (orderRes.ok) {
           const activeOrders = await orderRes.json();
           // Detect new incoming order and sound chime
-          if (activeOrders.length > prevOrderCountRef.current && prevOrderCountRef.current > 0) {
+          if (activeOrders.length > prevOrderCountRef.current && prevOrderCountRef.current >= 0) {
             playChime();
           }
           prevOrderCountRef.current = activeOrders.length;

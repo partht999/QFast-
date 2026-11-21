@@ -6,12 +6,14 @@ import {
 } from '@nestjs/common';
 import { BusinessType, LoyaltyProgramType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { findCustomerByPhone, isUniqueConflict, resolveCustomer } from '../../common/customer-identity';
+import { findCustomerByPhone, resolveCustomer } from '../../common/customer-identity';
 import { normalizePhone } from '../../common/phone';
 import { CreateLoyaltyRewardDto } from './dto/create-loyalty-reward.dto';
 import { UpdateLoyaltyProgramDto } from './dto/update-loyalty-program.dto';
 import { UpdateLoyaltyRewardDto } from './dto/update-loyalty-reward.dto';
 import { AccessService } from '../access/access.service';
+import { STAFF_ROLES } from '../access/access.rules';
+import { UserRole } from '@prisma/client';
 import { loyaltyAward, loyaltySourceKey } from './award';
 
 @Injectable()
@@ -130,7 +132,7 @@ export class LoyaltyService {
   }
 
   async getProgram(businessId: string, userId: string, userRole?: string) {
-    await this.assertRestaurantAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole, STAFF_ROLES.floor);
     const program = await this.prisma.loyaltyProgram.findUnique({
       where: { businessId },
       include: { rewards: { orderBy: { createdAt: 'desc' } }, tiers: true },
@@ -194,7 +196,7 @@ export class LoyaltyService {
   }
 
   async addStamp(businessId: string, userId: string, userRole: string | undefined, phone: string, name?: string) {
-    await this.assertRestaurantAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole, STAFF_ROLES.floor);
     const program = await this.prisma.loyaltyProgram.findUnique({ where: { businessId } });
     if (!program || program.type !== LoyaltyProgramType.VISIT_STAMPS) {
       throw new BadRequestException('Save the stamp card before adding a stamp.');
@@ -210,7 +212,7 @@ export class LoyaltyService {
   }
 
   async redeemStamp(businessId: string, userId: string, userRole: string | undefined, phone: string) {
-    await this.assertRestaurantAccess(businessId, userId, userRole);
+    await this.assertRestaurantAccess(businessId, userId, userRole, STAFF_ROLES.floor);
     const program = await this.prisma.loyaltyProgram.findUnique({
       where: { businessId },
       include: { rewards: { where: { isActive: true }, orderBy: { createdAt: 'asc' }, take: 1 } },
@@ -231,20 +233,21 @@ export class LoyaltyService {
       throw new BadRequestException(`This guest has ${account?.stamps || 0} of ${goal} stamps.`);
     }
 
-    await this.prisma.$transaction([
-      this.prisma.loyaltyAccount.update({
-        where: { id: account.id },
+    await this.prisma.$transaction(async (tx) => {
+      const taken = await tx.loyaltyAccount.updateMany({
+        where: { id: account.id, stamps: { gte: goal } },
         data: { stamps: { decrement: goal } },
-      }),
-      this.prisma.loyaltyTransaction.create({
+      });
+      if (!taken.count) throw new ConflictException('This reward was just redeemed. Refresh to see the balance.');
+      await tx.loyaltyTransaction.create({
         data: {
           accountId: account.id,
           type: 'REDEEM',
           points: -goal,
           reason: program.rewards[0]?.name || 'Stamp reward',
         },
-      }),
-    ]);
+      });
+    });
     return this.balanceForPhone(businessId, phone);
   }
 
@@ -317,21 +320,20 @@ export class LoyaltyService {
       update: {},
       create: { programId: program.id, customerId: customer.id },
     });
-    try {
-      await db.loyaltyTransaction.create({
-        data: {
-          accountId: account.id,
-          orderId: input.orderId || undefined,
-          type: award.kind === 'stamps' ? 'STAMP' : 'EARN',
-          points: award.amount,
-          reason: award.kind === 'stamps' ? 'Completed visit' : 'Completed order',
-          sourceKey: loyaltySourceKey(program.type, input.visitKey, input.orderId),
-        },
-      });
-    } catch (error) {
-      if (isUniqueConflict(error)) return account;
-      throw error;
-    }
+    // skipDuplicates (ON CONFLICT DO NOTHING) instead of catching P2002: inside a Postgres
+    // transaction a failed insert aborts every later statement of that transaction.
+    const created = await db.loyaltyTransaction.createMany({
+      data: [{
+        accountId: account.id,
+        orderId: input.orderId || undefined,
+        type: award.kind === 'stamps' ? 'STAMP' : 'EARN',
+        points: award.amount,
+        reason: award.kind === 'stamps' ? 'Completed visit' : 'Completed order',
+        sourceKey: loyaltySourceKey(program.type, input.visitKey, input.orderId),
+      }],
+      skipDuplicates: true,
+    });
+    if (!created.count) return account;
     return db.loyaltyAccount.update({
       where: { id: account.id },
       data: award.kind === 'stamps'
@@ -344,14 +346,11 @@ export class LoyaltyService {
     db: Prisma.TransactionClient | PrismaService,
     input: { businessId: string; customerId: string; sourceKey: string; visit?: boolean; spend?: number },
   ) {
-    try {
-      await db.customerVisit.create({
-        data: { businessId: input.businessId, customerId: input.customerId, sourceKey: input.sourceKey },
-      });
-    } catch (error) {
-      if (isUniqueConflict(error)) return;
-      throw error;
-    }
+    const noted = await db.customerVisit.createMany({
+      data: [{ businessId: input.businessId, customerId: input.customerId, sourceKey: input.sourceKey }],
+      skipDuplicates: true,
+    });
+    if (!noted.count) return;
     await db.customerBusiness.upsert({
       where: { customerId_businessId: { customerId: input.customerId, businessId: input.businessId } },
       update: {
@@ -425,8 +424,13 @@ export class LoyaltyService {
     return { deleted: true };
   }
 
-  private async assertRestaurantAccess(businessId: string, userId: string, userRole?: string) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+  private async assertRestaurantAccess(
+    businessId: string,
+    userId: string,
+    userRole?: string,
+    roles: readonly UserRole[] = STAFF_ROLES.manager,
+  ) {
+    await this.access.requireStaff(userId, businessId, roles);
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
       select: { type: true },
@@ -436,9 +440,6 @@ export class LoyaltyService {
     }
   }
 
-  private async assertBusinessAccess(businessId: string, userId: string, _userRole?: string) {
-    await this.access.requireStaff(userId, businessId);
-  }
 }
 
 function canonicalPhone(phone?: string | null) {

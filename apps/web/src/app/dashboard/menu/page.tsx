@@ -22,6 +22,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DishImage } from '@/components/dish-image';
 import { PhotoUpload } from '@/components/photo-upload';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function MenuManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -73,7 +74,7 @@ export default function MenuManagementPage() {
       }
       const bizList = await bizRes.json();
       if (bizList.length > 0) {
-        const curBiz = bizList[0];
+        const curBiz = pickBusiness(bizList);
         setBusiness(curBiz);
 
         const menuRes = await fetch(`${apiUrl}/api/v1/menu/${curBiz.id}`, {

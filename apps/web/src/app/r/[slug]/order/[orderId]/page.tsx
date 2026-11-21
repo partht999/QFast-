@@ -142,7 +142,6 @@ export default function OrderTrackingPage() {
           rating,
           tags,
           comment: feedbackComment,
-          customerPhone: order?.customerPhone,
         }),
       });
       // Previously a rejected request still showed "Thank you", so feedback was silently lost

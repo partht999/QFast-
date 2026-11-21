@@ -8,6 +8,7 @@ import { getApiUrl } from '@/lib/api';
 import { rupees } from '@/lib/format';
 import { lineName } from '@/lib/order-line';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { pickBusiness } from '@/lib/current-business';
 
 type Group = 'SCHEDULED' | 'COOKING' | 'READY' | 'SKIPPED';
 
@@ -47,7 +48,7 @@ export default function ManagePreordersPage() {
     try {
       const bizRes = await fetch(`${apiUrl}/api/v1/business`, { headers: { Authorization: `Bearer ${token}` } });
       if (bizRes.status === 401) return router.push('/auth/login');
-      const biz = (await bizRes.json())[0];
+      const biz = pickBusiness(await bizRes.json());
       if (!biz) return;
       const res = await fetch(`${apiUrl}/api/v1/orders/preorders/${biz.id}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('Could not load pre-orders.');

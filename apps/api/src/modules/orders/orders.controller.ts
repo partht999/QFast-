@@ -11,9 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { OrderStatus } from '@prisma/client';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('orders')
@@ -36,12 +35,16 @@ export class OrdersController {
   }
 
   @Post('public')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Submit order from Table QR or Takeaway link' })
   async createPublicOrder(@Body() dto: CreateOrderDto) {
     return this.ordersService.createPublicOrder(dto);
   }
 
   @Post('public/:orderId/pay')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Guest pays the current bill at the table or counter' })
   async customerPay(
     @Param('orderId') orderId: string,
@@ -54,12 +57,16 @@ export class OrdersController {
   }
 
   @Post('public/:orderId/close')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Guest closes a table or takeaway bill after it is paid' })
   async customerClose(@Param('orderId') orderId: string) {
     return this.ordersService.customerCloseOrder(orderId);
   }
 
   @Post('public/:orderId/help')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Ask staff for a waiter or the bill' })
   async requestHelp(@Param('orderId') orderId: string, @Body('kind') kind: 'waiter' | 'bill') {
     return this.ordersService.requestStaffHelp(orderId, kind === 'bill' ? 'bill' : 'waiter');
@@ -98,6 +105,8 @@ export class OrdersController {
   }
 
   @Get('public/:orderId')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Customer live tracking for their active order' })
   async getPublicOrder(@Param('orderId') orderId: string) {
     return this.ordersService.getPublicOrder(orderId);
@@ -143,10 +152,10 @@ export class OrdersController {
   @ApiOperation({ summary: 'Update order preparation status (Kitchen / Staff)' })
   async updateStatus(
     @Param('id') id: string,
-    @Body('status') status: OrderStatus,
+    @Body() body: UpdateOrderStatusDto,
     @Req() req: any,
   ) {
-    return this.ordersService.updateOrderStatus(id, status, req.user.sub);
+    return this.ordersService.updateOrderStatus(id, body.status, req.user.sub);
   }
 
   @Get('overview/:businessId')

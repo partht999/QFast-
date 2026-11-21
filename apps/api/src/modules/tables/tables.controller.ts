@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TablesService } from './tables.service';
-import { CreateTableDto } from './dto/create-table.dto';
+import { CreateTableDto, UpdateTableDto } from './dto/create-table.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('tables')
@@ -52,7 +52,7 @@ export class TablesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update table details' })
-  async updateTable(@Param('id') id: string, @Body() dto: Partial<CreateTableDto>, @Req() req: any) {
+  async updateTable(@Param('id') id: string, @Body() dto: UpdateTableDto, @Req() req: any) {
     return this.tablesService.updateTable(id, dto, req.user.sub);
   }
 

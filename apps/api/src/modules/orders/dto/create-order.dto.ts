@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { OrderSource, PaymentMethod } from '@prisma/client';
+import { OrderSource, OrderStatus, PaymentMethod } from '@prisma/client';
 
 export class OrderItemDto {
   @ApiProperty({ example: 'item_123' })
@@ -48,6 +48,12 @@ export class OrderItemDto {
   specialNote?: string;
 }
 
+export class UpdateOrderStatusDto {
+  @ApiProperty({ enum: OrderStatus })
+  @IsEnum(OrderStatus)
+  status: OrderStatus;
+}
+
 export class CreateOrderDto {
   @ApiProperty({ example: 'olive-bistro' })
   @IsString()
@@ -62,6 +68,11 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   queueTokenId?: string;
+
+  @ApiProperty({ required: false, description: 'Guest secret of the queue entry, required with queueTokenId' })
+  @IsString()
+  @IsOptional()
+  queueTokenSecret?: string;
 
   @ApiProperty({ required: false })
   @IsString()

@@ -1,7 +1,9 @@
 import {
   IsString,
   IsNotEmpty,
-  IsNumber,
+  IsInt,
+  IsEnum,
+  MaxLength,
   Min,
   Max,
   IsOptional,
@@ -9,6 +11,13 @@ import {
   IsArray,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { FeedbackStatus } from '@prisma/client';
+
+export class UpdateFeedbackStatusDto {
+  @ApiProperty({ enum: FeedbackStatus })
+  @IsEnum(FeedbackStatus)
+  status: FeedbackStatus;
+}
 
 export class CreateFeedbackDto {
   @ApiProperty({ example: 'olive-bistro' })
@@ -17,13 +26,15 @@ export class CreateFeedbackDto {
   businessSlug: string;
 
   @ApiProperty({ example: 5 })
-  @IsNumber()
+  @IsInt()
   @Min(1)
   @Max(5)
   rating: number;
 
   @ApiProperty({ example: ['Great Food', 'Fast Service'], required: false })
   @IsArray()
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
   @IsOptional()
   tags?: string[];
 

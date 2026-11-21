@@ -4,16 +4,19 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessSettingsDto } from './dto/update-business-settings.dto';
-import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 class CreateStaffBody {
   @IsString()
   @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9._@+-]*$/, { message: 'Username can use letters, numbers, and . _ @ + -' })
   username!: string;
 
   @IsString()
   @MinLength(8)
+  @MaxLength(100)
   password!: string;
 
   @IsIn([UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER])

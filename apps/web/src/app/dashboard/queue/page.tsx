@@ -26,6 +26,7 @@ import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { tableLabel } from '@/lib/table-label';
 import { rupees, guestsLabel } from '@/lib/format';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function DashboardQueuePage() {
   const [business, setBusiness] = useState<any>(null);
@@ -95,7 +96,7 @@ export default function DashboardQueuePage() {
       }
       const bizList = await bizRes.json();
       if (bizList.length > 0) {
-        const curBiz = bizList[0];
+        const curBiz = pickBusiness(bizList);
         setBusiness(curBiz);
 
         const qParam = selectedQueueId ? `?queueId=${selectedQueueId}` : '';

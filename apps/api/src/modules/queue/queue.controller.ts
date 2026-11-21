@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { QueueService } from './queue.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
+import { CreateQueueDto, TableChoiceDto, UpdateQueueDto } from './dto/queue.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QueueEntrySource, QueueTokenStatus } from '@prisma/client';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -102,15 +103,7 @@ export class QueueController {
   @ApiOperation({ summary: 'Create a new queue (e.g. Doctor, Department, Counter)' })
   async createQueue(
     @Param('businessId') businessId: string,
-    @Body()
-    dto: {
-      name: string;
-      department?: string;
-      doctorName?: string;
-      serviceName?: string;
-      averageWaitMinutes?: number;
-      arrivalGraceMinutes?: number;
-    },
+    @Body() dto: CreateQueueDto,
     @Req() req: any,
   ) {
     return this.queueService.createQueue(businessId, dto, req.user.sub, req.user.role);
@@ -122,16 +115,7 @@ export class QueueController {
   @ApiOperation({ summary: 'Update queue configuration' })
   async updateQueue(
     @Param('queueId') queueId: string,
-    @Body()
-    dto: {
-      name?: string;
-      department?: string;
-      doctorName?: string;
-      serviceName?: string;
-      averageWaitMinutes?: number;
-      arrivalGraceMinutes?: number;
-      remoteJoinEnabled?: boolean;
-    },
+    @Body() dto: UpdateQueueDto,
     @Req() req: any,
   ) {
     return this.queueService.updateQueue(queueId, dto, req.user.sub, req.user.role);
@@ -171,7 +155,7 @@ export class QueueController {
   @ApiOperation({ summary: 'Call the guest forward' })
   async callToken(
     @Param('tokenId') tokenId: string,
-    @Body() body: { tableId?: string },
+    @Body() body: TableChoiceDto,
     @Req() req: any,
   ) {
     return this.queueService.updateTokenStatus(
@@ -205,7 +189,7 @@ export class QueueController {
   @ApiOperation({ summary: 'Seat the guest at a table' })
   async seatToken(
     @Param('tokenId') tokenId: string,
-    @Body() body: { tableId?: string },
+    @Body() body: TableChoiceDto,
     @Req() req: any,
   ) {
     return this.queueService.updateTokenStatus(

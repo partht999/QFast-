@@ -19,6 +19,7 @@ export class BusinessService {
   async create(userId: string, dto: CreateBusinessDto) {
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
+    if (!dto.timezone || !isValidTimeZone(dto.timezone)) dto.timezone = 'Asia/Kolkata';
 
     const selectedPlan = await this.prisma.plan.findUnique({ where: { tier: CURRENT_SIGNUP_PLAN_TIER } });
     if (!selectedPlan) {
@@ -221,6 +222,7 @@ export class BusinessService {
     };
 
     if (category && category !== 'ALL') {
+      if (!(Object.values(BusinessType) as string[]).includes(category)) return [];
       where.type = category as BusinessType;
     }
 
@@ -510,10 +512,7 @@ export class BusinessService {
       gstin?: string;
     },
   ) {
-    const business = await this.prisma.business.findFirst({
-      where: { id: businessId, staff: { some: { userId, isActive: true } } },
-    });
-    if (!business) throw new ForbiddenException('You do not have access to this workspace');
+    await this.assertManager(businessId, userId);
 
     const reviewFields = await reviewFieldsFromInputResolved(dto.googlePlaceId);
 
@@ -573,10 +572,13 @@ export class BusinessService {
     if (existing) {
       const alreadyHere = await this.prisma.staff.findFirst({
         where: { userId: existing.id, businessId },
-        select: { id: true },
+        select: { id: true, role: true },
       });
       if (!alreadyHere) {
         throw new ConflictException('That username already has an account. They should sign in with their own password.');
+      }
+      if (alreadyHere.role === UserRole.OWNER) {
+        throw new ForbiddenException('The owner account cannot be changed here.');
       }
       const staff = await this.prisma.staff.update({
         where: { id: alreadyHere.id },
@@ -678,4 +680,13 @@ function hourLabel(hour: number) {
   const suffix = hour < 12 ? 'am' : 'pm';
   const value = hour % 12 || 12;
   return `${value}${suffix}`;
+}
+
+function isValidTimeZone(value: string) {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
 }
