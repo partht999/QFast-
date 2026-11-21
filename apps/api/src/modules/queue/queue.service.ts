@@ -976,7 +976,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private async getAverageWaitMinutes(queueId: string): Promise<number> {
     const queue = await this.prisma.queue.findUnique({
       where: { id: queueId },
-      select: { averageWaitMinutes: true, business: { select: { timezone: true } } },
+      select: { averageWaitMinutes: true, businessId: true, business: { select: { timezone: true, type: true } } },
     });
     if (!queue) return 8;
 
@@ -990,6 +990,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         calledAt: { not: null },
       },
       select: { calledAt: true, completedAt: true },
+      orderBy: { completedAt: 'desc' },
       take: 10,
     });
 
@@ -1000,7 +1001,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           const diffMin = Math.round((t.completedAt!.getTime() - t.calledAt!.getTime()) / 60000);
           return acc + Math.max(1, Math.min(60, diffMin));
         }, 0);
-        return Math.max(2, Math.round(totalMinutes / validTokens.length));
+        const perParty = totalMinutes / validTokens.length;
+        // Restaurants turn several tables at once, so one party's visit length is not the gap
+        // between two parties being called.
+        const food = queue.business.type === BusinessType.RESTAURANT || queue.business.type === BusinessType.CAFE;
+        const lanes = food
+          ? Math.max(1, await this.prisma.table.count({ where: { businessId: queue.businessId, isActive: true } }))
+          : 1;
+        return Math.max(2, Math.round(perParty / lanes));
       }
     }
 

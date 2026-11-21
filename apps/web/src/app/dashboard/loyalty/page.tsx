@@ -92,7 +92,8 @@ export default function LoyaltyManagementPage() {
     setGuest(null);
     try {
       const response = await fetch(
-        `${apiUrl}/api/v1/loyalty/public/${business.slug}/${encodeURIComponent(phone.trim())}`,
+        `${apiUrl}/api/v1/loyalty/program/${business.id}/customer/${encodeURIComponent(phone.trim())}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` } },
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Could not find this guest');

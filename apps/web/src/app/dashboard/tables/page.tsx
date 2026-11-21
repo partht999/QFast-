@@ -128,8 +128,10 @@ export default function TablesManagementPage() {
     }
   };
 
-  const tableOrderUrl = (name: string) =>
-    `${typeof window !== 'undefined' ? window.location.origin : ''}/r/${business?.slug}/table/${encodeURIComponent(name)}`;
+  const tableOrderUrl = (table: { name: string; qrCode?: { id: string } | null }) =>
+    `${typeof window !== 'undefined' ? window.location.origin : ''}/r/${business?.slug}/table/${encodeURIComponent(table.name)}${
+      table.qrCode?.id ? `?k=${encodeURIComponent(table.qrCode.id)}` : ''
+    }`;
 
   const qrFileName = (name: string) =>
     `${business?.slug || 'restaurant'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-qr.png`;
@@ -397,7 +399,7 @@ export default function TablesManagementPage() {
                     await handleDownloadQr(entranceUrl, `${business?.slug || 'restaurant'}-entrance-qr.png`, true);
                     for (const table of tables) {
                       await new Promise((resolve) => window.setTimeout(resolve, 350));
-                      await handleDownloadQr(tableOrderUrl(table.name), qrFileName(table.name), true);
+                      await handleDownloadQr(tableOrderUrl(table), qrFileName(table.name), true);
                     }
                     toast.success('QR codes saved', 'The door code and every table code were downloaded.');
                   })();
@@ -432,11 +434,11 @@ export default function TablesManagementPage() {
                     <p className="text-xs text-gray-500">{table.capacity} seats · scan to order, pay, and review</p>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => void prepareQrAction(table.name, tableOrderUrl(table.name), 'Scan to order, pay, and review', 'table')} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-800">
+                    <button type="button" onClick={() => void prepareQrAction(table.name, tableOrderUrl(table), 'Scan to order, pay, and review', 'table')} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-800">
                       <Printer className="h-3.5 w-3.5" />
                       Print
                     </button>
-                    <button type="button" onClick={() => void handleDownloadQr(tableOrderUrl(table.name), qrFileName(table.name))} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-orange-50 px-3 text-xs font-bold text-orange-900">
+                    <button type="button" onClick={() => void handleDownloadQr(tableOrderUrl(table), qrFileName(table.name))} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-orange-50 px-3 text-xs font-bold text-orange-900">
                       <Download className="h-3.5 w-3.5" />
                       Download
                     </button>

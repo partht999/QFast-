@@ -8,6 +8,9 @@ import { CURRENT_SIGNUP_PLAN_TIER, trialEndsAt } from './subscription-policy';
 import { businessDayRange } from '../../common/time';
 import { AccessService } from '../access/access.service';
 import * as bcrypt from 'bcryptjs';
+import { tableQrUrl } from '../tables/tables.service';
+
+const MAX_BUSINESSES_PER_OWNER = 5;
 
 @Injectable()
 export class BusinessService {
@@ -17,6 +20,14 @@ export class BusinessService {
   ) {}
 
   async create(userId: string, dto: CreateBusinessDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (!user || (user.role !== UserRole.OWNER && user.role !== UserRole.SUPER_ADMIN)) {
+      throw new ForbiddenException('Staff accounts cannot create a business. Sign up with an owner account.');
+    }
+    const owned = await this.prisma.staff.count({ where: { userId, role: UserRole.OWNER } });
+    if (user.role !== UserRole.SUPER_ADMIN && owned >= MAX_BUSINESSES_PER_OWNER) {
+      throw new ForbiddenException(`One account can run up to ${MAX_BUSINESSES_PER_OWNER} businesses. Contact us for more.`);
+    }
     const existing = await this.prisma.business.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
     if (!dto.timezone || !isValidTimeZone(dto.timezone)) dto.timezone = 'Asia/Kolkata';
@@ -44,7 +55,8 @@ export class BusinessService {
             : 'Service counter';
     const queues = [{ name: queueBase, averageWaitMinutes, remoteJoinEnabled: dto.remoteJoinEnabled !== false }];
 
-    const business = await this.prisma.business.create({
+    const business = await this.prisma.$transaction(async (tx) => {
+    const created = await tx.business.create({
       data: {
         name: dto.name,
         slug: dto.slug,
@@ -117,23 +129,33 @@ export class BusinessService {
     if (foodBusiness) {
       for (let index = 1; index <= setupCount; index += 1) {
         const name = `Table ${index}`;
-        await this.prisma.table.create({
+        const table = await tx.table.create({
           data: {
-            businessId: business.id,
+            businessId: created.id,
             name,
             capacity: 4,
             qrCode: {
               create: {
-                businessId: business.id,
+                businessId: created.id,
                 type: 'TABLE',
                 slug: `${dto.slug}-table-${index}`,
                 targetUrl: `/r/${dto.slug}/table/${encodeURIComponent(name)}`,
               },
             },
           },
+          include: { qrCode: true },
+        });
+        await tx.qRCode.update({
+          where: { id: table.qrCode!.id },
+          data: { targetUrl: tableQrUrl(dto.slug, name, table.qrCode!.id) },
         });
       }
     }
+    return created;
+    }).catch((error) => {
+      if (error?.code === 'P2002') throw new ConflictException(`Slug '${dto.slug}' is already taken. Try another.`);
+      throw error;
+    });
 
     return business;
   }
@@ -322,7 +344,7 @@ export class BusinessService {
               orderBy: { sortOrder: 'asc' },
               include: {
                 items: {
-                  where: { isAvailable: true },
+                  where: { isAvailable: true, archivedAt: null },
                   orderBy: { sortOrder: 'asc' },
                   include: { variants: true, addons: true },
                 },
@@ -595,6 +617,20 @@ export class BusinessService {
       data: { userId: user.id, businessId, role: input.role },
     });
     return { id: staff.id, username: email, role: staff.role, isActive: staff.isActive };
+  }
+
+  async setStaffActive(businessId: string, userId: string, staffId: string, isActive: boolean) {
+    await this.assertManager(businessId, userId);
+    const staff = await this.prisma.staff.findFirst({ where: { id: staffId, businessId } });
+    if (!staff) throw new NotFoundException('Staff member not found');
+    if (staff.role === UserRole.OWNER) throw new ForbiddenException('The owner account cannot be turned off.');
+    if (staff.userId === userId) throw new BadRequestException('You cannot turn off your own access.');
+    const updated = await this.prisma.staff.update({ where: { id: staffId }, data: { isActive } });
+    if (!isActive) {
+      // End their sessions too. Their account may belong to other businesses, so the user stays active.
+      await this.prisma.refreshToken.updateMany({ where: { userId: staff.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    }
+    return { id: updated.id, role: updated.role, isActive: updated.isActive };
   }
 
   async storePhoto(businessId: string, userId: string, image: string) {

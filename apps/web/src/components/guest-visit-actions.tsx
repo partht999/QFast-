@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { Bell } from 'lucide-react';
 import { describePayments, type PaymentLike } from '@/lib/payment';
 import { readApiError } from '@/lib/read-api-error';
+import { withOrderKey } from '@/lib/order-key';
 
 type VisitOrder = {
   id: string;
   status: string;
   totalAmount?: number | string | null;
   payments?: PaymentLike[];
+  guestKey?: string | null;
 };
 
 export function GuestVisitActions({
@@ -42,7 +44,7 @@ export function GuestVisitActions({
     setMessage('');
     try {
       for (const order of openOrders) {
-        const response = await fetch(`${apiUrl}/api/v1/orders/public/${order.id}/help`, {
+        const response = await fetch(withOrderKey(`${apiUrl}/api/v1/orders/public/${order.id}/help`, order.id, order.guestKey), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'bill' }),
@@ -64,7 +66,7 @@ export function GuestVisitActions({
     setMessage('');
     try {
       for (const order of openOrders) {
-        const response = await fetch(`${apiUrl}/api/v1/orders/public/${order.id}/close`, { method: 'POST' });
+        const response = await fetch(withOrderKey(`${apiUrl}/api/v1/orders/public/${order.id}/close`, order.id, order.guestKey), { method: 'POST' });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(readApiError(data, 'Could not close the bill'));
       }

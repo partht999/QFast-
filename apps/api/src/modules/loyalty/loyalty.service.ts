@@ -23,6 +23,17 @@ export class LoyaltyService {
     private access: AccessService,
   ) {}
 
+  /** Public lookup: balance only. History is for staff and for guests who proved their visit. */
+  async getPublicBalance(slug: string, phone: string) {
+    const balance = await this.getCustomerBalance(slug, phone);
+    return { ...balance, transactions: [] };
+  }
+
+  async staffCustomerBalance(businessId: string, userId: string, userRole: string | undefined, phone: string) {
+    await this.assertRestaurantAccess(businessId, userId, userRole, STAFF_ROLES.floor);
+    return this.balanceForPhone(businessId, phone);
+  }
+
   async getCustomerBalance(slug: string, phone: string) {
     phone = canonicalPhone(phone);
     const business = await this.prisma.business.findUnique({
@@ -149,6 +160,12 @@ export class LoyaltyService {
   ) {
     await this.assertRestaurantAccess(businessId, userId, userRole);
     const stampsForReward = data.stampsForReward ?? 8;
+    if (data.type === LoyaltyProgramType.POINTS_PER_RUPEE && data.stampsForReward == null) {
+      const current = await this.prisma.loyaltyProgram.findUnique({ where: { businessId }, select: { pointsPerRupee: true } });
+      if (data.pointsPerRupee == null && current?.pointsPerRupee == null) {
+        throw new BadRequestException('Set how many points a guest earns per rupee.');
+      }
+    }
     const rewardName = data.rewardName?.trim() || 'Free visit';
     const useStamps = !data.type || data.type === LoyaltyProgramType.VISIT_STAMPS || data.stampsForReward != null;
 
