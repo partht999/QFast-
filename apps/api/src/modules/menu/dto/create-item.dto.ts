@@ -56,6 +56,7 @@ export class UpdateMenuItemDto {
 
   @ApiProperty({ example: 290, required: false })
   @IsNumber()
+  @Min(0)
   @IsOptional()
   price?: number;
 

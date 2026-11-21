@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { rupees, guestsLabel } from '@/lib/format';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function TablesManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -59,7 +60,7 @@ export default function TablesManagementPage() {
       }
       const bizList = await bizRes.json();
       if (bizList.length > 0) {
-        const curBiz = bizList[0];
+        const curBiz = pickBusiness(bizList);
         setBusiness(curBiz);
 
         const tablesRes = await fetch(`${apiUrl}/api/v1/tables/${curBiz.id}`, {

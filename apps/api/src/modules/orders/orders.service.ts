@@ -7,9 +7,9 @@ import { IntegrationProvider, OrderSource, OrderStatus, PaymentStatus, Prisma, Q
 import { billDueReason, counterMethod, paidTotal } from './payment-state';
 import { visitsAreOpen } from '../business/subscription-access';
 import { AccessService } from '../access/access.service';
-import { STAFF_ROLES } from '../access/access.rules';
+import { guestSecretMatches, STAFF_ROLES } from '../access/access.rules';
 import { resolveCustomer } from '../../common/customer-identity';
-import { isIndianMobile, normalizePhone, phoneLookupVariants } from '../../common/phone';
+import { isIndianMobile, normalizePhone } from '../../common/phone';
 import { businessDayRange } from '../../common/time';
 import { isUniqueConflict } from '../../common/customer-identity';
 import { orderTotals, priceCatalogLine, PricedLine, roundMoney } from './pricing';
@@ -65,7 +65,10 @@ export class OrdersService {
         where: { idempotencyKey: dto.idempotencyKey },
         include: this.orderInclude,
       });
-      if (existing) return existing;
+      if (existing) {
+        if (existing.businessId !== business.id) throw new ConflictException('Please refresh and try again.');
+        return publicOrderView(existing);
+      }
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -73,7 +76,7 @@ export class OrdersService {
     }
     const lines = await this.pricedLines(business.id, dto.items);
     if (dto.source === OrderSource.TABLE_QR || dto.tableName) {
-      return this.createTableOrder(business, dto, lines);
+      return publicOrderView(await this.createTableOrder(business, dto, lines));
     }
     let queueTokenId = dto.queueTokenId;
     let tokenNumber: number | undefined;
@@ -81,6 +84,9 @@ export class OrdersService {
     let tableId: string | undefined;
     if (queueTokenId) {
       const qToken = await this.prisma.queueToken.findUnique({ where: { id: queueTokenId } });
+      if (qToken && !guestSecretMatches(qToken.guestSecretHash, dto.queueTokenSecret)) {
+        throw new UnauthorizedException('This queue link is not valid. Open it again from the phone that joined.');
+      }
       if (qToken && qToken.queueId) {
         const queue = await this.prisma.queue.findUnique({
           where: { id: qToken.queueId },
@@ -109,24 +115,12 @@ export class OrdersService {
         orderBy: { createdAt: 'desc' },
       });
       if (open) {
-        return this.appendToOrder(open.id, lines, dto.tipAmount || 0, tokenStatus, tableId);
+        return publicOrderView(await this.appendToOrder(open.id, lines, dto.tipAmount || 0, tokenStatus, tableId));
       }
     }
 
     const orderSource = queueTokenId ? OrderSource.QUEUE_PREORDER : OrderSource.TAKEAWAY;
     const customerPhone = dto.customerPhone ? this.canonicalPhone(dto.customerPhone) : undefined;
-    if (!queueTokenId && customerPhone) {
-      const openTakeaway = await this.prisma.order.findFirst({
-        where: {
-          businessId: business.id,
-          source: OrderSource.TAKEAWAY,
-          customerPhone: { in: phoneLookupVariants(customerPhone) },
-          status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (openTakeaway) return this.appendToOrder(openTakeaway.id, lines, dto.tipAmount || 0);
-    }
     const fallbackCustomerName = queueTokenId
       ? tokenNumber
         ? `Queue #${tokenNumber}`
@@ -199,7 +193,7 @@ export class OrdersService {
           where: { idempotencyKey: dto.idempotencyKey },
           include: this.orderInclude,
         });
-        if (existing) return existing;
+        if (existing) return publicOrderView(existing);
       }
       throw error;
     }
@@ -210,7 +204,7 @@ export class OrdersService {
       this.events.emitNewOrder(business.id, order);
     }
 
-    return order;
+    return publicOrderView(order);
   }
 
   async getPublicOrder(orderId: string) {
@@ -245,7 +239,7 @@ export class OrdersService {
     const loyalty = order.customerPhone
       ? await this.loyalty.getCustomerBalance(order.business.slug, order.customerPhone)
       : null;
-    return { ...order, loyalty };
+    return { ...publicOrderView(order), loyalty };
   }
 
   async getActiveOrders(businessId: string, userId: string) {
@@ -963,6 +957,7 @@ export class OrdersService {
       data: {
         tableId: tableId || open.tableId,
         status,
+        servedAt: null,
         subtotal: new Prisma.Decimal(totals.subtotal),
         taxAmount: new Prisma.Decimal(totals.taxAmount),
         tipAmount: new Prisma.Decimal(totals.tipAmount),
@@ -1101,4 +1096,23 @@ export class OrdersService {
       recentOrders,
     };
   }
+}
+
+/** What a guest may see about an order: no phone number, customer id or queue secrets. */
+function publicOrderView<T extends Record<string, any>>(order: T): T {
+  const { customerPhone, customerId: _customerId, queueToken, ...rest } = order as any;
+  const safeToken = queueToken
+    ? (({ guestSecretHash: _hash, customerPhone: _phone, activePhoneKey: _key, ...token }) => token)(queueToken)
+    : queueToken;
+  return {
+    ...rest,
+    customerPhone: maskPhone(customerPhone),
+    ...(queueToken !== undefined ? { queueToken: safeToken } : {}),
+  } as T;
+}
+
+function maskPhone(phone?: string | null) {
+  if (!phone) return phone ?? null;
+  const digits = phone.replace(/\D/g, '');
+  return digits.length > 4 ? `******${digits.slice(-4)}` : '****';
 }

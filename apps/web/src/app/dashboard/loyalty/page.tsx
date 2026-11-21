@@ -8,6 +8,7 @@ import { isFoodBusiness } from '@/lib/business-links';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function LoyaltyManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -39,7 +40,7 @@ export default function LoyaltyManagementPage() {
         return response.json();
       })
       .then(async (businesses) => {
-        const current = Array.isArray(businesses) ? businesses[0] : null;
+        const current = pickBusiness(businesses);
         if (!current) return;
         setBusiness(current);
         if (!isFoodBusiness(current.type)) {

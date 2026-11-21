@@ -10,6 +10,7 @@ import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function ReviewsManagementPage() {
   const [business, setBusiness] = useState<any>(null);
@@ -46,7 +47,7 @@ export default function ReviewsManagementPage() {
       }
       const bizList = await bizRes.json();
       if (bizList.length > 0) {
-        const curBiz = bizList[0];
+        const curBiz = pickBusiness(bizList);
         setBusiness(curBiz);
         setGooglePlaceId(curBiz.googlePlaceId || '');
         setSavedReviewUrl(curBiz.googleReviewUrl || '');

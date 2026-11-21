@@ -32,6 +32,7 @@ import { rupees, guestsLabel } from '@/lib/format';
 import { tableLabel } from '@/lib/table-label';
 import { storageGet, storageSet } from '@/lib/safe-storage';
 import { useToast } from '@/components/ui/toast';
+import { pickBusiness } from '@/lib/current-business';
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Data
@@ -71,7 +72,7 @@ export function useLiveService(intervalMs = 5000) {
     }
     try {
       const businesses = await getJson(`${apiUrl}/api/v1/business`, token);
-      const business = Array.isArray(businesses) ? businesses[0] : null;
+      const business = pickBusiness(businesses);
       if (!business) {
         setData(EMPTY);
         return;

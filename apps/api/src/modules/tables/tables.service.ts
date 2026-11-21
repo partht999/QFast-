@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTableDto } from './dto/create-table.dto';
+import { CreateTableDto, UpdateTableDto } from './dto/create-table.dto';
 import { OrderStatus, QueueTokenStatus } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { STAFF_ROLES } from '../access/access.rules';
@@ -51,21 +52,29 @@ export class TablesService {
       where: { id: businessId },
     });
     if (!business) throw new NotFoundException('Business not found');
+    const name = dto.name.trim();
+    await this.assertNameFree(businessId, name);
+    if (dto.branchId) {
+      const branch = await this.prisma.businessBranch.findFirst({ where: { id: dto.branchId, businessId } });
+      if (!branch) throw new BadRequestException('That branch is not part of this business.');
+    }
 
-    const tableSlug = `${business.slug}-${dto.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const base = `${business.slug}-${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const taken = await this.prisma.qRCode.findUnique({ where: { slug: base }, select: { id: true } });
+    const tableSlug = taken ? `${base}-${randomBytes(3).toString('hex')}` : base;
 
     return this.prisma.table.create({
       data: {
         businessId,
         branchId: dto.branchId,
-        name: dto.name,
+        name,
         capacity: dto.capacity,
         qrCode: {
           create: {
             businessId,
             type: 'TABLE',
             slug: tableSlug,
-            targetUrl: `/r/${business.slug}/table/${encodeURIComponent(dto.name)}`,
+            targetUrl: `/r/${business.slug}/table/${encodeURIComponent(name)}`,
           },
         },
       },
@@ -73,7 +82,20 @@ export class TablesService {
     });
   }
 
-  async updateTable(id: string, dto: Partial<CreateTableDto>, userId: string) {
+  private async assertNameFree(businessId: string, name: string, exceptId?: string) {
+    const clash = await this.prisma.table.findFirst({
+      where: {
+        businessId,
+        isActive: true,
+        name: { equals: name, mode: 'insensitive' },
+        ...(exceptId ? { id: { not: exceptId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (clash) throw new ConflictException(`There is already a table called ${name}.`);
+  }
+
+  async updateTable(id: string, dto: UpdateTableDto, userId: string) {
     await this.access.requireTable(userId, id, STAFF_ROLES.floor);
     const table = await this.prisma.table.findUnique({
       where: { id },
@@ -81,6 +103,7 @@ export class TablesService {
     });
     if (!table) throw new NotFoundException('Table not found');
     const name = dto.name?.trim() || table.name;
+    if (dto.name) await this.assertNameFree(table.businessId, name, id);
     const updated = await this.prisma.table.update({
       where: { id },
       data: {
@@ -151,7 +174,6 @@ export class TablesService {
       table: { id: table.id, name: table.name, capacity: table.capacity },
       activeOrder: active
         ? {
-            id: active.id,
             status: active.status,
             totalAmount: active.totalAmount,
             items: active.items,

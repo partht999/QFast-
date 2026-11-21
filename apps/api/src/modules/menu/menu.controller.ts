@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MenuService } from './menu.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCategoryDto, UpdateCategoryDto } from './dto/create-category.dto';
 import { CreateMenuItemDto, UpdateMenuItemDto } from './dto/create-item.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -52,7 +52,7 @@ export class MenuController {
   @ApiOperation({ summary: 'Update menu category' })
   async updateCategory(
     @Param('id') id: string,
-    @Body() dto: Partial<CreateCategoryDto>,
+    @Body() dto: UpdateCategoryDto,
     @Req() req: any,
   ) {
     return this.menuService.updateCategory(id, dto, req.user.sub);

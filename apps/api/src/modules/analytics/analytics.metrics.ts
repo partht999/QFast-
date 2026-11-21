@@ -3,9 +3,9 @@
  *
  * Joined: tokens created in the period. There is no test, invalid, or duplicate flag, so every token counts.
  * Served / completed: status COMPLETED.
- * Waiting time: seatedAt − createdAt. There is no serviceStartedAt column; seating is when service starts.
+ * Waiting time: (seatedAt, or calledAt when the business never seats) − createdAt.
  *   Rows missing seatedAt, or with a negative or over-12-hour gap, are excluded.
- * Service time: completedAt − seatedAt, with the same exclusion rule.
+ * Service time: completedAt − (seatedAt or calledAt), with the same exclusion rule.
  * Cancelled: status CANCELLED. This is separate from no-shows.
  * Abandoned: not stored. Qfast has no abandoned status. SKIPPED is a staff skip, not an abandonment.
  *   Abandonment rate is therefore not available. Cancellation rate is returned separately.

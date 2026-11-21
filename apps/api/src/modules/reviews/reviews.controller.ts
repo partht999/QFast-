@@ -10,10 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
-import { CreateFeedbackDto, UpdateGoogleSettingsDto } from './dto/create-feedback.dto';
+import { CreateFeedbackDto, UpdateFeedbackStatusDto, UpdateGoogleSettingsDto } from './dto/create-feedback.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { FeedbackStatus } from '@prisma/client';
 
 @ApiTags('reviews')
 @Controller('reviews')
@@ -42,10 +41,10 @@ export class ReviewsController {
   @ApiOperation({ summary: 'Update feedback resolution status' })
   async updateStatus(
     @Param('id') id: string,
-    @Body('status') status: FeedbackStatus,
+    @Body() body: UpdateFeedbackStatusDto,
     @Req() req: any,
   ) {
-    return this.reviewsService.updateFeedbackStatus(id, status, req.user.sub);
+    return this.reviewsService.updateFeedbackStatus(id, body.status, req.user.sub);
   }
 
   @Patch(':businessId/google-settings')

@@ -32,6 +32,7 @@ import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TodayReport, TodayReportData } from '@/components/today-report';
 import { tableLabel } from '@/lib/table-label';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -87,7 +88,7 @@ export default function DashboardPage() {
       setBusinesses(bizArray);
 
       if (bizArray.length > 0) {
-        const curBiz = bizArray[0];
+        const curBiz = pickBusiness(bizArray);
         setSelectedBusiness(curBiz);
 
         const headers = { Authorization: `Bearer ${token}` };

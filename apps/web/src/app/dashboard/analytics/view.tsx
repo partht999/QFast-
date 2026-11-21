@@ -6,6 +6,7 @@ import { Download, Info, Users } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { Heatmap, OutcomeDonut, QueueCharts, SalesChart, TrafficChart } from './charts';
+import { currentBusinessId } from '@/lib/current-business';
 
 type Kpi = {
   key: string;
@@ -196,6 +197,8 @@ export default function AnalyticsView() {
     const params = new URLSearchParams({ from: range.from, to: range.to, groupBy: hourDisabled && groupBy === 'hour' ? 'day' : groupBy });
     if (branchId) params.set('branchId', branchId);
     if (serviceType) params.set('serviceType', serviceType);
+    const businessId = currentBusinessId();
+    if (businessId) params.set('businessId', businessId);
     return params.toString();
   }, [range.from, range.to, groupBy, hourDisabled, branchId, serviceType]);
 

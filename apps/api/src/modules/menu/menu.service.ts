@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCategoryDto, UpdateCategoryDto } from './dto/create-category.dto';
 import { CreateMenuItemDto, UpdateMenuItemDto } from './dto/create-item.dto';
 import { AccessService } from '../access/access.service';
 import { STAFF_ROLES } from '../access/access.rules';
@@ -99,19 +99,40 @@ export class MenuService {
     });
   }
 
-  async updateCategory(id: string, dto: Partial<CreateCategoryDto>, userId: string) {
+  async updateCategory(id: string, dto: UpdateCategoryDto, userId: string) {
     await this.access.requireMenuCategory(userId, id, STAFF_ROLES.manager);
     return this.prisma.menuCategory.update({
       where: { id },
-      data: dto,
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+      },
     });
   }
 
   async deleteCategory(id: string, userId: string) {
     await this.access.requireMenuCategory(userId, id, STAFF_ROLES.manager);
-    return this.prisma.menuCategory.delete({
-      where: { id },
-    });
+    const items = await this.prisma.menuItem.findMany({ where: { categoryId: id }, select: { id: true } });
+    for (const item of items) await this.removeItem(item.id);
+    const left = await this.prisma.menuItem.count({ where: { categoryId: id } });
+    if (left) {
+      // Dishes that are on past bills must stay for history, so the category is hidden instead.
+      return this.prisma.menuCategory.update({ where: { id }, data: { isActive: false } });
+    }
+    return this.prisma.menuCategory.delete({ where: { id } });
+  }
+
+  /** Deletes a dish, or hides it when past orders or reviews still point at it. */
+  private async removeItem(id: string) {
+    const [orders, ratings] = await Promise.all([
+      this.prisma.orderItem.count({ where: { menuItemId: id } }),
+      this.prisma.feedbackItemRating.count({ where: { menuItemId: id } }),
+    ]);
+    if (orders || ratings) {
+      return this.prisma.menuItem.update({ where: { id }, data: { isAvailable: false } });
+    }
+    return this.prisma.menuItem.delete({ where: { id } });
   }
 
   async createItem(dto: CreateMenuItemDto, userId: string) {
@@ -155,9 +176,7 @@ export class MenuService {
 
   async deleteItem(id: string, userId: string) {
     await this.access.requireMenuItem(userId, id, STAFF_ROLES.manager);
-    return this.prisma.menuItem.delete({
-      where: { id },
-    });
+    return this.removeItem(id);
   }
 }
 

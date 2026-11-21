@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { getApiUrl } from '@/lib/api';
+import { pickBusiness } from '@/lib/current-business';
 
 type PlanCard = {
   id: string;
@@ -70,7 +71,7 @@ export function PlanBoard() {
       fetch(`${apiUrl}/api/v1/business/plans`, { headers }).then((response) => response.json()),
     ])
       .then(([businesses, planList]) => {
-        const business = Array.isArray(businesses) ? businesses[0] : null;
+        const business = pickBusiness(businesses);
         const subscription = business?.subscriptions?.[0];
         if (subscription?.plan) {
           setCurrent({

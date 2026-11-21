@@ -8,6 +8,7 @@ import { googleReviewTarget } from '@/lib/google-place';
 import { readApiError } from '@/lib/read-api-error';
 import { PhotoUpload } from '@/components/photo-upload';
 import { useToast } from '@/components/ui/toast';
+import { pickBusiness } from '@/lib/current-business';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function SettingsPage() {
         return response.json();
       })
       .then(async (businesses) => {
-        const current = Array.isArray(businesses) ? businesses[0] : null;
+        const current = pickBusiness(businesses);
         if (!current) {
           setLoading(false);
           return;

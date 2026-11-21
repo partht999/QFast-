@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api';
 import { readApiError } from '@/lib/read-api-error';
 import { useToast } from '@/components/ui/toast';
+import { pickBusiness } from '@/lib/current-business';
 
 const roles = [
   { id: 'WAITER', label: 'Front desk', detail: 'Queue and tables' },
@@ -32,7 +33,7 @@ export default function StaffPage() {
     }
     const headers = { Authorization: `Bearer ${token}` };
     const businesses = await fetch(`${apiUrl}/api/v1/business`, { headers }).then((response) => response.json());
-    const current = Array.isArray(businesses) ? businesses[0] : null;
+    const current = pickBusiness(businesses);
     if (!current) return;
     setBusinessId(current.id);
     const list = await fetch(`${apiUrl}/api/v1/business/${current.id}/staff`, { headers });

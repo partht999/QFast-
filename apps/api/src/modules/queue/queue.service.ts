@@ -14,13 +14,13 @@ import { EventsGateway } from '../events/events.gateway';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { JoinQueueDto } from './dto/join-queue.dto';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
-import { BusinessType, OrderStatus, Prisma, QueueEntrySource, QueueTokenStatus } from '@prisma/client';
+import { BusinessType, OrderStatus, Prisma, QueueEntrySource, QueueTokenStatus, UserRole } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
 import { billDueReason } from '../orders/payment-state';
 import { prepLeadMinutes, shouldFire, TURN_SOON_BUFFER_MINUTES } from '../orders/preorder-timing';
 import { visitsAreOpen } from '../business/subscription-access';
 import { AccessService } from '../access/access.service';
-import { guestSecretMatches, hashGuestSecret } from '../access/access.rules';
+import { guestSecretMatches, hashGuestSecret, STAFF_ROLES } from '../access/access.rules';
 import { isUniqueConflict, resolveCustomer } from '../../common/customer-identity';
 import { normalizePhone, phoneLookupVariants } from '../../common/phone';
 import { businessDayRange, localDate, safeTimeZone } from '../../common/time';
@@ -521,17 +521,19 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     if (current.status !== QueueTokenStatus.WAITING && current.status !== QueueTokenStatus.CALLED) {
       throw new ConflictException('This place in line can no longer be cancelled.');
     }
-    const token = await this.prisma.queueToken.update({
-      where: { id: tokenId },
+    const moved = await this.prisma.queueToken.updateMany({
+      where: { id: tokenId, status: { in: [QueueTokenStatus.WAITING, QueueTokenStatus.CALLED] } },
       data: {
         status: QueueTokenStatus.CANCELLED,
         cancelledAt: new Date(),
         activePhoneKey: null,
         tableId: null,
       },
-      include: {
-        queue: true,
-      },
+    });
+    if (!moved.count) throw new ConflictException('This place in line can no longer be cancelled.');
+    const token = await this.prisma.queueToken.findUniqueOrThrow({
+      where: { id: tokenId },
+      include: { queue: true },
     });
     // Leaving the line must also drop the pre-order, otherwise it stays in the kitchen forever.
     await this.orders.cancelHeldPreordersForToken(tokenId);
@@ -624,7 +626,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     userId: string,
     userRole?: string,
   ) {
-    await this.assertBusinessAccess(businessId, userId, userRole);
+    await this.assertBusinessAccess(businessId, userId, userRole, STAFF_ROLES.manager);
     const limit = 20;
     const existing = await this.prisma.queue.count({
       where: { businessId, isArchived: false },
@@ -663,18 +665,26 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   ) {
     const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!queue) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+    await this.assertBusinessAccess(queue.businessId, userId, userRole, STAFF_ROLES.manager);
 
     return this.prisma.queue.update({
       where: { id: queueId },
-      data: dto,
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.department !== undefined ? { department: dto.department } : {}),
+        ...(dto.doctorName !== undefined ? { doctorName: dto.doctorName } : {}),
+        ...(dto.serviceName !== undefined ? { serviceName: dto.serviceName } : {}),
+        ...(dto.averageWaitMinutes !== undefined ? { averageWaitMinutes: dto.averageWaitMinutes } : {}),
+        ...(dto.arrivalGraceMinutes !== undefined ? { arrivalGraceMinutes: dto.arrivalGraceMinutes } : {}),
+        ...(dto.remoteJoinEnabled !== undefined ? { remoteJoinEnabled: dto.remoteJoinEnabled } : {}),
+      },
     });
   }
 
   async toggleQueuePaused(queueId: string, userId: string, userRole?: string) {
     const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!queue) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+    await this.assertBusinessAccess(queue.businessId, userId, userRole, STAFF_ROLES.manager);
 
     const updated = await this.prisma.queue.update({
       where: { id: queueId },
@@ -692,7 +702,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async toggleQueueArchived(queueId: string, userId: string, userRole?: string) {
     const queue = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!queue) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(queue.businessId, userId, userRole);
+    await this.assertBusinessAccess(queue.businessId, userId, userRole, STAFF_ROLES.manager);
 
     return this.prisma.queue.update({
       where: { id: queueId },
@@ -855,17 +865,17 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       data,
     );
 
+    // A cancelled party never eats, so its pre-order goes too. A skipped party can be
+    // recalled, so its pre-order stays in Manage pre-orders for staff to decide.
+    if (status === QueueTokenStatus.CANCELLED) {
+      await this.orders.cancelHeldPreordersForToken(tokenId);
+    }
     if (
       status === QueueTokenStatus.SKIPPED ||
       status === QueueTokenStatus.CANCELLED ||
       status === QueueTokenStatus.WAITING
     ) {
       await this.releasePartyTable(tokenId);
-    }
-    // A cancelled party never eats, so its pre-order goes too. A skipped party can be
-    // recalled, so its pre-order stays in Manage pre-orders for staff to decide.
-    if (status === QueueTokenStatus.CANCELLED) {
-      await this.orders.cancelHeldPreordersForToken(tokenId);
     }
 
     const linkedTableId = token.tableId;
@@ -901,7 +911,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async toggleQueueOpen(queueId: string, userId: string, userRole?: string) {
     const current = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!current) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(current.businessId, userId, userRole);
+    await this.assertBusinessAccess(current.businessId, userId, userRole, STAFF_ROLES.manager);
 
     const updated = await this.prisma.queue.update({
       where: { id: queueId },
@@ -919,7 +929,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async toggleRemoteJoin(queueId: string, userId: string, userRole?: string) {
     const current = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!current) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(current.businessId, userId, userRole);
+    await this.assertBusinessAccess(current.businessId, userId, userRole, STAFF_ROLES.manager);
     const updated = await this.prisma.queue.update({
       where: { id: queueId },
       data: { remoteJoinEnabled: !current.remoteJoinEnabled },
@@ -939,7 +949,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   ) {
     const current = await this.prisma.queue.findUnique({ where: { id: queueId } });
     if (!current) throw new NotFoundException('Queue not found');
-    await this.assertBusinessAccess(current.businessId, userId, userRole);
+    await this.assertBusinessAccess(current.businessId, userId, userRole, STAFF_ROLES.manager);
     return this.prisma.queue.update({
       where: { id: queueId },
       data: {
@@ -1026,16 +1036,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async releasePartyTable(tokenId: string) {
-    await this.prisma.order.updateMany({
-      where: { queueTokenId: tokenId },
-      data: { tableId: null },
-    });
+    // Only open orders give the table back. Closed orders keep their table for history,
+    // and food the kitchen has already started stays with the kitchen.
     await this.prisma.order.updateMany({
       where: {
         queueTokenId: tokenId,
-        status: { in: [OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING] },
+        status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED] },
       },
-      data: { status: OrderStatus.PENDING },
+      data: { tableId: null },
     });
   }
 
@@ -1139,8 +1147,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       data: { status: QueueTokenStatus.NO_SHOW, tableId: null, activePhoneKey: null },
     });
     for (const id of ids) {
-      await this.releasePartyTable(id);
       await this.orders.cancelHeldPreordersForToken(id);
+      await this.releasePartyTable(id);
     }
     return ids.length;
   }
@@ -1169,10 +1177,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         },
       });
       if (existingToken) {
-        return tx.queueToken.update({
-          where: { id: existingToken.id },
-          data: { guestSecretHash: input.guestSecretHash },
-        });
+        throw new ConflictException(
+          'This phone number already has a place in this line. Open the link on the phone that joined.',
+        );
       }
       const qRec = await tx.queue.findUnique({ where: { id: input.queueId } });
       if (!qRec) throw new NotFoundException('Queue not found');
@@ -1207,8 +1214,13 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async assertBusinessAccess(businessId: string, userId: string, _userRole?: string) {
-    await this.access.requireStaff(userId, businessId);
+  private async assertBusinessAccess(
+    businessId: string,
+    userId: string,
+    _userRole?: string,
+    roles: readonly UserRole[] = STAFF_ROLES.floor,
+  ) {
+    await this.access.requireStaff(userId, businessId, roles);
   }
 
   private async assertGuest(tokenId: string, secret?: string) {
