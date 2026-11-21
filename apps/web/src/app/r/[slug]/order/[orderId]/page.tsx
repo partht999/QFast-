@@ -24,6 +24,7 @@ import { ReviewPrompt } from '@/components/review-prompt';
 import { readApiError, readJsonSafe } from '@/lib/read-api-error';
 import { storageGet, storageSet } from '@/lib/safe-storage';
 import { tableLabel } from '@/lib/table-label';
+import { withOrderKey } from '@/lib/order-key';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -49,7 +50,7 @@ export default function OrderTrackingPage() {
 
   const fetchOrder = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}`);
+      const res = await fetch(withOrderKey(`${apiUrl}/api/v1/orders/public/${orderId}`, orderId));
       if (res.ok) {
         const data = await res.json();
         hasOrderRef.current = true;
@@ -101,7 +102,7 @@ export default function OrderTrackingPage() {
 
   const askStaff = async (kind: 'waiter' | 'bill', reason?: string) => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/orders/public/${orderId}/help`, {
+      const res = await fetch(withOrderKey(`${apiUrl}/api/v1/orders/public/${orderId}/help`, orderId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind }),

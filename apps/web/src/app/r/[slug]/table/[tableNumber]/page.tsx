@@ -29,6 +29,7 @@ import { storageGet, storageRemove, storageSet } from '@/lib/safe-storage';
 import { uuid } from '@/lib/uuid';
 import { DishImage } from '@/components/dish-image';
 import { tableLabel } from '@/lib/table-label';
+import { orderPagePath, saveOrderKey } from '@/lib/order-key';
 
 function formatRupees(value: unknown) {
   const amount = Number(value) || 0;
@@ -51,6 +52,10 @@ export default function TableOrderPage() {
   const slug = params?.slug as string;
   const tableNumber = decodeURIComponent((params?.tableNumber as string) || '');
   const tokenParam = searchParams?.get('token') || null;
+  const tableKeyParam = searchParams?.get('k') || '';
+  useEffect(() => {
+    if (tableKeyParam) storageSet(`qfast_table_key_${slug}_${tableNumber}`, tableKeyParam, 'session');
+  }, [tableKeyParam, slug, tableNumber]);
 
   const isQueueParam = tableNumber.toLowerCase() === 'queue' || Boolean(tokenParam);
   const isTakeawayParam = tableNumber.toLowerCase() === 'takeaway';
@@ -275,6 +280,10 @@ export default function TableOrderPage() {
           source: orderSource,
           tableName: orderSource === 'TABLE_QR' ? tableNumber : undefined,
           queueTokenId: resolvedQueueTokenId,
+          tableKey:
+            orderSource === 'TABLE_QR'
+              ? tableKeyParam || storageGet(`qfast_table_key_${slug}_${tableNumber}`, 'session') || undefined
+              : undefined,
           queueTokenSecret: resolvedQueueTokenId ? storageGet(`qfast_token_secret_${slug}`) || undefined : undefined,
           customerName: customerName.trim() || undefined,
           customerPhone: customerPhone.trim() ? localMobile(customerPhone) : undefined,
@@ -297,6 +306,7 @@ export default function TableOrderPage() {
       if (customerName.trim() && isIndianMobile(customerPhone)) {
         saveGuest(slug, { name: customerName, phone: localMobile(customerPhone) });
       }
+      saveOrderKey(orderData.id, orderData.guestKey);
       if (orderSource === 'TAKEAWAY' && orderData.id) {
         storageSet(`qfast_takeaway_${slug}`, orderData.id);
       }
@@ -305,7 +315,7 @@ export default function TableOrderPage() {
       const destination =
         orderSource === 'QUEUE_PREORDER' || resolvedQueueTokenId
           ? `/r/${slug}/join`
-          : `/r/${slug}/order/${orderData.id}`;
+          : orderPagePath(slug, orderData.id, orderData.guestKey);
       window.location.assign(destination);
     } catch (err: any) {
       setError(

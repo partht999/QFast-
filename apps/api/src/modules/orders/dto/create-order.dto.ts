@@ -79,6 +79,11 @@ export class CreateOrderDto {
   @IsOptional()
   tableId?: string;
 
+  @ApiProperty({ required: false, description: 'Code from the printed table QR' })
+  @IsString()
+  @IsOptional()
+  tableKey?: string;
+
   @ApiProperty({ example: 'Table 4', required: false })
   @IsString()
   @IsOptional()

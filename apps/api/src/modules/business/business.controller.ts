@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessSettingsDto } from './dto/update-business-settings.dto';
-import { IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 class CreateStaffBody {
@@ -21,6 +21,11 @@ class CreateStaffBody {
 
   @IsIn([UserRole.MANAGER, UserRole.CASHIER, UserRole.KITCHEN_STAFF, UserRole.WAITER])
   role!: UserRole;
+}
+
+class StaffActiveBody {
+  @IsBoolean()
+  isActive!: boolean;
 }
 
 class UploadPhotoBody {
@@ -129,6 +134,18 @@ export class BusinessController {
   @ApiBearerAuth()
   async createStaff(@Param('id') id: string, @Body() body: CreateStaffBody, @Req() req: any) {
     return this.businessService.createStaff(id, req.user.sub, body);
+  }
+
+  @Patch(':id/staff/:staffId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async setStaffActive(
+    @Param('id') id: string,
+    @Param('staffId') staffId: string,
+    @Body() body: StaffActiveBody,
+    @Req() req: any,
+  ) {
+    return this.businessService.setStaffActive(id, req.user.sub, staffId, body.isActive);
   }
 
   @Post(':id/integrations')

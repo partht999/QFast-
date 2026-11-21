@@ -44,6 +44,17 @@ export default function StaffPage() {
     void load().catch(() => undefined);
   }, []);
 
+  const setActive = async (staffId: string, isActive: boolean) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token || !businessId) return;
+    const response = await fetch(`${apiUrl}/api/v1/business/${businessId}/staff/${staffId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive }),
+    });
+    if (response.ok) await load();
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const token = localStorage.getItem('accessToken');
@@ -78,7 +89,20 @@ export default function StaffPage() {
         {staff.map((person) => (
           <li key={person.id} className="flex items-center justify-between px-4 py-3 text-sm">
             <span className="font-semibold">{person.user.email}</span>
-            <span className="text-neutral-500">{roles.find((item) => item.id === person.role)?.label || person.role}</span>
+            <span className="flex items-center gap-3">
+              <span className={person.isActive ? 'text-neutral-500' : 'text-neutral-400 line-through'}>
+                {roles.find((item) => item.id === person.role)?.label || person.role}
+              </span>
+              {person.role !== 'OWNER' && (
+                <button
+                  type="button"
+                  onClick={() => void setActive(person.id, !person.isActive)}
+                  className="rounded-lg border border-neutral-200 px-2 py-1 text-xs font-bold"
+                >
+                  {person.isActive ? 'Turn off' : 'Turn on'}
+                </button>
+              )}
+            </span>
           </li>
         ))}
         {staff.length === 0 && (

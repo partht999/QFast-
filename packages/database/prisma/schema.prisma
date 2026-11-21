@@ -447,6 +447,8 @@ model MenuCategory {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  archivedAt  DateTime?
+
   @@index([menuId])
 }
 
@@ -466,6 +468,8 @@ model MenuItem {
   taxRate         Decimal              @default(0) @db.Decimal(5, 2)
   sortOrder       Int                  @default(0)
   stockCount      Int?
+  /// Set when a dish that is on past orders is deleted. Hidden everywhere but kept for history.
+  archivedAt      DateTime?
   variants        MenuVariant[]
   addons          MenuAddon[]
   orderItems      OrderItem[]
@@ -645,6 +649,8 @@ model Order {
   totalAmount         Decimal         @db.Decimal(10, 2)
   specialInstructions String?
   idempotencyKey      String?         @unique
+  /// Capability key the guest's phone sends for pay, close, help and live tracking.
+  guestKey            String?
   externalOrderId     String?
   externalSource      String?
   couponRedemptions   CouponRedemption[]
